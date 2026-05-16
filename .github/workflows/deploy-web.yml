@@ -27,13 +27,13 @@ jobs:
 
       - run: flutter pub get
 
-      # Keys kommen aus GitHub-Secrets (Repo > Settings > Secrets and
-      # variables > Actions). Sie landen im JS-Bundle (clientseitig
-      # ohnehin sichtbar) – Keys daher per Domain/Referrer einschränken.
+      # base-href = exakter Repo-Name (GitHub-Pages-Pfad ist
+      # case-sensitive!). github.event.repository.name liefert die
+      # korrekte Schreibweise automatisch -> /Moto/.
       - name: Build web
         run: >
           flutter build web --release --no-tree-shake-icons
-          --base-href "/moto/"
+          --base-href "/${{ github.event.repository.name }}/"
           --dart-define=GRAPHHOPPER_API_KEY=${{ secrets.GRAPHHOPPER_API_KEY }}
           --dart-define=TOMTOM_API_KEY=${{ secrets.TOMTOM_API_KEY }}
 
