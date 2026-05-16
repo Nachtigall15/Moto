@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../../core/config.dart';
 import '../../../models/geo.dart';
+import '../../../models/poi.dart';
 import '../../../models/route_result.dart';
 
 class RouteMap extends StatefulWidget {
@@ -14,6 +15,7 @@ class RouteMap extends StatefulWidget {
     required this.destination,
     required this.cursorMeters,
     required this.speedCameras,
+    required this.pois,
   });
 
   final RouteResult? route;
@@ -21,6 +23,7 @@ class RouteMap extends StatefulWidget {
   final LatLng? destination;
   final double cursorMeters;
   final List<LatLng> speedCameras;
+  final List<Poi> pois;
 
   @override
   State<RouteMap> createState() => _RouteMapState();
@@ -58,6 +61,13 @@ class _RouteMapState extends State<RouteMap> {
         _pin(widget.destination!, Icons.flag, scheme.primary),
       for (final cam in widget.speedCameras)
         _pin(cam, Icons.camera_alt, Colors.amber, size: 22),
+      for (final poi in widget.pois)
+        _pin(
+          poi.position,
+          _poiIcon(poi.category),
+          _poiColor(poi.category),
+          size: 22,
+        ),
       if (cursor != null)
         Marker(
           point: cursor,
@@ -98,6 +108,12 @@ class _RouteMapState extends State<RouteMap> {
       ],
     );
   }
+
+  IconData _poiIcon(PoiCategory c) =>
+      c == PoiCategory.workshop ? Icons.build : Icons.two_wheeler;
+
+  Color _poiColor(PoiCategory c) =>
+      c == PoiCategory.workshop ? Colors.lightBlueAccent : Colors.tealAccent;
 
   Marker _pin(LatLng p, IconData icon, Color color, {double size = 30}) {
     return Marker(

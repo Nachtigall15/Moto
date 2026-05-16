@@ -2,9 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../models/geo.dart';
+import '../../models/poi.dart';
 import '../../models/route_options.dart';
 import '../../models/route_result.dart';
 import '../../services/geocoding_service.dart';
+import '../../services/poi_service.dart';
 import '../../services/routing_service.dart';
 import '../../services/speed_camera_service.dart';
 
@@ -13,13 +15,16 @@ class NavigationController extends ChangeNotifier {
     GeocodingService? geocoding,
     RoutingService? routing,
     SpeedCameraService? speedCameras,
+    PoiService? poi,
   })  : _geocoding = geocoding ?? GeocodingService(),
         _routing = routing ?? RoutingService(),
-        _speedCameras = speedCameras ?? SpeedCameraService();
+        _speedCameras = speedCameras ?? SpeedCameraService(),
+        _poi = poi ?? PoiService();
 
   final GeocodingService _geocoding;
   final RoutingService _routing;
   final SpeedCameraService _speedCameras;
+  final PoiService _poi;
 
   GeocodeResult? start;
   GeocodeResult? destination;
@@ -34,6 +39,9 @@ class NavigationController extends ChangeNotifier {
 
   bool showSpeedCameras = true;
   List<LatLng> speedCameras = const [];
+
+  final Set<PoiCategory> activePoiCategories = {};
+  List<Poi> pois = const [];
 
   Future<List<GeocodeResult>> searchPlaces(String query) =>
       _geocoding.search(query);
@@ -73,6 +81,19 @@ class NavigationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void togglePoiCategory(PoiCategory category, bool active) {
+    if (active) {
+      activePoiCategories.add(category);
+    } else {
+      activePoiCategories.remove(category);
+      pois = pois.where((p) => p.category != category).toList();
+    }
+    if (route != null && activePoiCategories.isNotEmpty) {
+      _loadPois();
+    }
+    notifyListeners();
+  }
+
   Future<void> computeRoute() async {
     if (start == null || destination == null) {
       error = 'Bitte Start und Ziel auswählen.';
@@ -95,6 +116,9 @@ class NavigationController extends ChangeNotifier {
       if (showSpeedCameras) {
         await _loadSpeedCameras();
       }
+      if (activePoiCategories.isNotEmpty) {
+        await _loadPois();
+      }
     } on RoutingException catch (e) {
       error = e.message;
       route = null;
@@ -115,6 +139,21 @@ class NavigationController extends ChangeNotifier {
     } catch (_) {
       // Blitzer sind optional – Fehler nicht als Routenfehler werten.
       speedCameras = const [];
+    }
+    notifyListeners();
+  }
+
+  Future<void> _loadPois() async {
+    final r = route;
+    if (r == null || activePoiCategories.isEmpty) return;
+    try {
+      pois = await _poi.poisInBounds(
+        boundsOf(r.polyline),
+        activePoiCategories,
+      );
+    } catch (_) {
+      // POIs sind optional – Fehler nicht als Routenfehler werten.
+      pois = const [];
     }
     notifyListeners();
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/poi.dart';
 import 'navigation_controller.dart';
 import 'widgets/elevation_chart.dart';
 import 'widgets/location_search_field.dart';
@@ -29,6 +30,7 @@ class NavigationScreen extends StatelessWidget {
                   destination: c.destination?.position,
                   cursorMeters: c.cursorMeters,
                   speedCameras: c.speedCameras,
+                  pois: c.pois,
                 ),
                 if (c.loading)
                   const Positioned.fill(
@@ -130,6 +132,27 @@ class _ControlsPanel extends StatelessWidget {
               ),
               value: c.showSpeedCameras,
               onChanged: (v) => c.setShowSpeedCameras(v ?? false),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4, bottom: 2),
+                child: Text(
+                  'Filter (entlang der Route)',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final cat in PoiCategory.all)
+                  FilterChip(
+                    label: Text(cat.label),
+                    selected: c.activePoiCategories.contains(cat),
+                    onSelected: (v) => c.togglePoiCategory(cat, v),
+                  ),
+              ],
             ),
             const SizedBox(height: 4),
             SizedBox(
