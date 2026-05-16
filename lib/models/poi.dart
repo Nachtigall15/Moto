@@ -31,6 +31,17 @@ class PoiCategory {
     ],
   );
 
+  /// Nur intern für den Pausen-Vorschlag (nicht im Filter-UI).
+  static const restStop = PoiCategory(
+    id: 'rest_stop',
+    label: 'Rastmöglichkeit',
+    overpassSelectors: [
+      '["highway"="services"]',
+      '["highway"="rest_area"]',
+      '["amenity"="fuel"]',
+    ],
+  );
+
   static const all = <PoiCategory>[motorcycleShop, workshop];
 
   @override

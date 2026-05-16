@@ -18,7 +18,7 @@ class RoutePoint {
 }
 
 /// Haversine-Distanz in Metern.
-double distanceMeters(LatLng a, LatLng b) {
+double haversineMeters(LatLng a, LatLng b) {
   const earthRadius = 6371000.0;
   final dLat = _deg2rad(b.latitude - a.latitude);
   final dLng = _deg2rad(b.longitude - a.longitude);

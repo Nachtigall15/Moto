@@ -33,6 +33,7 @@ class RoutingService {
     required LatLng start,
     required LatLng destination,
     required RouteOptions options,
+    List<LatLng> via = const [],
   }) async {
     if (!AppConfig.hasRoutingKey) {
       throw RoutingException(
@@ -48,6 +49,7 @@ class RoutingService {
       // GraphHopper erwartet im POST-Body [lng, lat].
       'points': [
         [start.longitude, start.latitude],
+        for (final v in via) [v.longitude, v.latitude],
         [destination.longitude, destination.latitude],
       ],
       'profile': 'car',
@@ -91,7 +93,7 @@ class RoutingService {
       final pos = LatLng((c[1] as num).toDouble(), (c[0] as num).toDouble());
       final ele = c.length > 2 ? (c[2] as num).toDouble() : 0.0;
       if (previous != null) {
-        cumulative += distanceMeters(previous, pos);
+        cumulative += haversineMeters(previous, pos);
       }
       points.add(RoutePoint(
         position: pos,

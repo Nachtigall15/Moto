@@ -38,6 +38,21 @@ class RouteResult {
     return best;
   }
 
+  /// Routenpunkt, der einer Position am nächsten liegt (für Pausen-/
+  /// Wegpunkt-Einfügung).
+  RoutePoint nearestTo(LatLng target) {
+    var best = points.first;
+    var bestDist = double.infinity;
+    for (final p in points) {
+      final d = haversineMeters(p.position, target);
+      if (d < bestDist) {
+        bestDist = d;
+        best = p;
+      }
+    }
+    return best;
+  }
+
   static double _ascent(List<RoutePoint> pts) {
     var sum = 0.0;
     for (var i = 1; i < pts.length; i++) {

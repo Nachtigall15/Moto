@@ -36,6 +36,10 @@ class AppConfig {
   static const String overpassUrl =
       'https://overpass-api.de/api/interpreter';
 
+  // Open-Meteo – keyless Wetter-Forecast (mehrere Koordinaten/Request).
+  static const String openMeteoUrl =
+      'https://api.open-meteo.com/v1/forecast';
+
   // OSM-Kartenkacheln.
   static const String osmTileUrl =
       'https://tile.openstreetmap.org/{z}/{x}/{y}.png';

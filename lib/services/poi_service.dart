@@ -64,4 +64,54 @@ class PoiService {
     }
     return pois;
   }
+
+  /// Nächste Rastmöglichkeit (Autohof/Rastplatz/Tankstelle) im Umkreis
+  /// von [around]. Für den Pausen-Vorschlag bei Regen.
+  Future<Poi?> nearestRestStop(
+    LatLng around, {
+    double radiusMeters = 6000,
+  }) async {
+    final r = radiusMeters.round();
+    final union = PoiCategory.restStop.overpassSelectors
+        .map((sel) =>
+            'nwr$sel(around:$r,${around.latitude},${around.longitude});')
+        .join();
+    final query = '[out:json][timeout:25];($union);out center 60;';
+
+    final res = await _client.post(
+      Uri.parse(AppConfig.overpassUrl),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': AppConfig.userAgent,
+      },
+      body: {'data': query},
+    );
+    if (res.statusCode != 200) {
+      throw Exception('Rastplatz-Abfrage fehlgeschlagen (${res.statusCode})');
+    }
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final elements = data['elements'] as List<dynamic>? ?? const [];
+    Poi? best;
+    var bestDist = double.infinity;
+    for (final raw in elements) {
+      final m = raw as Map<String, dynamic>;
+      final center = m['center'] as Map<String, dynamic>?;
+      final lat = m['lat'] ?? center?['lat'];
+      final lon = m['lon'] ?? center?['lon'];
+      if (lat == null || lon == null) continue;
+      final pos = LatLng((lat as num).toDouble(), (lon as num).toDouble());
+      final d = haversineMeters(around, pos);
+      if (d < bestDist) {
+        bestDist = d;
+        final tags = m['tags'] as Map<String, dynamic>?;
+        best = Poi(
+          position: pos,
+          category: PoiCategory.restStop,
+          name: tags?['name'] as String?,
+        );
+      }
+    }
+    return best;
+  }
 }

@@ -18,6 +18,7 @@ class RouteMap extends StatefulWidget {
     required this.speedCameras,
     required this.pois,
     required this.traffic,
+    required this.pauseStop,
   });
 
   final RouteResult? route;
@@ -27,6 +28,7 @@ class RouteMap extends StatefulWidget {
   final List<LatLng> speedCameras;
   final List<Poi> pois;
   final List<TrafficIncident> traffic;
+  final LatLng? pauseStop;
 
   @override
   State<RouteMap> createState() => _RouteMapState();
@@ -62,6 +64,8 @@ class _RouteMapState extends State<RouteMap> {
         _pin(widget.start!, Icons.trip_origin, Colors.greenAccent),
       if (widget.destination != null)
         _pin(widget.destination!, Icons.flag, scheme.primary),
+      if (widget.pauseStop != null)
+        _pin(widget.pauseStop!, Icons.local_cafe, Colors.brown.shade300),
       for (final cam in widget.speedCameras)
         _pin(cam, Icons.camera_alt, Colors.amber, size: 22),
       for (final poi in widget.pois)

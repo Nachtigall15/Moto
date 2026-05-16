@@ -33,6 +33,7 @@ class NavigationScreen extends StatelessWidget {
                   speedCameras: c.speedCameras,
                   pois: c.pois,
                   traffic: c.trafficIncidents,
+                  pauseStop: c.pauseStop?.position,
                 ),
                 if (c.loading)
                   const Positioned.fill(
