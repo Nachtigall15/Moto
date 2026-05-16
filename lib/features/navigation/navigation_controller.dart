@@ -35,9 +35,6 @@ class NavigationController extends ChangeNotifier {
   bool showSpeedCameras = true;
   List<LatLng> speedCameras = const [];
 
-  RoutePoint? get cursorPoint =>
-      route == null ? null : route!.pointAtDistance(cursorMeters);
-
   Future<List<GeocodeResult>> searchPlaces(String query) =>
       _geocoding.search(query);
 

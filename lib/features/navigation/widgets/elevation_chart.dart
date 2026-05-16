@@ -61,18 +61,18 @@ class ElevationChart extends StatelessWidget {
                 maxY: route.maxElevation + 10,
                 gridData: const FlGridData(show: true, drawVerticalLine: false),
                 borderData: FlBorderData(show: false),
-                titlesData: FlTitlesData(
+                titlesData: const FlTitlesData(
                   topTitles:
-                      const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles:
-                      const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  leftTitles: const AxisTitles(
+                      AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  leftTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 38,
                     ),
                   ),
-                  bottomTitles: const AxisTitles(
+                  bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
                       reservedSize: 22,
@@ -88,7 +88,7 @@ class ElevationChart extends StatelessWidget {
                     dotData: const FlDotData(show: false),
                     belowBarData: BarAreaData(
                       show: true,
-                      color: scheme.primary.withOpacity(0.18),
+                      color: scheme.primary.withValues(alpha: 0.18),
                     ),
                   ),
                 ],

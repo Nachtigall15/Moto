@@ -10,7 +10,7 @@ ThemeData buildAppTheme() {
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
     sliderTheme: const SliderThemeData(
-      showValueIndicator: ShowValueIndicator.always,
+      showValueIndicator: ShowValueIndicator.onDrag,
     ),
     inputDecorationTheme: const InputDecorationTheme(
       isDense: true,

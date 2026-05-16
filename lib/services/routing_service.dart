@@ -110,12 +110,12 @@ class RoutingService {
 
   /// Mappt den Kurvigkeits-Regler (0..1) auf Straßenklassen-Gewichte.
   Map<String, dynamic> _curvinessModel(RouteOptions o) {
-    final c = o.curviness.clamp(0.0, 1.0);
+    final c = o.curviness.clamp(0.0, 1.0).toDouble();
 
     // Bei c=0 keine Abwertung (=schnellste Strecke), bei c=1 starke
     // Abwertung großer Straßen → kleine, kurvige Straßen gewinnen.
     double penalty(double maxPenalty) =>
-        (1.0 - c * maxPenalty).clamp(0.05, 1.0);
+        (1.0 - c * maxPenalty).clamp(0.05, 1.0).toDouble();
 
     final priority = <Map<String, dynamic>>[
       {'if': 'road_class == MOTORWAY', 'multiply_by': penalty(0.95)},

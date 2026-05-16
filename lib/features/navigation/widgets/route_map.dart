@@ -75,8 +75,8 @@ class _RouteMapState extends State<RouteMap> {
 
     return FlutterMap(
       mapController: _map,
-      options: MapOptions(
-        initialCenter: const LatLng(48.137, 11.575),
+      options: const MapOptions(
+        initialCenter: LatLng(48.137, 11.575),
         initialZoom: 7.0,
       ),
       children: [
