@@ -1,11 +1,11 @@
 {
-    "name": "moto",
-    "short_name": "moto",
+    "name": "Moto",
+    "short_name": "Moto",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#141218",
+    "theme_color": "#E65100",
+    "description": "Motorrad-Tourenplaner: kurvige Routen, Wetter & Verkehr auf der Strecke.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
