@@ -15,19 +15,23 @@ class RoutingException implements Exception {
   String toString() => message;
 }
 
-/// Routing über die GraphHopper Directions API.
+/// Routing über BRouter (keyless).
 ///
-/// Kurvigkeit: Die Standard-Cloud-Profile (car/bike/...) liefern keinen
-/// `curvature`-Wert. Wir nähern „kurvig & fahrspaßig" daher über die
-/// Straßenklasse an – große Straßen (Autobahn/Bundesstraße) werden mit
-/// steigendem Regler zunehmend abgewertet, kleine Land-/Nebenstraßen
-/// (meist kurviger) dadurch bevorzugt. Wer in seinem GraphHopper-Konto
-/// ein echtes `motorcycle`-Profil mit `curvature` hat, kann das Custom
-/// Model unten 1:1 darauf umstellen.
+/// Kurvigkeit & „Autobahn meiden" werden in ein BRouter-Profil
+/// übersetzt: große/gerade Straßen (Motorway/Trunk/Primary/Secondary)
+/// werden mit steigendem Regler zunehmend teurer, kleine Land-/Neben-
+/// straßen (meist kurviger) dadurch bevorzugt. Das generierte Profil
+/// wird einmalig auf den BRouter-Server hochgeladen und die Profil-ID
+/// pro Profiltext gecacht. Schlägt am Custom-Profil irgendetwas fehl,
+/// wird transparent auf das eingebaute Server-Profil `car-fast`
+/// zurückgefallen, damit immer eine Route herauskommt.
 class RoutingService {
   RoutingService({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;
+
+  /// Profiltext -> hochgeladene BRouter-Profil-ID (pro Session gecacht).
+  final Map<String, String> _profileIds = {};
 
   Future<RouteResult> route({
     required LatLng start,
@@ -35,67 +39,116 @@ class RoutingService {
     required RouteOptions options,
     List<LatLng> via = const [],
   }) async {
-    if (!AppConfig.hasRoutingKey) {
-      throw RoutingException(
-        'Kein GraphHopper-API-Key gesetzt. App starten mit:\n'
-        'flutter run --dart-define=GRAPHHOPPER_API_KEY=dein_key',
-      );
-    }
+    final waypoints = <LatLng>[start, ...via, destination];
+    final lonlats =
+        waypoints.map((p) => '${p.longitude},${p.latitude}').join('|');
 
-    final uri = Uri.parse(AppConfig.graphHopperRouteUrl)
-        .replace(queryParameters: {'key': AppConfig.graphHopperApiKey});
+    final profileText = _buildProfile(options);
 
-    // Basis-Request (Speed-Modus, im kostenlosen Tarif erlaubt).
-    final base = <String, dynamic>{
-      // GraphHopper erwartet im POST-Body [lng, lat].
-      'points': [
-        [start.longitude, start.latitude],
-        for (final v in via) [v.longitude, v.latitude],
-        [destination.longitude, destination.latitude],
-      ],
-      'profile': 'car',
-      'elevation': true,
-      'points_encoded': false,
-      'instructions': false,
-      'locale': 'de',
-    };
-
-    // Kurvigkeit/„Autobahn meiden" brauchen den flexible mode
-    // (ch.disable + custom_model). Den sperrt der GraphHopper-Free-
-    // Tarif → bei dieser Ablehnung transparent auf Speed-Modus
-    // zurückfallen, statt die Routenberechnung ganz zu verweigern.
-    final wantsFlexible = options.avoidMotorways || options.curviness > 0;
+    Map<String, dynamic> geojson;
     String? notice;
-    http.Response res;
-
-    if (wantsFlexible) {
-      res = await _post(uri, {
-        ...base,
-        'ch.disable': true,
-        'custom_model': _curvinessModel(options),
-      });
-      if (res.statusCode == 400 && _flexibleBlocked(res)) {
-        res = await _post(uri, base);
-        notice = 'Kurvigkeit & „Autobahn meiden" sind im kostenlosen '
-            'GraphHopper-Tarif gesperrt – Route im Schnellmodus berechnet.';
-      }
-    } else {
-      res = await _post(uri, base);
+    try {
+      final id = await _profileId(profileText);
+      geojson = await _fetchRoute(lonlats, id);
+    } on RoutingException {
+      // Fallback: eingebautes Server-Profil – immer gültig, nur weniger
+      // kurvig. Fehler hier propagieren als echter Routing-Fehler.
+      geojson = await _fetchRoute(lonlats, 'car-fast');
+      notice = 'Kurven-Spezialprofil derzeit nicht verfügbar – Route mit '
+          'Standard-Autoprofil berechnet (weniger kurvig).';
     }
 
+    return _parse(geojson, notice);
+  }
+
+  /// Lädt das Profil (falls noch nicht geschehen) hoch und liefert die
+  /// vom BRouter-Server vergebene Profil-ID.
+  Future<String> _profileId(String profileText) async {
+    final cached = _profileIds[profileText];
+    if (cached != null) return cached;
+
+    final res = await _client.post(
+      Uri.parse(AppConfig.brouterUploadUrl),
+      headers: {
+        'Content-Type': 'text/plain',
+        'User-Agent': AppConfig.userAgent,
+      },
+      body: profileText,
+    );
+    if (res.statusCode != 200) {
+      throw RoutingException('Profil-Upload fehlgeschlagen (${res.statusCode}).');
+    }
+
+    Map<String, dynamic>? body;
+    try {
+      body = jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (_) {
+      body = null;
+    }
+
+    String? id;
+    if (body != null) {
+      final err = body['error'];
+      if (err is String && err.isNotEmpty) {
+        throw RoutingException('Profil-Fehler: $err');
+      }
+      final pid = body['profileid'];
+      if (pid is String && pid.isNotEmpty) id = pid;
+    } else {
+      // Manche Server-Versionen liefern die ID als reinen Text.
+      final t = res.body.trim();
+      if (t.startsWith('custom_')) id = t;
+    }
+    if (id == null) {
+      throw RoutingException('Keine Profil-ID vom Server erhalten.');
+    }
+
+    _profileIds[profileText] = id;
+    return id;
+  }
+
+  Future<Map<String, dynamic>> _fetchRoute(
+      String lonlats, String profile) async {
+    final uri = Uri.parse(AppConfig.brouterRouteUrl).replace(queryParameters: {
+      'lonlats': lonlats,
+      'profile': profile,
+      'alternativeidx': '0',
+      'format': 'geojson',
+    });
+
+    final res = await _client.get(
+      uri,
+      headers: {'User-Agent': AppConfig.userAgent},
+    );
     if (res.statusCode != 200) {
       throw RoutingException(_errorMessage(res));
     }
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    final paths = data['paths'] as List<dynamic>?;
-    if (paths == null || paths.isEmpty) {
+    try {
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+      if (data['type'] == 'FeatureCollection') return data;
+    } catch (_) {
+      // Body ist kein GeoJSON -> BRouter-Klartext-Fehler unten.
+    }
+    final msg = res.body.trim();
+    throw RoutingException(
+      'Routing-Fehler: ${msg.isEmpty ? 'keine Route gefunden' : msg}',
+    );
+  }
+
+  RouteResult _parse(Map<String, dynamic> geojson, String? notice) {
+    final features = geojson['features'] as List<dynamic>?;
+    if (features == null || features.isEmpty) {
       throw RoutingException('Keine Route gefunden.');
     }
-
-    final path = paths.first as Map<String, dynamic>;
-    final coords =
-        (path['points'] as Map<String, dynamic>)['coordinates'] as List<dynamic>;
+    final feature = features.first as Map<String, dynamic>;
+    final geometry = feature['geometry'] as Map<String, dynamic>;
+    final coords = geometry['coordinates'] as List<dynamic>;
+    if (coords.isEmpty) {
+      throw RoutingException('Keine Route gefunden.');
+    }
+    final props =
+        (feature['properties'] as Map<String, dynamic>?) ?? const {};
 
     final points = <RoutePoint>[];
     var cumulative = 0.0;
@@ -115,73 +168,69 @@ class RoutingService {
       previous = pos;
     }
 
+    // BRouter liefert Werte als Strings; bei Fehlen aus der Geometrie
+    // abgeleitete Distanz nutzen.
+    final distance =
+        double.tryParse('${props['track-length']}') ?? cumulative;
+    final timeSec = double.tryParse('${props['total-time']}') ?? 0.0;
+
     return RouteResult(
       points: points,
-      distanceMeters: (path['distance'] as num).toDouble(),
-      durationMillis: (path['time'] as num).toInt(),
+      distanceMeters: distance,
+      durationMillis: (timeSec * 1000).round(),
       notice: notice,
     );
   }
 
-  Future<http.Response> _post(Uri uri, Map<String, dynamic> body) {
-    return _client.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': AppConfig.userAgent,
-      },
-      body: jsonEncode(body),
-    );
-  }
-
-  /// GraphHopper lehnt flexible mode im Free-Tarif mit 400 +
-  /// „Free packages cannot use flexible mode" ab.
-  bool _flexibleBlocked(http.Response res) {
-    try {
-      final msg = (jsonDecode(res.body) as Map<String, dynamic>)['message'];
-      return msg is String && msg.toLowerCase().contains('flexible');
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Mappt den Kurvigkeits-Regler (0..1) auf Straßenklassen-Gewichte.
-  Map<String, dynamic> _curvinessModel(RouteOptions o) {
+  /// Übersetzt Regler/Schalter in ein eigenständiges BRouter-Auto-
+  /// profil. Kleine Straßen bleiben bei Kostenfaktor 1, große werden
+  /// mit steigender Kurvigkeit teurer → der Router weicht auf kurvige
+  /// Nebenstrecken aus. Defensiv: nicht eindeutig „Auto" => Faktor 1,
+  /// damit nie alle Wege blockiert werden.
+  String _buildProfile(RouteOptions o) {
     final c = o.curviness.clamp(0.0, 1.0).toDouble();
+    String f(double base) => (1.0 + base * c).toStringAsFixed(2);
 
-    // Bei c=0 keine Abwertung (=schnellste Strecke), bei c=1 starke
-    // Abwertung großer Straßen → kleine, kurvige Straßen gewinnen.
-    double penalty(double maxPenalty) =>
-        (1.0 - c * maxPenalty).clamp(0.05, 1.0).toDouble();
+    final motorway = f(9.0); // 1 → 10
+    final trunk = f(5.0); // 1 → 6
+    final primary = f(3.0); // 1 → 4
+    final secondary = f(1.5); // 1 → 2.5
 
-    final priority = <Map<String, dynamic>>[
-      {'if': 'road_class == MOTORWAY', 'multiply_by': penalty(0.95)},
-      {'if': 'road_class == TRUNK', 'multiply_by': penalty(0.8)},
-      {'if': 'road_class == PRIMARY', 'multiply_by': penalty(0.45)},
-    ];
+    // Hartes Meiden der Autobahn nur, wenn gewünscht.
+    final blockMw = o.avoidMotorways
+        ? 'or highway=motorway highway=motorway_link'
+        : '0';
 
-    if (o.avoidMotorways) {
-      priority.insert(
-        0,
-        {'if': 'road_class == MOTORWAY', 'multiply_by': 0.0},
-      );
-    }
+    return '''
+---context:global
+assign validForCars   true
+assign validForBikes  false
+assign validForFoot   false
+assign turnInstructionMode 0
 
-    return {'priority': priority};
+---context:way
+assign turncost   0
+assign initialcost 0
+assign costfactor
+  switch route=ferry  50
+  switch highway=  9999
+  switch or highway=footway or highway=path or highway=cycleway or highway=bridleway or highway=steps or highway=pedestrian or highway=track  9999
+  switch $blockMw  9999
+  switch or highway=motorway highway=motorway_link  $motorway
+  switch or highway=trunk highway=trunk_link  $trunk
+  switch or highway=primary highway=primary_link  $primary
+  switch or highway=secondary highway=secondary_link  $secondary
+  1.0
+
+---context:node
+assign initialcost 0
+''';
   }
 
   String _errorMessage(http.Response res) {
-    try {
-      final body = jsonDecode(res.body) as Map<String, dynamic>;
-      final msg = body['message'];
-      if (msg is String && msg.isNotEmpty) {
-        return 'Routing-Fehler (${res.statusCode}): $msg';
-      }
-    } catch (_) {
-      // Body nicht parsebar – generische Meldung unten.
-    }
-    if (res.statusCode == 401) {
-      return 'Routing-Fehler: API-Key ungültig (401).';
+    final body = res.body.trim();
+    if (body.isNotEmpty && body.length < 300) {
+      return 'Routing-Fehler (${res.statusCode}): $body';
     }
     return 'Routing-Fehler (${res.statusCode}).';
   }
