@@ -6,6 +6,7 @@ import '../../../core/config.dart';
 import '../../../models/geo.dart';
 import '../../../models/poi.dart';
 import '../../../models/route_result.dart';
+import '../../../models/traffic.dart';
 
 class RouteMap extends StatefulWidget {
   const RouteMap({
@@ -16,6 +17,7 @@ class RouteMap extends StatefulWidget {
     required this.cursorMeters,
     required this.speedCameras,
     required this.pois,
+    required this.traffic,
   });
 
   final RouteResult? route;
@@ -24,6 +26,7 @@ class RouteMap extends StatefulWidget {
   final double cursorMeters;
   final List<LatLng> speedCameras;
   final List<Poi> pois;
+  final List<TrafficIncident> traffic;
 
   @override
   State<RouteMap> createState() => _RouteMapState();
@@ -67,6 +70,22 @@ class _RouteMapState extends State<RouteMap> {
           _poiIcon(poi.category),
           _poiColor(poi.category),
           size: 22,
+        ),
+      for (final inc in widget.traffic)
+        Marker(
+          point: inc.position,
+          width: 30,
+          height: 30,
+          child: Tooltip(
+            message: inc.delaySeconds > 0
+                ? '${inc.description} (+${(inc.delaySeconds / 60).round()} min)'
+                : inc.description,
+            child: Icon(
+              _trafficIcon(inc.kind),
+              color: _trafficColor(inc.kind),
+              size: 24,
+            ),
+          ),
         ),
       if (cursor != null)
         Marker(
@@ -114,6 +133,39 @@ class _RouteMapState extends State<RouteMap> {
 
   Color _poiColor(PoiCategory c) =>
       c == PoiCategory.workshop ? Colors.lightBlueAccent : Colors.tealAccent;
+
+  IconData _trafficIcon(TrafficKind k) {
+    switch (k) {
+      case TrafficKind.accident:
+        return Icons.car_crash;
+      case TrafficKind.jam:
+        return Icons.traffic;
+      case TrafficKind.roadworks:
+        return Icons.construction;
+      case TrafficKind.closure:
+        return Icons.block;
+      case TrafficKind.hazard:
+        return Icons.warning;
+      case TrafficKind.other:
+        return Icons.info;
+    }
+  }
+
+  Color _trafficColor(TrafficKind k) {
+    switch (k) {
+      case TrafficKind.accident:
+      case TrafficKind.closure:
+        return Colors.redAccent;
+      case TrafficKind.jam:
+        return Colors.orangeAccent;
+      case TrafficKind.roadworks:
+        return Colors.amber;
+      case TrafficKind.hazard:
+        return Colors.deepOrangeAccent;
+      case TrafficKind.other:
+        return Colors.white70;
+    }
+  }
 
   Marker _pin(LatLng p, IconData icon, Color color, {double size = 30}) {
     return Marker(

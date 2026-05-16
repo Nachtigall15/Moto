@@ -5,10 +5,12 @@ import '../../models/geo.dart';
 import '../../models/poi.dart';
 import '../../models/route_options.dart';
 import '../../models/route_result.dart';
+import '../../models/traffic.dart';
 import '../../services/geocoding_service.dart';
 import '../../services/poi_service.dart';
 import '../../services/routing_service.dart';
 import '../../services/speed_camera_service.dart';
+import '../../services/traffic_service.dart';
 
 class NavigationController extends ChangeNotifier {
   NavigationController({
@@ -16,15 +18,18 @@ class NavigationController extends ChangeNotifier {
     RoutingService? routing,
     SpeedCameraService? speedCameras,
     PoiService? poi,
+    TrafficService? traffic,
   })  : _geocoding = geocoding ?? GeocodingService(),
         _routing = routing ?? RoutingService(),
         _speedCameras = speedCameras ?? SpeedCameraService(),
-        _poi = poi ?? PoiService();
+        _poi = poi ?? PoiService(),
+        _traffic = traffic ?? TrafficService();
 
   final GeocodingService _geocoding;
   final RoutingService _routing;
   final SpeedCameraService _speedCameras;
   final PoiService _poi;
+  final TrafficService _traffic;
 
   GeocodeResult? start;
   GeocodeResult? destination;
@@ -42,6 +47,9 @@ class NavigationController extends ChangeNotifier {
 
   final Set<PoiCategory> activePoiCategories = {};
   List<Poi> pois = const [];
+
+  bool showTraffic = true;
+  List<TrafficIncident> trafficIncidents = const [];
 
   Future<List<GeocodeResult>> searchPlaces(String query) =>
       _geocoding.search(query);
@@ -72,6 +80,16 @@ class NavigationController extends ChangeNotifier {
       speedCameras = const [];
     } else if (route != null) {
       _loadSpeedCameras();
+    }
+    notifyListeners();
+  }
+
+  void setShowTraffic(bool value) {
+    showTraffic = value;
+    if (!value) {
+      trafficIncidents = const [];
+    } else if (route != null) {
+      _loadTraffic();
     }
     notifyListeners();
   }
@@ -119,6 +137,9 @@ class NavigationController extends ChangeNotifier {
       if (activePoiCategories.isNotEmpty) {
         await _loadPois();
       }
+      if (showTraffic) {
+        await _loadTraffic();
+      }
     } on RoutingException catch (e) {
       error = e.message;
       route = null;
@@ -154,6 +175,19 @@ class NavigationController extends ChangeNotifier {
     } catch (_) {
       // POIs sind optional – Fehler nicht als Routenfehler werten.
       pois = const [];
+    }
+    notifyListeners();
+  }
+
+  Future<void> _loadTraffic() async {
+    final r = route;
+    if (r == null) return;
+    try {
+      trafficIncidents =
+          await _traffic.incidentsInBounds(boundsOf(r.polyline));
+    } catch (_) {
+      // Verkehr ist optional – Fehler nicht als Routenfehler werten.
+      trafficIncidents = const [];
     }
     notifyListeners();
   }

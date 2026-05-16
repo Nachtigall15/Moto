@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/config.dart';
 import '../../models/poi.dart';
 import 'navigation_controller.dart';
 import 'widgets/elevation_chart.dart';
@@ -31,6 +32,7 @@ class NavigationScreen extends StatelessWidget {
                   cursorMeters: c.cursorMeters,
                   speedCameras: c.speedCameras,
                   pois: c.pois,
+                  traffic: c.trafficIncidents,
                 ),
                 if (c.loading)
                   const Positioned.fill(
@@ -132,6 +134,23 @@ class _ControlsPanel extends StatelessWidget {
               ),
               value: c.showSpeedCameras,
               onChanged: (v) => c.setShowSpeedCameras(v ?? false),
+            ),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text('Verkehr & Unfälle anzeigen'),
+              subtitle: Text(
+                AppConfig.hasTrafficKey
+                    ? 'Staus, Unfälle, Baustellen & Sperrungen (TomTom).'
+                    : 'Inaktiv – TomTom-Key fehlt '
+                        '(--dart-define=TOMTOM_API_KEY=...).',
+                style: const TextStyle(fontSize: 11),
+              ),
+              value: c.showTraffic && AppConfig.hasTrafficKey,
+              onChanged: AppConfig.hasTrafficKey
+                  ? (v) => c.setShowTraffic(v ?? false)
+                  : null,
             ),
             Align(
               alignment: Alignment.centerLeft,

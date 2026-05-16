@@ -1,9 +1,11 @@
 /// Zentrale Konfiguration / Endpunkte.
 ///
-/// Den GraphHopper-Key beim Start mitgeben:
-///   flutter run --dart-define=GRAPHHOPPER_API_KEY=dein_key
-/// Ohne Key funktionieren Karte + Adresssuche; nur die Routenberechnung
-/// meldet dann einen klaren Hinweis statt einer Route.
+/// Keys beim Start mitgeben (NICHT im Code hinterlegen/committen):
+///   flutter run \
+///     --dart-define=GRAPHHOPPER_API_KEY=dein_key \
+///     --dart-define=TOMTOM_API_KEY=dein_key
+/// Ohne GraphHopper-Key funktionieren Karte + Adresssuche; ohne TomTom-
+/// Key ist nur der Verkehrs-Layer inaktiv.
 class AppConfig {
   AppConfig._();
 
@@ -12,9 +14,18 @@ class AppConfig {
 
   static bool get hasRoutingKey => graphHopperApiKey.isNotEmpty;
 
+  static const String tomTomApiKey =
+      String.fromEnvironment('TOMTOM_API_KEY');
+
+  static bool get hasTrafficKey => tomTomApiKey.isNotEmpty;
+
   // GraphHopper Directions API (Routing inkl. Höhendaten + Custom Model).
   static const String graphHopperRouteUrl =
       'https://graphhopper.com/api/1/route';
+
+  // TomTom Traffic Incident Details v5 (Staus + Unfälle + Sperrungen).
+  static const String tomTomIncidentsUrl =
+      'https://api.tomtom.com/traffic/services/5/incidentDetails';
 
   // Nominatim – keyless Geocoding (OpenStreetMap). Fairer Gebrauch:
   // sinnvoller User-Agent + nicht für Massenanfragen verwenden.
