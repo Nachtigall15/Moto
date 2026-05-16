@@ -45,7 +45,8 @@ class RoutingService {
     final uri = Uri.parse(AppConfig.graphHopperRouteUrl)
         .replace(queryParameters: {'key': AppConfig.graphHopperApiKey});
 
-    final body = <String, dynamic>{
+    // Basis-Request (Speed-Modus, im kostenlosen Tarif erlaubt).
+    final base = <String, dynamic>{
       // GraphHopper erwartet im POST-Body [lng, lat].
       'points': [
         [start.longitude, start.latitude],
@@ -57,19 +58,30 @@ class RoutingService {
       'points_encoded': false,
       'instructions': false,
       'locale': 'de',
-      // Custom Model erfordert deaktiviertes Contraction Hierarchies.
-      'ch.disable': true,
-      'custom_model': _curvinessModel(options),
     };
 
-    final res = await _client.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': AppConfig.userAgent,
-      },
-      body: jsonEncode(body),
-    );
+    // Kurvigkeit/„Autobahn meiden" brauchen den flexible mode
+    // (ch.disable + custom_model). Den sperrt der GraphHopper-Free-
+    // Tarif → bei dieser Ablehnung transparent auf Speed-Modus
+    // zurückfallen, statt die Routenberechnung ganz zu verweigern.
+    final wantsFlexible = options.avoidMotorways || options.curviness > 0;
+    String? notice;
+    http.Response res;
+
+    if (wantsFlexible) {
+      res = await _post(uri, {
+        ...base,
+        'ch.disable': true,
+        'custom_model': _curvinessModel(options),
+      });
+      if (res.statusCode == 400 && _flexibleBlocked(res)) {
+        res = await _post(uri, base);
+        notice = 'Kurvigkeit & „Autobahn meiden" sind im kostenlosen '
+            'GraphHopper-Tarif gesperrt – Route im Schnellmodus berechnet.';
+      }
+    } else {
+      res = await _post(uri, base);
+    }
 
     if (res.statusCode != 200) {
       throw RoutingException(_errorMessage(res));
@@ -107,7 +119,30 @@ class RoutingService {
       points: points,
       distanceMeters: (path['distance'] as num).toDouble(),
       durationMillis: (path['time'] as num).toInt(),
+      notice: notice,
     );
+  }
+
+  Future<http.Response> _post(Uri uri, Map<String, dynamic> body) {
+    return _client.post(
+      uri,
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': AppConfig.userAgent,
+      },
+      body: jsonEncode(body),
+    );
+  }
+
+  /// GraphHopper lehnt flexible mode im Free-Tarif mit 400 +
+  /// „Free packages cannot use flexible mode" ab.
+  bool _flexibleBlocked(http.Response res) {
+    try {
+      final msg = (jsonDecode(res.body) as Map<String, dynamic>)['message'];
+      return msg is String && msg.toLowerCase().contains('flexible');
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Mappt den Kurvigkeits-Regler (0..1) auf Straßenklassen-Gewichte.

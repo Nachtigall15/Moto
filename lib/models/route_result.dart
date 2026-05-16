@@ -7,12 +7,18 @@ class RouteResult {
     required this.points,
     required this.distanceMeters,
     required this.durationMillis,
+    this.notice,
   })  : ascentMeters = _ascent(points),
         descentMeters = _descent(points);
 
   final List<RoutePoint> points;
   final double distanceMeters;
   final int durationMillis;
+
+  /// Nicht-blockierender Hinweis (z. B. „im Schnellmodus berechnet,
+  /// weil Kurvigkeit im kostenlosen Tarif gesperrt ist"). UI zeigt das
+  /// als Info, nicht als Fehler.
+  final String? notice;
   final double ascentMeters;
   final double descentMeters;
 

@@ -194,6 +194,17 @@ class _ControlsPanel extends StatelessWidget {
                   ),
                 ),
               ),
+            if (c.route?.notice != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  c.route!.notice!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.secondary,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
             if (c.route != null) _RouteSummary(controller: c),
             ],
           ),
