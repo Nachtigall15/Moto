@@ -13,18 +13,14 @@ pubspec.lock
 .vscode/
 *.iml
 
-# Android
-android/.gradle/
-android/local.properties
-android/app/debug/
-android/app/profile/
-android/app/release/
-
-# iOS
-ios/Pods/
-ios/.symlinks/
-ios/Flutter/Flutter.framework/
-ios/Flutter/flutter_export_environment.sh
+# Generierte Plattform-Ordner: dieses Repo ist bewusst lib-only,
+# `flutter create .` erzeugt sie lokal neu.
+/android/
+/ios/
+/linux/
+/macos/
+/windows/
+/web/
 
 # Misc
 *.log
