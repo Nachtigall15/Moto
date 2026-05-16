@@ -133,14 +133,7 @@ class _RainSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final w = controller.weather!;
-    if (!w.hasRain) {
-      return const Card(
-        child: ListTile(
-          leading: Icon(Icons.check_circle_outline),
-          title: Text('Trocken auf der ganzen Strecke.'),
-        ),
-      );
-    }
+    final hasPause = controller.hasPause;
 
     return Card(
       child: Padding(
@@ -148,41 +141,55 @@ class _RainSummary extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Regen erwartet',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            const SizedBox(height: 6),
-            ...w.rainWindows.map((rw) {
-              final km1 = (rw.startMeters / 1000).toStringAsFixed(0);
-              final km2 = (rw.endMeters / 1000).toStringAsFixed(0);
-              final mins = rw.duration.inMinutes;
-              return Text(
-                '• ab km $km1 (${WeatherScreen._hm(rw.startEta)}) '
-                'bis km $km2 – ca. $mins min',
-              );
-            }),
+            if (!w.hasRain)
+              Row(
+                children: [
+                  const Icon(Icons.check_circle_outline, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(hasPause
+                        ? 'Mit der Pause bleibt die Strecke trocken.'
+                        : 'Trocken auf der ganzen Strecke.'),
+                  ),
+                ],
+              )
+            else ...[
+              Text(
+                'Regen erwartet',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 6),
+              ...w.rainWindows.map((rw) {
+                final km1 = (rw.startMeters / 1000).toStringAsFixed(0);
+                final km2 = (rw.endMeters / 1000).toStringAsFixed(0);
+                final mins = rw.duration.inMinutes;
+                return Text(
+                  '• ab km $km1 (${WeatherScreen._hm(rw.startEta)}) '
+                  'bis km $km2 – ca. $mins min',
+                );
+              }),
+            ],
             const SizedBox(height: 10),
-            if (controller.hasPause)
+            if (hasPause)
               Row(
                 children: [
                   const Icon(Icons.local_cafe, size: 18),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      'Pause: ${controller.pauseStop?.name ?? 'Rastmöglichkeit'}'
-                      ' · ${controller.pauseDuration.inMinutes} min',
+                      'Pause: '
+                      '${controller.pauseStop?.name ?? 'Rastmöglichkeit'}'
+                      ' · ${controller.pauseDuration.inMinutes} min Wartezeit',
                     ),
                   ),
                   TextButton(
-                    onPressed: controller.loading
-                        ? null
-                        : controller.clearPause,
+                    onPressed:
+                        controller.loading ? null : controller.clearPause,
                     child: const Text('Entfernen'),
                   ),
                 ],
               )
-            else
+            else if (w.hasRain)
               Align(
                 alignment: Alignment.centerLeft,
                 child: FilledButton.tonalIcon(

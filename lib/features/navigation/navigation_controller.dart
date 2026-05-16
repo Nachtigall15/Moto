@@ -143,7 +143,10 @@ class NavigationController extends ChangeNotifier {
     await _runRoute();
   }
 
-  Future<void> _runRoute({List<LatLng> via = const []}) async {
+  Future<void> _runRoute({
+    List<LatLng> via = const [],
+    bool loadWeather = true,
+  }) async {
     if (start == null || destination == null) {
       error = 'Bitte Start und Ziel auswählen.';
       notifyListeners();
@@ -172,7 +175,9 @@ class NavigationController extends ChangeNotifier {
       if (showTraffic) {
         await _loadTraffic();
       }
-      await _loadWeather();
+      if (loadWeather) {
+        await _loadWeather();
+      }
     } on RoutingException catch (e) {
       error = e.message;
       route = null;
@@ -247,9 +252,10 @@ class NavigationController extends ChangeNotifier {
     }
   }
 
-  /// Sucht eine Rastmöglichkeit kurz vor dem ersten Regen-Abschnitt,
-  /// baut sie als Wegpunkt in die Route ein und legt eine Wartezeit
-  /// in Höhe der Regendauer ein (Regen „aussitzen").
+  /// Plant eine Pause so, dass man möglichst lange trocken fährt, kurz
+  /// vor dem Regen an einer Rastmöglichkeit hält und dort genau so
+  /// lange wartet, bis die regnerischen Abschnitte danach abgeklungen
+  /// sind (adaptiv, mit Ober-/Untergrenze).
   Future<void> suggestPause() async {
     final r = route;
     final w = weather;
@@ -260,28 +266,74 @@ class NavigationController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final window = w.rainWindows.first;
-      final preMeters = (window.startMeters - 3000).clamp(0.0, r.distanceMeters);
-      final anchor = r.pointAtDistance(preMeters).position;
-      final stop = await _poi.nearestRestStop(anchor);
+      final rainStart = w.rainWindows.first.startMeters;
+      if (rainStart < 1500) {
+        weatherError =
+            'Regen bereits ab dem Start – eine Pause hilft hier kaum.';
+        return;
+      }
+
+      // Rastmöglichkeiten nur im trockenen Abschnitt vor dem Regen.
+      final prePositions = r.points
+          .where((p) => p.cumulativeMeters <= rainStart)
+          .map((p) => p.position)
+          .toList();
+      final candidates = await _poi
+          .poisInBounds(boundsOf(prePositions), {PoiCategory.restStop});
+
+      Poi? stop;
+      var stopMeters = -1.0;
+      for (final c in candidates) {
+        final np = r.nearestTo(c.position);
+        final offRoute = haversineMeters(c.position, np.position);
+        // Nah an der Route und spätestmöglich, aber sicher vor Regen.
+        if (offRoute <= 1500 &&
+            np.cumulativeMeters < rainStart - 500 &&
+            np.cumulativeMeters > stopMeters) {
+          stop = c;
+          stopMeters = np.cumulativeMeters;
+        }
+      }
+      // Fallback: nächste Rast ~3 km vor Regenbeginn.
+      stop ??= await _poi.nearestRestStop(
+        r
+            .pointAtDistance((rainStart - 3000).clamp(0.0, r.distanceMeters))
+            .position,
+      );
       if (stop == null) {
         weatherError = 'Keine Rastmöglichkeit vor dem Regen gefunden.';
         return;
       }
+
+      // Stopp als Wegpunkt einbauen (Wetter erst nach Wartezeit-Tuning).
       pauseStop = stop;
-      pauseDuration = Duration(
-        minutes: window.duration.inMinutes < 15
-            ? 15
-            : window.duration.inMinutes,
-      );
-      // _runRoute lädt Route+Layer+Wetter neu; danach kennen wir die
-      // Distanz des Stopps in der neuen Route für die Wartezeit-Schwelle.
-      await _runRoute(via: [stop.position]);
+      await _runRoute(via: [stop.position], loadWeather: false);
       final nr = route;
-      if (nr != null) {
-        _pauseAfterMeters = nr.nearestTo(stop.position).cumulativeMeters;
-        await _loadWeather();
+      if (nr == null) return; // _runRoute hat error gesetzt
+      _pauseAfterMeters = nr.nearestTo(stop.position).cumulativeMeters;
+
+      // Adaptive Wartezeit: erhöhen, bis nach dem Stopp kein Regen mehr
+      // auf der Route liegt (max. 4 h).
+      const stepMin = 30;
+      const maxMin = 240;
+      var waitMin = 15;
+      RouteWeather? best;
+      while (true) {
+        final cand = await _weather.forecastForRoute(
+          route: nr,
+          departure: departure,
+          pauseAfterMeters: _pauseAfterMeters,
+          pause: Duration(minutes: waitMin),
+        );
+        best = cand;
+        final rainAfter = cand.samples.any(
+          (s) => s.cumulativeMeters >= _pauseAfterMeters && s.isRain,
+        );
+        if (!rainAfter || waitMin >= maxMin) break;
+        waitMin += stepMin;
       }
+      pauseDuration = Duration(minutes: waitMin);
+      weather = best;
     } catch (e) {
       weatherError = 'Pause konnte nicht eingeplant werden.';
     } finally {
