@@ -5,8 +5,9 @@ class RouteOptions {
     this.avoidMotorways = true,
   });
 
-  /// 0.0 = schnellste Strecke, 1.0 = maximal kurvig (mehr Fahrspaß,
-  /// meist langsamer). Wird auf ein BRouter-Kostenprofil gemappt.
+  /// 0.0 = schnellste Strecke, 1.0 = maximal kurvig. Aktuell ohne
+  /// Wirkung: GraphHopper-Free kann kein Custom Model (flexible mode);
+  /// es wird die schnellste Strecke berechnet.
   final double curviness;
 
   /// Autobahnen meiden – für Motorrad-Touren meist erwünscht.

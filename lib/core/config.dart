@@ -1,23 +1,30 @@
 /// Zentrale Konfiguration / Endpunkte.
 ///
-/// Routing läuft über BRouter (keyless, kurvig). Optionaler Key beim
-/// Start nur noch für den TomTom-Verkehrslayer:
-///   flutter run --dart-define=TOMTOM_API_KEY=dein_key
-/// Ohne TomTom-Key ist lediglich der Verkehrs-Layer inaktiv – Routing,
-/// Karte, Suche, Wetter & Höhenprofil funktionieren ohne jeden Key.
+/// Routing läuft über die GraphHopper Directions API (Speed-Modus,
+/// CORS-fähig → funktioniert im Browser). Keys beim Start mitgeben
+/// (NICHT im Code hinterlegen/committen):
+///   flutter run \
+///     --dart-define=GRAPHHOPPER_API_KEY=dein_key \
+///     --dart-define=TOMTOM_API_KEY=dein_key
+/// Ohne GraphHopper-Key: kein Routing (Karte/Suche/Wetter laufen).
+/// Ohne TomTom-Key ist nur der Verkehrs-Layer inaktiv.
 class AppConfig {
   AppConfig._();
+
+  static const String graphHopperApiKey =
+      String.fromEnvironment('GRAPHHOPPER_API_KEY');
+
+  static bool get hasRoutingKey => graphHopperApiKey.isNotEmpty;
 
   static const String tomTomApiKey =
       String.fromEnvironment('TOMTOM_API_KEY');
 
   static bool get hasTrafficKey => tomTomApiKey.isNotEmpty;
 
-  // BRouter – keyless Motorrad-/Kurven-Routing inkl. Höhendaten.
-  // Routing-Endpunkt + Upload-Endpunkt für generierte Custom-Profile.
-  static const String brouterRouteUrl = 'https://brouter.de/brouter';
-  static const String brouterUploadUrl =
-      'https://brouter.de/brouter/profile';
+  // GraphHopper Directions API (Routing inkl. Höhendaten). Speed-Modus
+  // – Custom Model/„flexible mode" ist im Free-Tarif gesperrt.
+  static const String graphHopperRouteUrl =
+      'https://graphhopper.com/api/1/route';
 
   // TomTom Traffic Incident Details v5 (Staus + Unfälle + Sperrungen).
   static const String tomTomIncidentsUrl =

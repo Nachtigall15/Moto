@@ -30,12 +30,13 @@ jobs:
       # base-href = exakter Repo-Name (GitHub-Pages-Pfad ist
       # case-sensitive!). github.event.repository.name liefert die
       # korrekte Schreibweise automatisch -> /Moto/.
-      # Routing läuft keyless über BRouter; nur TomTom-Verkehr braucht
-      # noch einen Key (optional, Secret darf leer sein).
+      # GraphHopper-Key fürs Routing, TomTom-Key (optional) für den
+      # Verkehrslayer – beide aus Repo-Secrets.
       - name: Build web
         run: >
           flutter build web --release --no-tree-shake-icons
           --base-href "/${{ github.event.repository.name }}/"
+          --dart-define=GRAPHHOPPER_API_KEY=${{ secrets.GRAPHHOPPER_API_KEY }}
           --dart-define=TOMTOM_API_KEY=${{ secrets.TOMTOM_API_KEY }}
 
       - uses: actions/upload-pages-artifact@v3
