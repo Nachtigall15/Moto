@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../core/config.dart';
@@ -36,6 +37,50 @@ class RouteMap extends StatefulWidget {
 
 class _RouteMapState extends State<RouteMap> {
   final MapController _map = MapController();
+  LatLng? _currentLocation;
+  bool _initialCentered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _locateUser());
+  }
+
+  /// Holt einmalig den aktuellen Standort und zentriert die Karte
+  /// darauf, solange noch keine Route/kein Start gewählt wurde.
+  /// Fehler (Permission abgelehnt, kein Fix, Service aus) führen
+  /// stillschweigend zum Default-Center.
+  Future<void> _locateUser() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm != LocationPermission.always &&
+          perm != LocationPermission.whileInUse) {
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      if (!mounted) return;
+      final here = LatLng(pos.latitude, pos.longitude);
+      setState(() => _currentLocation = here);
+      final hasUserPick = widget.start != null ||
+          widget.destination != null ||
+          widget.route != null;
+      if (!_initialCentered && !hasUserPick) {
+        _map.move(here, 12);
+        _initialCentered = true;
+      }
+    } catch (_) {
+      // Standort-Fehler ignorieren – Default-Ansicht bleibt.
+    }
+  }
 
   @override
   void didUpdateWidget(covariant RouteMap oldWidget) {
@@ -60,6 +105,26 @@ class _RouteMapState extends State<RouteMap> {
     final cursor = route?.pointAtDistance(widget.cursorMeters).position;
 
     final markers = <Marker>[
+      if (_currentLocation != null)
+        Marker(
+          point: _currentLocation!,
+          width: 22,
+          height: 22,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: scheme.primary,
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: scheme.primary.withValues(alpha: 0.45),
+                  blurRadius: 12,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+          ),
+        ),
       if (widget.start != null)
         _pin(widget.start!, Icons.trip_origin, Colors.greenAccent),
       if (widget.destination != null)

@@ -47,13 +47,13 @@ class NavigationController extends ChangeNotifier {
   /// Position des Höhen-Sliders als Distanz ab Start (Meter).
   double cursorMeters = 0;
 
-  bool showSpeedCameras = true;
+  bool showSpeedCameras = false;
   List<LatLng> speedCameras = const [];
 
   final Set<PoiCategory> activePoiCategories = {};
   List<Poi> pois = const [];
 
-  bool showTraffic = true;
+  bool showTraffic = false;
   List<TrafficIncident> trafficIncidents = const [];
 
   DateTime departure = DateTime.now();
