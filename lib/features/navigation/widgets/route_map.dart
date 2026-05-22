@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../core/config.dart';
@@ -20,6 +19,7 @@ class RouteMap extends StatefulWidget {
     required this.pois,
     required this.traffic,
     required this.pauseStop,
+    required this.currentLocation,
   });
 
   final RouteResult? route;
@@ -30,6 +30,7 @@ class RouteMap extends StatefulWidget {
   final List<Poi> pois;
   final List<TrafficIncident> traffic;
   final LatLng? pauseStop;
+  final LatLng? currentLocation;
 
   @override
   State<RouteMap> createState() => _RouteMapState();
@@ -37,54 +38,12 @@ class RouteMap extends StatefulWidget {
 
 class _RouteMapState extends State<RouteMap> {
   final MapController _map = MapController();
-  LatLng? _currentLocation;
   bool _initialCentered = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _locateUser());
-  }
-
-  /// Holt einmalig den aktuellen Standort und zentriert die Karte
-  /// darauf, solange noch keine Route/kein Start gewählt wurde.
-  /// Fehler (Permission abgelehnt, kein Fix, Service aus) führen
-  /// stillschweigend zum Default-Center.
-  Future<void> _locateUser() async {
-    try {
-      if (!await Geolocator.isLocationServiceEnabled()) return;
-      var perm = await Geolocator.checkPermission();
-      if (perm == LocationPermission.denied) {
-        perm = await Geolocator.requestPermission();
-      }
-      if (perm != LocationPermission.always &&
-          perm != LocationPermission.whileInUse) {
-        return;
-      }
-      final pos = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 10),
-        ),
-      );
-      if (!mounted) return;
-      final here = LatLng(pos.latitude, pos.longitude);
-      setState(() => _currentLocation = here);
-      final hasUserPick = widget.start != null ||
-          widget.destination != null ||
-          widget.route != null;
-      if (!_initialCentered && !hasUserPick) {
-        _map.move(here, 12);
-        _initialCentered = true;
-      }
-    } catch (_) {
-      // Standort-Fehler ignorieren – Default-Ansicht bleibt.
-    }
-  }
 
   @override
   void didUpdateWidget(covariant RouteMap oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Sobald die Route steht, auf sie zoomen (höchste Priorität).
     if (widget.route != null && widget.route != oldWidget.route) {
       final b = boundsOf(widget.route!.polyline);
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -94,6 +53,21 @@ class _RouteMapState extends State<RouteMap> {
             padding: const EdgeInsets.all(40),
           ),
         );
+      });
+      return;
+    }
+    // Erst-Zentrierung auf den aktuellen Standort, sobald der vom
+    // Controller eintrudelt (Übergang null -> Wert) und noch keine
+    // Route gewählt wurde. War der Standort schon beim ersten Build
+    // bekannt, hat MapOptions.initialCenter ihn bereits gesetzt.
+    final here = widget.currentLocation;
+    if (!_initialCentered &&
+        here != null &&
+        oldWidget.currentLocation != here &&
+        widget.route == null) {
+      _initialCentered = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _map.move(here, 12);
       });
     }
   }
@@ -105,9 +79,9 @@ class _RouteMapState extends State<RouteMap> {
     final cursor = route?.pointAtDistance(widget.cursorMeters).position;
 
     final markers = <Marker>[
-      if (_currentLocation != null)
+      if (widget.currentLocation != null)
         Marker(
-          point: _currentLocation!,
+          point: widget.currentLocation!,
           width: 22,
           height: 22,
           child: DecoratedBox(
@@ -171,16 +145,27 @@ class _RouteMapState extends State<RouteMap> {
         ),
     ];
 
+    final initialCenter = widget.currentLocation ??
+        widget.start ??
+        widget.destination ??
+        const LatLng(51.16, 10.45); // Mitte Deutschlands als Fallback
+    final initialZoom = widget.currentLocation != null ? 12.0 : 6.0;
+
     return FlutterMap(
       mapController: _map,
-      options: const MapOptions(
-        initialCenter: LatLng(48.137, 11.575),
-        initialZoom: 7.0,
+      options: MapOptions(
+        initialCenter: initialCenter,
+        initialZoom: initialZoom,
+        minZoom: 3,
+        maxZoom: 19,
       ),
       children: [
         TileLayer(
           urlTemplate: AppConfig.osmTileUrl,
           userAgentPackageName: 'moto.app',
+          // Größerer Puffer verhindert, dass nach Zoom/Pan graue
+          // Kacheln stehenbleiben.
+          keepBuffer: 4,
         ),
         if (route != null)
           PolylineLayer(

@@ -35,6 +35,7 @@ class NavigationScreen extends StatelessWidget {
                   pois: c.pois,
                   traffic: c.trafficIncidents,
                   pauseStop: c.pauseStop?.position,
+                  currentLocation: c.currentLocation,
                 ),
                 if (c.loading)
                   const Positioned.fill(
@@ -83,6 +84,7 @@ class _ControlsPanel extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
             LocationSearchField(
+              key: const ValueKey('search-start'),
               label: 'Start',
               icon: Icons.trip_origin,
               onSearch: c.searchPlaces,
@@ -91,6 +93,7 @@ class _ControlsPanel extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             LocationSearchField(
+              key: const ValueKey('search-destination'),
               label: 'Ziel',
               icon: Icons.flag_outlined,
               onSearch: c.searchPlaces,

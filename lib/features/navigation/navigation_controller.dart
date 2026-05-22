@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../models/geo.dart';
@@ -27,7 +28,9 @@ class NavigationController extends ChangeNotifier {
         _speedCameras = speedCameras ?? SpeedCameraService(),
         _poi = poi ?? PoiService(),
         _traffic = traffic ?? TrafficService(),
-        _weather = weather ?? WeatherService();
+        _weather = weather ?? WeatherService() {
+    _initLocation();
+  }
 
   final GeocodingService _geocoding;
   final RoutingService _routing;
@@ -39,6 +42,11 @@ class NavigationController extends ChangeNotifier {
   GeocodeResult? start;
   GeocodeResult? destination;
   RouteOptions options = const RouteOptions();
+
+  /// Aktueller Standort (Geolocator). Wird einmal beim Start gefüllt;
+  /// die Map zentriert darauf und Start wird – sofern leer – mit
+  /// „Aktueller Standort" vorbelegt.
+  LatLng? currentLocation;
 
   RouteResult? route;
   bool loading = false;
@@ -358,5 +366,37 @@ class NavigationController extends ChangeNotifier {
     pauseDuration = Duration.zero;
     _pauseAfterMeters = 0;
     await _runRoute();
+  }
+
+  /// Einmaliges Holen des aktuellen Standorts (Browser-/OS-Permission).
+  /// Fehler/Ablehnung werden still ignoriert – die App funktioniert
+  /// auch ohne Standort, der Nutzer kann Start manuell setzen.
+  Future<void> _initLocation() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) return;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm != LocationPermission.always &&
+          perm != LocationPermission.whileInUse) {
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+      currentLocation = LatLng(pos.latitude, pos.longitude);
+      // Start nur autosetzen, wenn der Nutzer noch keinen gewählt hat.
+      start ??= GeocodeResult(
+        label: 'Aktueller Standort',
+        position: currentLocation!,
+      );
+      notifyListeners();
+    } catch (_) {
+      // Standortfehler still hinnehmen.
+    }
   }
 }
