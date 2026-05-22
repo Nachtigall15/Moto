@@ -205,7 +205,7 @@ class NavigationController extends ChangeNotifier {
     final r = route;
     if (r == null) return;
     try {
-      speedCameras = await _speedCameras.camerasInBounds(boundsOf(r.polyline));
+      speedCameras = await _speedCameras.camerasAlongRoute(r.polyline);
     } catch (_) {
       // Blitzer sind optional – Fehler nicht als Routenfehler werten.
       speedCameras = const [];
