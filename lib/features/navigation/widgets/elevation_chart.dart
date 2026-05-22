@@ -163,29 +163,17 @@ class ElevationChart extends StatelessWidget {
   static double _niceInterval(double range, int targetSteps) {
     if (range <= 0 || !range.isFinite) return 1.0;
     final raw = range / targetSteps;
-    final mag = _pow10((raw == 0 ? 1 : raw).abs().log10().floor());
+    if (raw <= 0) return 1.0;
+    final exp = (math.log(raw) / math.ln10).floor();
+    final mag = math.pow(10, exp).toDouble();
     final norm = raw / mag;
     final nice = norm < 1.5
-        ? 1
+        ? 1.0
         : norm < 3
-            ? 2
+            ? 2.0
             : norm < 7
-                ? 5
-                : 10;
+                ? 5.0
+                : 10.0;
     return nice * mag;
   }
-
-  static double _pow10(int e) {
-    var v = 1.0;
-    if (e >= 0) {
-      for (var i = 0; i < e; i++) v *= 10;
-    } else {
-      for (var i = 0; i < -e; i++) v /= 10;
-    }
-    return v;
-  }
-}
-
-extension on double {
-  double log10() => (this <= 0) ? 0 : (math.log(this) / math.ln10);
 }
