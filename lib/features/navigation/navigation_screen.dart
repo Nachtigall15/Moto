@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/config.dart';
 import '../../models/poi.dart';
+import '../../models/route_options.dart';
 import 'navigation_controller.dart';
 import 'widgets/elevation_chart.dart';
 import 'widgets/location_search_field.dart';
@@ -68,7 +69,10 @@ class _ControlsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = controller;
-    final maxHeight = MediaQuery.of(context).size.height * 0.55;
+    // Nach einer berechneten Route kollabiert das Panel, damit die
+    // Karte sichtbar bleibt; vorher 55 %, danach 32 %.
+    final maxHeight =
+        MediaQuery.of(context).size.height * (c.route != null ? 0.32 : 0.55);
     return Material(
       elevation: 4,
       child: ConstrainedBox(
@@ -174,7 +178,26 @@ class _ControlsPanel extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 8),
+            Center(
+              child: SegmentedButton<RoutePreference>(
+                segments: const [
+                  ButtonSegment(
+                    value: RoutePreference.fastest,
+                    label: Text('Schnell'),
+                    icon: Icon(Icons.bolt),
+                  ),
+                  ButtonSegment(
+                    value: RoutePreference.shortest,
+                    label: Text('Kurz'),
+                    icon: Icon(Icons.straighten),
+                  ),
+                ],
+                selected: {c.options.preference},
+                onSelectionChanged: (s) => c.setRoutePreference(s.first),
+              ),
+            ),
+            const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(

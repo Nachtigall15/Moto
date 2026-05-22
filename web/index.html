@@ -20,6 +20,13 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Moto – Motorrad-Tourenplaner: kurvige Routen, Wetter & Verkehr auf der Strecke.">
 
+  <!-- viewport-fit=cover macht die iOS-Safe-Area-Insets (Home-Indicator
+       unten, Notch oben) sichtbar, sodass Flutters MediaQuery.padding
+       die Werte liest und die Bottom-Navigation nicht hinter dem
+       Home-Indicator verschwindet. -->
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">

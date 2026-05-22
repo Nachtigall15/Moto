@@ -91,6 +91,17 @@ class NavigationController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setRoutePreference(RoutePreference value) {
+    if (options.preference == value) return;
+    options = options.copyWith(preference: value);
+    notifyListeners();
+    // Wenn bereits eine Route existiert, passend neu berechnen, damit
+    // die Auswahl spürbar greift.
+    if (route != null) {
+      _runRoute(loadWeather: false);
+    }
+  }
+
   void setShowSpeedCameras(bool value) {
     showSpeedCameras = value;
     if (!value) {

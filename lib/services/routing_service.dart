@@ -19,8 +19,11 @@ class RoutingException implements Exception {
 ///
 /// Kurvigkeit & „Autobahn meiden" bräuchten den „flexible mode"
 /// (custom_model), der im kostenlosen GraphHopper-Tarif gesperrt ist.
-/// Es wird daher die schnellste Strecke berechnet; der Regler/Schalter
-/// bleibt vorerst ohne Wirkung (nicht-blockierender Hinweis in der UI).
+/// Für „Schnell vs. Kurz" werden Alternativen via
+/// `algorithm=alternative_route` angefragt und die passende ausgewählt
+/// (kürzeste Zeit bzw. kürzeste Distanz). Lehnt der Tarif Alternativen
+/// ab, fällt der Service auf die Einzel-Route zurück und meldet das
+/// als nicht-blockierenden Hinweis.
 class RoutingService {
   RoutingService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -42,7 +45,7 @@ class RoutingService {
     final uri = Uri.parse(AppConfig.graphHopperRouteUrl)
         .replace(queryParameters: {'key': AppConfig.graphHopperApiKey});
 
-    final body = <String, dynamic>{
+    final baseBody = <String, dynamic>{
       // GraphHopper erwartet im POST-Body [lng, lat].
       'points': [
         [start.longitude, start.latitude],
@@ -56,7 +59,53 @@ class RoutingService {
       'locale': 'de',
     };
 
-    final res = await _client.post(
+    // Erst mit Alternativen anfragen, damit „Kurz" tatsächlich eine
+    // andere Strecke wählen kann.
+    var res = await _post(uri, {
+      ...baseBody,
+      'algorithm': 'alternative_route',
+      'alternative_route.max_paths': 3,
+    });
+
+    String? altNotice;
+    if (res.statusCode != 200) {
+      // Lehnt der Tarif Alternativen ab -> Einzel-Route.
+      res = await _post(uri, baseBody);
+      altNotice = 'Alternativen werden vom aktuellen Routing-Tarif nicht '
+          'unterstützt – nur eine Variante verfügbar.';
+    }
+    if (res.statusCode != 200) {
+      throw RoutingException(_errorMessage(res));
+    }
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    final rawPaths = data['paths'] as List<dynamic>?;
+    if (rawPaths == null || rawPaths.isEmpty) {
+      throw RoutingException('Keine Route gefunden.');
+    }
+    final paths = rawPaths.cast<Map<String, dynamic>>();
+
+    final chosen = _pick(paths, options.preference);
+    final onlyOne = paths.length < 2;
+
+    // Notice-Stack: Tarif-Hinweise + ggf. „Kurz nicht verfügbar".
+    final notices = <String>[];
+    if (altNotice != null) notices.add(altNotice);
+    if (options.preference == RoutePreference.shortest && onlyOne) {
+      notices.add('Kürzeste-Variante nicht verfügbar – '
+          'gleiche Strecke wie Schnell.');
+    }
+    final wantsCurvy = options.curviness > 0 || options.avoidMotorways;
+    if (wantsCurvy) {
+      notices.add('Kurvigkeit & „Autobahn meiden" brauchen einen '
+          'kostenpflichtigen Routing-Tarif – Strecke ohne diese Vorgaben.');
+    }
+
+    return _toResult(chosen, notices.isEmpty ? null : notices.join('\n'));
+  }
+
+  Future<http.Response> _post(Uri uri, Map<String, dynamic> body) {
+    return _client.post(
       uri,
       headers: {
         'Content-Type': 'application/json',
@@ -64,20 +113,21 @@ class RoutingService {
       },
       body: jsonEncode(body),
     );
+  }
 
-    if (res.statusCode != 200) {
-      throw RoutingException(_errorMessage(res));
-    }
+  Map<String, dynamic> _pick(
+      List<Map<String, dynamic>> paths, RoutePreference pref) {
+    if (paths.length == 1) return paths.first;
+    double key(Map<String, dynamic> p) => switch (pref) {
+          RoutePreference.fastest => (p['time'] as num).toDouble(),
+          RoutePreference.shortest => (p['distance'] as num).toDouble(),
+        };
+    return paths.reduce((a, b) => key(a) <= key(b) ? a : b);
+  }
 
-    final data = jsonDecode(res.body) as Map<String, dynamic>;
-    final paths = data['paths'] as List<dynamic>?;
-    if (paths == null || paths.isEmpty) {
-      throw RoutingException('Keine Route gefunden.');
-    }
-
-    final path = paths.first as Map<String, dynamic>;
-    final coords =
-        (path['points'] as Map<String, dynamic>)['coordinates'] as List<dynamic>;
+  RouteResult _toResult(Map<String, dynamic> path, String? notice) {
+    final coords = (path['points'] as Map<String, dynamic>)['coordinates']
+        as List<dynamic>;
 
     final points = <RoutePoint>[];
     var cumulative = 0.0;
@@ -96,14 +146,6 @@ class RoutingService {
       ));
       previous = pos;
     }
-
-    // Regler/Schalter können im Free-Tarif nicht umgesetzt werden –
-    // ehrlich kommunizieren, statt stillschweigend zu ignorieren.
-    final wantsCurvy = options.curviness > 0 || options.avoidMotorways;
-    final notice = wantsCurvy
-        ? 'Kurvigkeit & „Autobahn meiden" brauchen einen kostenpflichtigen '
-            'Routing-Tarif – Route als schnellste Strecke berechnet.'
-        : null;
 
     return RouteResult(
       points: points,

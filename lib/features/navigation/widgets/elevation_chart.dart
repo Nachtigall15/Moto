@@ -50,9 +50,9 @@ class ElevationChart extends StatelessWidget {
           ),
         ),
         SizedBox(
-          height: 160,
+          height: 120,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 12, 16, 4),
+            padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
             child: LineChart(
               LineChartData(
                 minX: 0,
