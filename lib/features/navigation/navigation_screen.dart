@@ -25,6 +25,7 @@ class NavigationScreen extends StatelessWidget {
           _ControlsPanel(controller: c),
           Expanded(
             child: Stack(
+              fit: StackFit.expand,
               children: [
                 RouteMap(
                   route: c.route,
@@ -83,15 +84,31 @@ class _ControlsPanel extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-            LocationSearchField(
-              key: const ValueKey('search-start'),
-              label: 'Start',
-              icon: Icons.trip_origin,
-              onSearch: c.searchPlaces,
-              onSelected: c.setStart,
-              selectedLabel: c.start?.label,
-            ),
-            const SizedBox(height: 8),
+            // Solange Start = „Aktueller Standort" gilt, zeigen wir
+            // nur einen kompakten Chip statt eines zweiten Textfelds.
+            // Damit gibt es nur EIN aktives Eingabefeld (Ziel) und der
+            // Tap kann nicht mehr im falschen Feld landen.
+            if (c.start?.label == 'Aktueller Standort')
+              _StartChip(
+                onChange: c.clearStart,
+              )
+            else
+              LocationSearchField(
+                key: const ValueKey('search-start'),
+                label: 'Start',
+                icon: Icons.trip_origin,
+                onSearch: c.searchPlaces,
+                onSelected: c.setStart,
+                selectedLabel: c.start?.label,
+                trailing: c.currentLocation != null
+                    ? IconButton(
+                        tooltip: 'Aktueller Standort',
+                        icon: const Icon(Icons.my_location, size: 20),
+                        onPressed: c.useCurrentLocationAsStart,
+                      )
+                    : null,
+              ),
+            const SizedBox(height: 12),
             LocationSearchField(
               key: const ValueKey('search-destination'),
               label: 'Ziel',
@@ -284,6 +301,57 @@ class _RouteSummary extends StatelessWidget {
         const SizedBox(width: 4),
         Text(text, style: const TextStyle(fontSize: 13)),
       ],
+    );
+  }
+}
+
+class _StartChip extends StatelessWidget {
+  const _StartChip({required this.onChange});
+
+  final VoidCallback onChange;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: 0.10),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.my_location, size: 18, color: scheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Start',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+                Text(
+                  'Aktueller Standort',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: onChange,
+            child: const Text('Ändern'),
+          ),
+        ],
+      ),
     );
   }
 }

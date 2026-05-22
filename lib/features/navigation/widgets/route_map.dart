@@ -162,10 +162,14 @@ class _RouteMapState extends State<RouteMap> {
       children: [
         TileLayer(
           urlTemplate: AppConfig.osmTileUrl,
+          subdomains: AppConfig.osmTileSubdomains,
           userAgentPackageName: 'moto.app',
-          // Größerer Puffer verhindert, dass nach Zoom/Pan graue
-          // Kacheln stehenbleiben.
-          keepBuffer: 4,
+          tileSize: 256,
+          maxNativeZoom: 19,
+          // Default-Puffer (2) reicht; höhere Werte erzeugen unnötig
+          // viele parallele Tile-Requests, die iOS-Safari unter Last
+          // teils stehenlässt.
+          keepBuffer: 2,
         ),
         if (route != null)
           PolylineLayer(

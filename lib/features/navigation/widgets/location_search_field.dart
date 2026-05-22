@@ -15,6 +15,7 @@ class LocationSearchField extends StatefulWidget {
     required this.onSearch,
     required this.onSelected,
     this.selectedLabel,
+    this.trailing,
   });
 
   final String label;
@@ -22,6 +23,10 @@ class LocationSearchField extends StatefulWidget {
   final PlaceSearch onSearch;
   final ValueChanged<GeocodeResult> onSelected;
   final String? selectedLabel;
+
+  /// Optionales Widget rechts im Feld (z. B. „Aktuellen Standort
+  /// übernehmen"-Button).
+  final Widget? trailing;
 
   @override
   State<LocationSearchField> createState() => _LocationSearchFieldState();
@@ -91,7 +96,7 @@ class _LocationSearchFieldState extends State<LocationSearchField> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   )
-                : null,
+                : widget.trailing,
           ),
         ),
         if (_results.isNotEmpty)

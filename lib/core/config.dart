@@ -43,9 +43,11 @@ class AppConfig {
   static const String openMeteoUrl =
       'https://api.open-meteo.com/v1/forecast';
 
-  // OSM-Kartenkacheln.
+  // OSM-Kartenkacheln. Subdomain-Rotation a/b/c, damit der Browser
+  // Anfragen parallelisieren kann (gegen graue Kacheln nach Pan/Zoom).
   static const String osmTileUrl =
-      'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  static const List<String> osmTileSubdomains = ['a', 'b', 'c'];
 
   // Pflicht laut OSM-Nutzungsregeln (identifiziert die App).
   static const String userAgent = 'moto-app/0.1 (motorcycle navigation MVP)';
