@@ -161,15 +161,16 @@ class _RouteMapState extends State<RouteMap> {
       ),
       children: [
         TileLayer(
-          urlTemplate: AppConfig.osmTileUrl,
-          subdomains: AppConfig.osmTileSubdomains,
+          urlTemplate: AppConfig.mapTileUrl,
+          fallbackUrl: AppConfig.mapTileFallbackUrl,
+          subdomains: AppConfig.mapTileSubdomains,
           userAgentPackageName: 'moto.app',
           tileSize: 256,
           maxNativeZoom: 19,
-          // Default-Puffer (2) reicht; höhere Werte erzeugen unnötig
-          // viele parallele Tile-Requests, die iOS-Safari unter Last
-          // teils stehenlässt.
           keepBuffer: 2,
+          // Fehlerhafte Kacheln werden bei nächster Sichtbarkeit neu
+          // angefordert – verhindert graue Bereiche nach fitCamera.
+          evictErrorTileStrategy: EvictErrorTileStrategy.notVisibleRespectMargin,
         ),
         if (route != null)
           PolylineLayer(
@@ -182,6 +183,14 @@ class _RouteMapState extends State<RouteMap> {
             ],
           ),
         MarkerLayer(markers: markers),
+        // Attribution gem. CARTO/OSM-Nutzungsbedingungen.
+        const RichAttributionWidget(
+          alignment: AttributionAlignment.bottomLeft,
+          attributions: [
+            TextSourceAttribution('OpenStreetMap'),
+            TextSourceAttribution('CARTO'),
+          ],
+        ),
       ],
     );
   }
