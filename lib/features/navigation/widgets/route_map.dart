@@ -161,16 +161,8 @@ class _RouteMapState extends State<RouteMap> {
       ),
       children: [
         TileLayer(
-          urlTemplate: AppConfig.mapTileUrl,
-          fallbackUrl: AppConfig.mapTileFallbackUrl,
-          subdomains: AppConfig.mapTileSubdomains,
+          urlTemplate: AppConfig.osmTileUrl,
           userAgentPackageName: 'moto.app',
-          tileSize: 256,
-          maxNativeZoom: 19,
-          keepBuffer: 2,
-          // Fehlerhafte Kacheln werden bei nächster Sichtbarkeit neu
-          // angefordert – verhindert graue Bereiche nach fitCamera.
-          evictErrorTileStrategy: EvictErrorTileStrategy.notVisibleRespectMargin,
         ),
         if (route != null)
           PolylineLayer(
@@ -183,14 +175,6 @@ class _RouteMapState extends State<RouteMap> {
             ],
           ),
         MarkerLayer(markers: markers),
-        // Attribution gem. CARTO/OSM-Nutzungsbedingungen.
-        const RichAttributionWidget(
-          alignment: AttributionAlignment.bottomLeft,
-          attributions: [
-            TextSourceAttribution('OpenStreetMap'),
-            TextSourceAttribution('CARTO'),
-          ],
-        ),
       ],
     );
   }

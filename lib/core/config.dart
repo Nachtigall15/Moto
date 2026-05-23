@@ -43,15 +43,11 @@ class AppConfig {
   static const String openMeteoUrl =
       'https://api.open-meteo.com/v1/forecast';
 
-  // Karten-Kacheln: CartoDB Voyager als Primärquelle (stabiles CDN,
-  // saubere Beschriftung für Navi-Look), OSM-Standard als Fallback.
-  // CartoDB nutzt 4 Subdomains a/b/c/d → der Browser kann parallel
-  // laden, gegen graue Kacheln nach Pan/Zoom.
-  static const String mapTileUrl =
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png';
-  static const String mapTileFallbackUrl =
+  // Karten-Kacheln: OSM Standard. Bewusst ohne Subdomain-Rotation,
+  // weil OSM heute HTTP/2 nutzt und die a/b/c-Hosts inzwischen als
+  // deprecated gelten.
+  static const String osmTileUrl =
       'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-  static const List<String> mapTileSubdomains = ['a', 'b', 'c', 'd'];
 
   // Pflicht laut OSM-Nutzungsregeln (identifiziert die App).
   static const String userAgent = 'moto-app/0.1 (motorcycle navigation MVP)';

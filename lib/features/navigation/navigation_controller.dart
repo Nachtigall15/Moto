@@ -84,18 +84,6 @@ class NavigationController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void clearStart() {
-    start = null;
-    notifyListeners();
-  }
-
-  void useCurrentLocationAsStart() {
-    final here = currentLocation;
-    if (here == null) return;
-    start = GeocodeResult(label: 'Aktueller Standort', position: here);
-    notifyListeners();
-  }
-
   void setDestination(GeocodeResult value) {
     destination = value;
     notifyListeners();
