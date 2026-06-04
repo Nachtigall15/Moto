@@ -9,21 +9,38 @@ Konzept, Architektur und Roadmap: siehe [`PROJECT.md`](./PROJECT.md).
 
 ## Schnellstart
 
+In einem frischen Container/Session genügt ein Befehl:
+
+```bash
+cd stockintel
+./setup.sh          # venv + Abhängigkeiten + config/.env + DB + Netzwerk-Check
+```
+
+Danach EDGAR-`user_agent` in `config/settings.yaml` setzen, dann:
+
+```bash
+. .venv/bin/activate
+stockintel collect              # aktive Quellen abrufen (EDGAR, RSS, StockTwits)
+stockintel items --limit 20     # zuletzt gespeicherte Items anzeigen
+```
+
+<details>
+<summary>Manuelles Setup (statt setup.sh)</summary>
+
 ```bash
 cd stockintel
 python -m venv .venv && source .venv/bin/activate
-pip install -e .[dev]
-
-pip install -e .[collectors]               # für die Daten-Collectors (Phase 1)
+pip install -e .[dev,collectors]
 
 cp .env.example .env                       # API-Keys eintragen
 cp config/settings.example.yaml config/settings.yaml
 
 stockintel init-db                         # Datenbank-Schema anlegen
 stockintel info                            # Status anzeigen
-stockintel collect                         # aktive Quellen abrufen (EDGAR + RSS)
+stockintel collect                         # aktive Quellen abrufen
 stockintel items --limit 20                # zuletzt gespeicherte Items anzeigen
 ```
+</details>
 
 > **Netzwerk-Hinweis:** `collect` ruft externe Hosts ab (`sec.gov`,
 > `data.sec.gov`, RSS-Feeds). In einer Sandbox mit Host-Allowlist müssen diese
