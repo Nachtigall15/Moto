@@ -51,17 +51,27 @@ async function loadCharts() {
         const signals = await fetchJSON("/signals?limit=1000");
         const profiles = await fetchJSON("/reaction-profiles").catch(() => []);
 
-        // Recommendations Distribution (Pie)
-        const recCounts = {};
+        // Recommendations Distribution (Horizontal Bar)
+        const recCounts = { buy: 0, hold: 0, sell: 0 };
         recs.forEach(r => {
             const action = r.action.toLowerCase();
-            recCounts[action] = (recCounts[action] || 0) + 1;
+            if (action in recCounts) {
+                recCounts[action]++;
+            }
         });
         updateChart("_chartRecommendations", "recommendations-canvas", {
-            type: "doughnut",
-            labels: Object.keys(recCounts),
-            data: Object.values(recCounts),
-            colors: ["#3fb950", "#d29922", "#f85149"],
+            type: "bar",
+            labels: ["Buy", "Hold", "Sell"],
+            datasets: [
+                {
+                    label: "Recommendations",
+                    data: [recCounts.buy, recCounts.hold, recCounts.sell],
+                    backgroundColor: ["#3fb950", "#d29922", "#f85149"],
+                    borderColor: "#58a6ff",
+                    borderWidth: 1,
+                }
+            ],
+            indexAxis: "y",
         });
 
         // Signals per Company (Bar)
@@ -167,6 +177,7 @@ function updateChart(instanceName, canvasId, config) {
         options: {
             responsive: true,
             maintainAspectRatio: true,
+            indexAxis: config.indexAxis || "x",
             plugins: {
                 legend: {
                     labels: { color: "#e6edf3", font: { size: 12 } },
@@ -670,35 +681,75 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("score-btn").addEventListener("click", triggerScore);
     document.getElementById("autorefresh-btn").addEventListener("click", toggleAutoRefresh);
 
-    // Watchlist add button
-    document.getElementById("add-watchlist-btn").addEventListener("click", async () => {
-        const ticker = document.getElementById("new-ticker").value.trim().toUpperCase();
-        const name = document.getElementById("new-name").value.trim();
-        const sector = document.getElementById("new-sector").value.trim();
+    // Company search functionality
+    let searchDebounce;
+    document.getElementById("search-company-input").addEventListener("input", async (e) => {
+        const query = e.target.value.trim();
+        const resultsDiv = document.getElementById("search-results");
 
-        if (!ticker || !name) {
-            alert("Ticker und Name sind erforderlich.");
+        clearTimeout(searchDebounce);
+
+        if (query.length < 1) {
+            resultsDiv.style.display = "none";
             return;
         }
 
-        const btn = document.getElementById("add-watchlist-btn");
-        const orig = btn.textContent;
-        btn.textContent = "Wird hinzugefügt…";
-        btn.disabled = true;
+        searchDebounce = setTimeout(async () => {
+            try {
+                const result = await fetchJSON(`/search/companies?query=${encodeURIComponent(query)}`);
+                if (result.results && result.results.length > 0) {
+                    resultsDiv.innerHTML = result.results.map(company => `
+                        <div class="search-result-item" style="padding: 0.8rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s;"
+                             onmouseover="this.style.background='rgba(88, 166, 255, 0.1)'"
+                             onmouseout="this.style.background='transparent'"
+                             data-ticker="${escapeHtml(company.ticker)}"
+                             data-name="${escapeHtml(company.name)}"
+                             data-sector="${escapeHtml(company.sector || '')}">
+                            <div style="font-weight: bold; color: #58a6ff;">${escapeHtml(company.ticker)}</div>
+                            <div style="color: #8b949e; font-size: 0.9rem;">${escapeHtml(company.name)}</div>
+                            ${company.sector ? `<div style="color: #8b949e; font-size: 0.85rem;">📊 ${escapeHtml(company.sector)}</div>` : ''}
+                        </div>
+                    `).join("");
+                    resultsDiv.style.display = "block";
 
-        try {
-            const params = new URLSearchParams({ ticker, name });
-            if (sector) params.append("sector", sector);
-            await fetchJSON(`/watchlist?${params}`, { method: "POST" });
-            document.getElementById("new-ticker").value = "";
-            document.getElementById("new-name").value = "";
-            document.getElementById("new-sector").value = "";
-            await loadWatchlist();
-        } catch (e) {
-            alert("Fehler beim Hinzufügen: " + e.message);
-        } finally {
-            btn.textContent = orig;
-            btn.disabled = false;
+                    // Attach click listeners to results
+                    document.querySelectorAll(".search-result-item").forEach(item => {
+                        item.addEventListener("click", async () => {
+                            const ticker = item.dataset.ticker;
+                            const name = item.dataset.name;
+                            const sector = item.dataset.sector;
+
+                            try {
+                                const params = new URLSearchParams({ ticker, name });
+                                if (sector) params.append("sector", sector);
+                                await fetchJSON(`/watchlist?${params}`, { method: "POST" });
+                                document.getElementById("search-company-input").value = "";
+                                resultsDiv.style.display = "none";
+                                await loadWatchlist();
+
+                                // Automatisch nach News für diese Company suchen
+                                document.getElementById("ticker-filter").value = ticker;
+                                await loadSignals();
+                            } catch (e) {
+                                alert("Fehler beim Hinzufügen: " + e.message);
+                            }
+                        });
+                    });
+                } else {
+                    resultsDiv.innerHTML = `<div style="padding: 0.8rem; color: #8b949e;">Keine Ergebnisse gefunden</div>`;
+                    resultsDiv.style.display = "block";
+                }
+            } catch (e) {
+                resultsDiv.innerHTML = `<div style="padding: 0.8rem; color: #f85149;">Fehler: ${escapeHtml(e.message)}</div>`;
+                resultsDiv.style.display = "block";
+            }
+        }, 300);
+    });
+
+    // Suche ausblenden, wenn man anderswo klickt
+    document.addEventListener("click", (e) => {
+        if (!e.target.closest("#search-company-input") && !e.target.closest("#search-results")) {
+            document.getElementById("search-results").style.display = "none";
         }
     });
 

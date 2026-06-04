@@ -371,6 +371,44 @@ def create_app() -> FastAPI:
                 for row in rows
             ]
 
+    @app.get("/search/companies")
+    async def search_companies(query: str = Query(...)):
+        """Sucht nach Companies via yfinance oder Fallback."""
+        if not query or len(query.strip()) < 1:
+            return {"results": [], "error": "Query zu kurz"}
+
+        query_upper = query.upper()
+
+        # Versuche mit yfinance
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(query_upper)
+            info = ticker.info
+
+            result = {
+                "ticker": query_upper,
+                "name": info.get("longName", info.get("shortName", query_upper)),
+                "sector": info.get("sector"),
+            }
+            return {"results": [result], "error": None}
+        except Exception:
+            pass
+
+        # Fallback: Akzeptiere 1-5 Zeichen als Ticker-Symbole
+        if 1 <= len(query_upper) <= 5 and query_upper.isalpha():
+            return {
+                "results": [
+                    {
+                        "ticker": query_upper,
+                        "name": query,
+                        "sector": None,
+                    }
+                ],
+                "error": None
+            }
+
+        return {"results": [], "error": "Keine Ergebnisse gefunden"}
+
     @app.get("/watchlist", response_model=list[WatchlistItemInfo])
     async def list_watchlist():
         """Listet alle Companies auf der Watchlist."""
