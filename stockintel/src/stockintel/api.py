@@ -19,11 +19,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import desc, func, select
 
+from stockintel.analysis.prices import current_price
 from stockintel.analysis.scoring import generate_recommendations
 from stockintel.analysis.triage import analyze_signals
 from stockintel.config import load_settings
 from stockintel.db.database import get_database
-from stockintel.db.models import Company, Event, EventOutcome, EventSnapshot, Recommendation, ReactionProfile, Signal
+from stockintel.db.models import Company, Event, EventOutcome, EventSnapshot, RawItem, Recommendation, ReactionProfile, Signal, Source
 
 if TYPE_CHECKING:
     from stockintel.db.database import Database
@@ -49,6 +50,21 @@ class SignalInfo(BaseModel):
     direction: str
     relevance: int
     confidence: float
+
+
+class SignalDetailInfo(BaseModel):
+    """Enhanced signal with source, timestamp, and URL."""
+    id: int
+    ticker: str
+    title: str | None
+    direction: str
+    relevance: int
+    confidence: float
+    source_key: str
+    source_name: str
+    url: str | None
+    published_at: str | None
+    rationale: str | None
 
 
 class RecommendationInfo(BaseModel):
@@ -104,6 +120,23 @@ class EventDetailInfo(BaseModel):
     abnormal_return: float | None
     is_hickup: bool
     snapshots: list[SnapshotInfo]
+
+
+class WatchlistItemInfo(BaseModel):
+    """Company on watchlist."""
+    ticker: str
+    name: str
+    sector: str | None
+
+
+class CompanyDetailInfo(BaseModel):
+    """Company detail with price and signals grouped by source."""
+    ticker: str
+    name: str
+    sector: str | None
+    current_price: float | None
+    signal_count: int
+    signals_by_source: dict[str, list[SignalDetailInfo]]
 
 
 def schedule_background_tasks(db: Database) -> None:
@@ -334,6 +367,125 @@ def create_app() -> FastAPI:
                     name=row.name,
                     sector=row.sector,
                     signal_count=row.signal_count or 0,
+                )
+                for row in rows
+            ]
+
+    @app.get("/watchlist", response_model=list[WatchlistItemInfo])
+    async def list_watchlist():
+        """Listet alle Companies auf der Watchlist."""
+        with db.session() as session:
+            rows = session.execute(
+                select(Company.ticker, Company.name, Company.sector)
+                .where(Company.on_watchlist == True)
+                .order_by(Company.ticker)
+            ).all()
+
+            return [
+                WatchlistItemInfo(ticker=row.ticker, name=row.name, sector=row.sector)
+                for row in rows
+            ]
+
+    @app.post("/watchlist")
+    async def add_to_watchlist(ticker: str = Query(...), name: str = Query(...), sector: str | None = Query(None)):
+        """Fügt ein Unternehmen zur Watchlist hinzu."""
+        with db.session() as session:
+            company = session.execute(
+                select(Company).where(Company.ticker == ticker.upper())
+            ).first()
+
+            if company:
+                company = company[0]
+                company.on_watchlist = True
+                company.name = name
+                if sector:
+                    company.sector = sector
+            else:
+                company = Company(
+                    ticker=ticker.upper(),
+                    name=name,
+                    sector=sector,
+                    on_watchlist=True,
+                )
+                session.add(company)
+
+            session.commit()
+            return {"status": "ok", "ticker": company.ticker}
+
+    @app.put("/watchlist/{ticker}")
+    async def update_watchlist_item(ticker: str, name: str | None = Query(None), sector: str | None = Query(None)):
+        """Aktualisiert ein Unternehmen auf der Watchlist."""
+        with db.session() as session:
+            company = session.execute(
+                select(Company).where(Company.ticker == ticker.upper())
+            ).first()
+
+            if not company:
+                raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
+
+            company = company[0]
+            if name:
+                company.name = name
+            if sector:
+                company.sector = sector
+            session.commit()
+            return {"status": "ok", "ticker": company.ticker}
+
+    @app.delete("/watchlist/{ticker}")
+    async def remove_from_watchlist(ticker: str):
+        """Entfernt ein Unternehmen von der Watchlist."""
+        with db.session() as session:
+            company = session.execute(
+                select(Company).where(Company.ticker == ticker.upper())
+            ).first()
+
+            if not company:
+                raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
+
+            company = company[0]
+            company.on_watchlist = False
+            session.commit()
+            return {"status": "ok", "ticker": company.ticker}
+
+    @app.get("/signals/detailed", response_model=list[SignalDetailInfo])
+    async def list_signals_detailed(
+        limit: int = Query(100, ge=1, le=1000),
+        ticker: str | None = None,
+        source_key: str | None = None,
+    ):
+        """Listet Signals mit vollständiger Information: Quelle, Timestamp, URL."""
+        from stockintel.db.models import RawItem
+
+        with db.session() as session:
+            stmt = select(Signal, Company.ticker, Source.key, Source.name).join(
+                Company, Signal.company_id == Company.id
+            ).join(
+                RawItem, Signal.raw_item_id == RawItem.id
+            ).join(
+                Source, RawItem.source_id == Source.id
+            )
+            if ticker:
+                stmt = stmt.where(Company.ticker == ticker.upper())
+            if source_key:
+                stmt = stmt.where(Source.key == source_key)
+
+            rows = session.execute(
+                stmt.order_by(desc(Signal.created_at)).limit(limit)
+            ).all()
+
+            return [
+                SignalDetailInfo(
+                    id=row[0].id,
+                    ticker=row[1],
+                    title=(row[0].raw_item.title or "")[:100] if row[0].raw_item else None,
+                    direction=row[0].direction.value,
+                    relevance=row[0].relevance or 0,
+                    confidence=row[0].confidence or 0.0,
+                    source_key=row[2],
+                    source_name=row[3],
+                    url=row[0].raw_item.url if row[0].raw_item else None,
+                    published_at=row[0].raw_item.published_at.isoformat() if row[0].raw_item and row[0].raw_item.published_at else None,
+                    rationale=row[0].rationale,
                 )
                 for row in rows
             ]
@@ -661,6 +813,64 @@ def create_app() -> FastAPI:
             "alerts_triggered": alerts,
             "total_matches": sum(len(v) for v in alerts.values()),
         }
+
+    @app.get("/company/{ticker}", response_model=CompanyDetailInfo)
+    async def get_company_detail(ticker: str):
+        """Company-Detailseite: Aktueller Kurs + Signale gruppiert nach Quelle."""
+        from stockintel.db.models import RawItem
+
+        with db.session() as session:
+            company = session.execute(
+                select(Company).where(Company.ticker == ticker.upper())
+            ).first()
+
+            if not company:
+                raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
+
+            company = company[0]
+
+            # Signals mit Source-Info gruppieren
+            signals_rows = session.execute(
+                select(Signal, Source.key, Source.name)
+                .where(Signal.company_id == company.id)
+                .join(RawItem, Signal.raw_item_id == RawItem.id)
+                .join(Source, RawItem.source_id == Source.id)
+                .order_by(desc(Signal.created_at))
+            ).all()
+
+            signals_by_source: dict[str, list[SignalDetailInfo]] = {}
+            signal_count = 0
+            for row in signals_rows:
+                signal, source_key, source_name = row
+                signal_count += 1
+                detail = SignalDetailInfo(
+                    id=signal.id,
+                    ticker=company.ticker,
+                    title=(signal.raw_item.title or "")[:100] if signal.raw_item else None,
+                    direction=signal.direction.value,
+                    relevance=signal.relevance or 0,
+                    confidence=signal.confidence or 0.0,
+                    source_key=source_key,
+                    source_name=source_name,
+                    url=signal.raw_item.url if signal.raw_item else None,
+                    published_at=signal.raw_item.published_at.isoformat() if signal.raw_item and signal.raw_item.published_at else None,
+                    rationale=signal.rationale,
+                )
+                if source_key not in signals_by_source:
+                    signals_by_source[source_key] = []
+                signals_by_source[source_key].append(detail)
+
+            # Aktuellen Kurs abrufen
+            current_stock_price = current_price(ticker.upper())
+
+            return CompanyDetailInfo(
+                ticker=company.ticker,
+                name=company.name,
+                sector=company.sector,
+                current_price=current_stock_price,
+                signal_count=signal_count,
+                signals_by_source=signals_by_source,
+            )
 
     @app.get("/ticker/{ticker}")
     async def get_ticker_detail(ticker: str):

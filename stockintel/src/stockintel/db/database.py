@@ -17,9 +17,21 @@ class Database:
 
     def __init__(self, url: str) -> None:
         self.url = url
-        self._ensure_sqlite_dir(url)
-        self.engine: Engine = create_engine(url, future=True)
+        self.resolved_url = self._resolve_sqlite_url(url)
+        self._ensure_sqlite_dir(self.resolved_url)
+        self.engine: Engine = create_engine(self.resolved_url, future=True)
         self._session_factory = sessionmaker(bind=self.engine, future=True)
+
+    @staticmethod
+    def _resolve_sqlite_url(url: str) -> str:
+        """Resolves relative sqlite paths relative to ROOT."""
+        parsed = make_url(url)
+        if parsed.drivername.startswith("sqlite") and parsed.database:
+            db_path = Path(parsed.database)
+            if not db_path.is_absolute():
+                db_path = ROOT / db_path
+                return f"sqlite:///{db_path}"
+        return url
 
     @staticmethod
     def _ensure_sqlite_dir(url: str) -> None:
