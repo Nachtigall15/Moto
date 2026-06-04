@@ -17,10 +17,21 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
+from stockintel.data import companies as catalog
 from stockintel.db.database import Database
-from stockintel.db.models import Company, Direction, Horizon, Impact, RawItem, Signal
+from stockintel.db.models import (
+    Company,
+    Direction,
+    Event,
+    Horizon,
+    Impact,
+    RawItem,
+    Recommendation,
+    Signal,
+    ThemeBeneficiary,
+)
 
 #: Marker im ``Signal.model``-Feld für die regelbasierte Vorstufe (noch nicht
 #: KI-bewertet). Die KI-Triage selektiert genau diese Signals.
@@ -173,6 +184,124 @@ def sync_companies(db: Database, watchlist: list[dict]) -> int:
                 company.on_watchlist = True
         session.commit()
     return new
+
+
+def _merge_company(session, source: Company, target: Company) -> None:
+    """Verschiebt alle Verknuepfungen von ``source`` auf ``target`` und loescht
+    danach ``source``. Signale/Theme-Treffer werden dedupliziert."""
+    # Signals: pro raw_item nur eines behalten.
+    target_raw_ids = set(
+        session.scalars(select(Signal.raw_item_id).where(Signal.company_id == target.id))
+    )
+    for sig in list(session.scalars(select(Signal).where(Signal.company_id == source.id))):
+        if sig.raw_item_id in target_raw_ids:
+            session.delete(sig)
+        else:
+            sig.company_id = target.id
+            target_raw_ids.add(sig.raw_item_id)
+
+    # ThemeBeneficiary: pro Theme nur eines (uq_theme_company).
+    target_theme_ids = set(
+        session.scalars(select(ThemeBeneficiary.theme_id).where(ThemeBeneficiary.company_id == target.id))
+    )
+    for tb in list(session.scalars(select(ThemeBeneficiary).where(ThemeBeneficiary.company_id == source.id))):
+        if tb.theme_id in target_theme_ids:
+            session.delete(tb)
+        else:
+            tb.company_id = target.id
+            target_theme_ids.add(tb.theme_id)
+
+    # Events: umhaengen (Snapshots/Outcomes haengen am Event, bleiben intakt).
+    for ev in list(session.scalars(select(Event).where(Event.company_id == source.id))):
+        ev.company_id = target.id
+
+    # Recommendations der Quelle verwerfen (werden ohnehin neu berechnet).
+    for rec in list(session.scalars(select(Recommendation).where(Recommendation.company_id == source.id))):
+        session.delete(rec)
+
+    target.on_watchlist = target.on_watchlist or source.on_watchlist
+    session.flush()
+    session.delete(source)
+
+
+def _apply_catalog_metadata(company: Company, entry: dict) -> None:
+    """Setzt Name/Sektor/Aliase aus dem Katalog auf eine Company."""
+    company.name = entry["name"]
+    if entry.get("sector"):
+        company.sector = entry["sector"]
+    if entry.get("aliases"):
+        company.aliases = json.dumps(entry["aliases"])
+
+
+def normalize_companies(db: Database) -> dict[str, list[str] | int]:
+    """Raeumt die ``companies``-Tabelle auf: dedupliziert und entfernt Muell.
+
+    Schritte (idempotent):
+
+    1. **Merge/Rename** – jede Company wird ueber den Katalog auf ihren
+       kanonischen Ticker aufgeloest (Ticker -> WKN -> ISIN -> Name/Alias).
+       Mehrere Eintraege derselben Firma (z.B. ``AAPL`` + ``APPLE``) werden zu
+       einem zusammengefuehrt; Signale/Events wandern mit.
+    2. **Metadaten** – kanonische Companies bekommen Name/Sektor/Aliase aus dem
+       Katalog (so matcht ``AAPL`` kuenftig auch reine "Apple"-News).
+    3. **Muell entfernen** – Eintraege ohne Watchlist-Flag, ohne Signale und
+       ohne Events werden geloescht (Phantom-Firmen wie ``PENIS``/``MTL`` und
+       leere Katalog-Reste).
+
+    Returns: Report mit den Listen ``merged``/``renamed``/``deleted`` und
+    ``kept`` (Anzahl unveraenderter Companies).
+    """
+    report: dict[str, list[str] | int] = {"merged": [], "renamed": [], "deleted": [], "kept": 0}
+
+    with db.session() as session:
+        companies = list(session.scalars(select(Company)))
+        by_ticker: dict[str, Company] = {c.ticker: c for c in companies}
+
+        # --- Schritt 1 & 2: Merge / Rename / Metadaten ---
+        for company in companies:
+            canonical = catalog.resolve_ticker(company.ticker) or catalog.resolve_ticker(company.name)
+            if canonical is None:
+                continue  # unbekannt -> Schritt 3 entscheidet
+
+            entry = catalog.get(canonical)
+            if canonical == company.ticker:
+                _apply_catalog_metadata(company, entry)
+                continue
+
+            target = by_ticker.get(canonical)
+            if target is None or target is company:
+                old = company.ticker
+                company.ticker = canonical
+                _apply_catalog_metadata(company, entry)
+                by_ticker[canonical] = company
+                report["renamed"].append(f"{old} -> {canonical}")
+            else:
+                _apply_catalog_metadata(target, entry)
+                _merge_company(session, source=company, target=target)
+                by_ticker.pop(company.ticker, None)
+                report["merged"].append(f"{company.ticker} -> {canonical}")
+        session.flush()
+
+        # --- Schritt 3: leere/Muell-Eintraege entfernen ---
+        for company in list(session.scalars(select(Company))):
+            sig_count = session.scalar(
+                select(func.count()).select_from(Signal).where(Signal.company_id == company.id)
+            )
+            ev_count = session.scalar(
+                select(func.count()).select_from(Event).where(Event.company_id == company.id)
+            )
+            if not company.on_watchlist and not sig_count and not ev_count:
+                report["deleted"].append(company.ticker)
+                # restliche Recommendations entfernen, dann Company loeschen
+                for rec in list(session.scalars(select(Recommendation).where(Recommendation.company_id == company.id))):
+                    session.delete(rec)
+                session.delete(company)
+            else:
+                report["kept"] = int(report["kept"]) + 1  # type: ignore[arg-type]
+
+        session.commit()
+
+    return report
 
 
 def link_items(db: Database) -> dict[str, int]:

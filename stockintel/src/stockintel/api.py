@@ -19,10 +19,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import desc, func, select
 
-from stockintel.analysis.prices import current_price, fetch_history
+from stockintel.analysis.prices import convert, current_price, fetch_history, fx_rate
 from stockintel.analysis.scoring import generate_recommendations
 from stockintel.analysis.triage import analyze_signals
 from stockintel.config import load_settings
+from stockintel.data import companies as catalog
 from stockintel.db.database import get_database
 from stockintel.db.models import Company, Event, EventOutcome, EventSnapshot, RawItem, Recommendation, ReactionProfile, Signal, Source
 
@@ -135,7 +136,10 @@ class CompanyDetailInfo(BaseModel):
     ticker: str
     name: str
     sector: str | None
+    wkn: str | None = None
+    isin: str | None = None
     current_price: float | None
+    currency: str = "EUR"
     signal_count: int
     signals_by_source: dict[str, list[SignalDetailInfo]]
 
@@ -152,6 +156,7 @@ class PriceHistoryInfo(BaseModel):
     period: str
     points: list[PricePointInfo]
     current_price: float | None
+    currency: str = "EUR"
 
 
 def schedule_background_tasks(db: Database) -> None:
@@ -388,122 +393,29 @@ def create_app() -> FastAPI:
                 for row in rows
             ]
 
-    # Company-Katalog: ticker -> wkn, name, sector, pre_ipo
-    # WKN = deutsche Wertpapierkennnummer. pre_ipo=True: noch nicht boersennotiert,
-    # aber News werden ueber den Namen gematcht (Entity-Linking via Name).
-    _COMPANY_DATABASE = {
-        # --- Boersennotiert (mit WKN) ---
-        "AAPL": {"wkn": "865985", "name": "Apple Inc.", "sector": "Technology"},
-        "MSFT": {"wkn": "870747", "name": "Microsoft Corporation", "sector": "Technology"},
-        "GOOGL": {"wkn": "A14Y6F", "name": "Alphabet Inc. (Class A)", "sector": "Technology"},
-        "GOOG": {"wkn": "A14Y6H", "name": "Alphabet Inc. (Class C)", "sector": "Technology"},
-        "AMZN": {"wkn": "906866", "name": "Amazon.com Inc.", "sector": "Consumer Cyclical"},
-        "NVDA": {"wkn": "918422", "name": "NVIDIA Corporation", "sector": "Semiconductors"},
-        "META": {"wkn": "A1JWVX", "name": "Meta Platforms Inc.", "sector": "Technology"},
-        "TSLA": {"wkn": "A1CX3T", "name": "Tesla Inc.", "sector": "Automotive"},
-        "BRK.B": {"wkn": "A0YJQ2", "name": "Berkshire Hathaway Inc.", "sector": "Financial"},
-        "JNJ": {"wkn": "853260", "name": "Johnson & Johnson", "sector": "Healthcare"},
-        "V": {"wkn": "A0NC7B", "name": "Visa Inc.", "sector": "Financial"},
-        "WMT": {"wkn": "860853", "name": "Walmart Inc.", "sector": "Consumer Defensive"},
-        "JPM": {"wkn": "850628", "name": "JPMorgan Chase & Co.", "sector": "Financial"},
-        "PG": {"wkn": "852062", "name": "Procter & Gamble Co.", "sector": "Consumer Defensive"},
-        "NFLX": {"wkn": "552484", "name": "Netflix Inc.", "sector": "Communication Services"},
-        "MRVL": {"wkn": "A2QGD4", "name": "Marvell Technology Inc.", "sector": "Semiconductors"},
-        "AMD": {"wkn": "863186", "name": "Advanced Micro Devices Inc.", "sector": "Semiconductors"},
-        "INTC": {"wkn": "855681", "name": "Intel Corporation", "sector": "Semiconductors"},
-        "QCOM": {"wkn": "883121", "name": "Qualcomm Inc.", "sector": "Semiconductors"},
-        "ASML": {"wkn": "A1J4U4", "name": "ASML Holding N.V.", "sector": "Semiconductors"},
-        "TSM": {"wkn": "909800", "name": "Taiwan Semiconductor Manufacturing", "sector": "Semiconductors"},
-        "COST": {"wkn": "888351", "name": "Costco Wholesale Corporation", "sector": "Consumer Defensive"},
-        "BA": {"wkn": "850471", "name": "The Boeing Company", "sector": "Industrials"},
-        "GE": {"wkn": "A2PL9X", "name": "General Electric Company", "sector": "Industrials"},
-        "IBM": {"wkn": "851399", "name": "International Business Machines", "sector": "Technology"},
-        "ORCL": {"wkn": "871460", "name": "Oracle Corporation", "sector": "Technology"},
-        "CSCO": {"wkn": "878841", "name": "Cisco Systems Inc.", "sector": "Technology"},
-        "ADBE": {"wkn": "871981", "name": "Adobe Inc.", "sector": "Technology"},
-        "CRM": {"wkn": "A0B87V", "name": "Salesforce Inc.", "sector": "Technology"},
-        "NOW": {"wkn": "A1JX4P", "name": "ServiceNow Inc.", "sector": "Technology"},
-        "UBER": {"wkn": "A2PHHG", "name": "Uber Technologies Inc.", "sector": "Transportation"},
-        "LYFT": {"wkn": "A2PE38", "name": "Lyft Inc.", "sector": "Transportation"},
-        "SPOT": {"wkn": "A2JEGN", "name": "Spotify Technology S.A.", "sector": "Communication Services"},
-        "DASH": {"wkn": "A2QTU5", "name": "DoorDash Inc.", "sector": "Consumer Cyclical"},
-        "SNOW": {"wkn": "A2QB38", "name": "Snowflake Inc.", "sector": "Technology"},
-        "CRWD": {"wkn": "A2PK2R", "name": "CrowdStrike Holdings Inc.", "sector": "Technology"},
-        "MSTR": {"wkn": "A0WMPJ", "name": "MicroStrategy Incorporated", "sector": "Technology"},
-        "PLTR": {"wkn": "A2QA4J", "name": "Palantir Technologies Inc.", "sector": "Technology"},
-        "ARM": {"wkn": "A40JBT", "name": "Arm Holdings plc", "sector": "Semiconductors"},
-        "AVGO": {"wkn": "A2JG9Z", "name": "Broadcom Inc.", "sector": "Semiconductors"},
-        "MU": {"wkn": "869020", "name": "Micron Technology Inc.", "sector": "Semiconductors"},
-        "SMCI": {"wkn": "A1C0SX", "name": "Super Micro Computer Inc.", "sector": "Technology"},
-        "COIN": {"wkn": "A2QP7J", "name": "Coinbase Global Inc.", "sector": "Financial"},
-        "RIVN": {"wkn": "A3C47B", "name": "Rivian Automotive Inc.", "sector": "Automotive"},
-        "LCID": {"wkn": "A3CVXG", "name": "Lucid Group Inc.", "sector": "Automotive"},
-        # --- Pre-IPO / nicht boersennotiert (News via Name-Matching) ---
-        "ANTHROPIC": {"wkn": None, "name": "Anthropic", "sector": "Artificial Intelligence", "pre_ipo": True},
-        "OPENAI": {"wkn": None, "name": "OpenAI", "sector": "Artificial Intelligence", "pre_ipo": True},
-        "SPACEX": {"wkn": None, "name": "SpaceX", "sector": "Aerospace", "pre_ipo": True},
-        "STRIPE": {"wkn": None, "name": "Stripe", "sector": "FinTech", "pre_ipo": True},
-        "DATABRICKS": {"wkn": None, "name": "Databricks", "sector": "Technology", "pre_ipo": True},
-        "XAI": {"wkn": None, "name": "xAI", "sector": "Artificial Intelligence", "pre_ipo": True},
-        "DISCORD": {"wkn": None, "name": "Discord", "sector": "Technology", "pre_ipo": True},
-        "CANVA": {"wkn": None, "name": "Canva", "sector": "Technology", "pre_ipo": True},
-        "REVOLUT": {"wkn": None, "name": "Revolut", "sector": "FinTech", "pre_ipo": True},
-        "BYTEDANCE": {"wkn": None, "name": "ByteDance", "sector": "Technology", "pre_ipo": True},
-        "EPICGAMES": {"wkn": None, "name": "Epic Games", "sector": "Gaming", "pre_ipo": True},
-    }
-
-    def _catalog_entry(ticker: str) -> dict:
-        data = _COMPANY_DATABASE[ticker]
+    def _catalog_entry(entry: dict) -> dict:
+        """Formt einen Katalog-Eintrag fuer die Such-API (WKN + ISIN)."""
         return {
-            "ticker": ticker,
-            "wkn": data.get("wkn"),
-            "name": data["name"],
-            "sector": data["sector"],
-            "pre_ipo": data.get("pre_ipo", False),
+            "ticker": entry["ticker"],
+            "wkn": entry.get("wkn"),
+            "isin": entry.get("isin"),
+            "name": entry["name"],
+            "sector": entry.get("sector"),
+            "pre_ipo": entry.get("pre_ipo", False),
         }
 
     @app.get("/search/companies")
     async def search_companies(query: str = Query(...)):
-        """Sucht nach Companies im Katalog (Ticker, Name oder WKN)."""
+        """Sucht nach Companies im kuratierten Katalog (Ticker, Name, Alias,
+        WKN oder ISIN). Es werden ausschliesslich Katalog-Treffer geliefert —
+        freie Eingaben erzeugen keine Phantom-Firmen mehr."""
         if not query or len(query.strip()) < 1:
             return {"results": [], "error": "Query zu kurz"}
 
-        query_upper = query.upper().strip()
-
-        # Exakter Ticker-Treffer zuerst
-        if query_upper in _COMPANY_DATABASE:
-            return {"results": [_catalog_entry(query_upper)], "error": None}
-
-        # Fuzzy: Ticker-Prefix, Name enthaelt Query, oder WKN-Treffer
-        results = []
-        for ticker, data in _COMPANY_DATABASE.items():
-            wkn = (data.get("wkn") or "").upper()
-            if (
-                ticker.startswith(query_upper)
-                or query_upper in data["name"].upper()
-                or (wkn and query_upper in wkn)
-            ):
-                results.append(_catalog_entry(ticker))
-
+        results = [_catalog_entry(e) for e in catalog.search(query, limit=20)]
         if results:
-            # Sortiere: exakter Ticker zuerst, dann Prefix-Treffer
-            results.sort(key=lambda x: (x["ticker"] != query_upper, not x["ticker"].startswith(query_upper)))
-            return {"results": results[:20], "error": None}
-
-        # Fallback: freie Eingabe als Custom-Ticker (1-6 Buchstaben)
-        if 1 <= len(query_upper) <= 6 and query_upper.isalpha():
-            return {
-                "results": [{
-                    "ticker": query_upper,
-                    "wkn": None,
-                    "name": query.strip(),
-                    "sector": None,
-                    "pre_ipo": False,
-                }],
-                "error": None
-            }
-
-        return {"results": [], "error": "Keine Ergebnisse gefunden"}
+            return {"results": results, "error": None}
+        return {"results": [], "error": "Keine Ergebnisse im Katalog gefunden"}
 
     @app.get("/watchlist", response_model=list[WatchlistItemInfo])
     async def list_watchlist():
@@ -523,23 +435,51 @@ def create_app() -> FastAPI:
     @app.post("/watchlist")
     async def add_to_watchlist(ticker: str = Query(...), name: str = Query(...), sector: str | None = Query(None)):
         """Fügt ein Unternehmen zur Watchlist hinzu und verknüpft sofort
-        bereits gesammelte News über Namens-Matching (auch für Pre-IPO-Firmen)."""
+        bereits gesammelte News über Namens-Matching (auch für Pre-IPO-Firmen).
+
+        Der eingehende Ticker/Name/WKN/ISIN wird gegen den Katalog aufgeloest,
+        damit es pro Firma genau **einen** kanonischen Ticker gibt (kein
+        AAPL-vs-APPLE-Wildwuchs). Nicht aufloesbare Freitext-Eingaben werden
+        abgelehnt — so entstehen keine Phantom-Firmen mehr.
+        """
+        import json as _json
+
+        # Kanonischen Ticker bestimmen (Ticker -> WKN -> ISIN -> Name/Alias).
+        canonical = catalog.resolve_ticker(ticker) or catalog.resolve_ticker(name)
+        entry = catalog.get(canonical) if canonical else None
+
+        if entry is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"'{ticker}' ist kein bekannter Wert im Katalog. "
+                    "Bitte über die Suche einen Katalog-Treffer wählen."
+                ),
+            )
+
+        canonical_ticker = entry["ticker"]
+        canonical_name = entry["name"]
+        canonical_sector = entry.get("sector") or sector
+        aliases_json = _json.dumps(entry.get("aliases", [])) if entry.get("aliases") else None
+
         with db.session() as session:
             company = session.execute(
-                select(Company).where(Company.ticker == ticker.upper())
+                select(Company).where(Company.ticker == canonical_ticker)
             ).first()
 
             if company:
                 company = company[0]
                 company.on_watchlist = True
-                company.name = name
-                if sector:
-                    company.sector = sector
+                company.name = canonical_name
+                company.sector = canonical_sector
+                if aliases_json:
+                    company.aliases = aliases_json
             else:
                 company = Company(
-                    ticker=ticker.upper(),
-                    name=name,
-                    sector=sector,
+                    ticker=canonical_ticker,
+                    name=canonical_name,
+                    sector=canonical_sector,
+                    aliases=aliases_json,
                     on_watchlist=True,
                 )
                 session.add(company)
@@ -594,6 +534,23 @@ def create_app() -> FastAPI:
             company.on_watchlist = False
             session.commit()
             return {"status": "ok", "ticker": company.ticker}
+
+    @app.post("/admin/cleanup-companies")
+    async def cleanup_companies():
+        """Räumt die Companies auf: dedupliziert (z.B. AAPL+APPLE -> AAPL) und
+        löscht Phantom-Firmen ohne Signale/Watchlist. Danach werden News neu
+        verknüpft und Recommendations neu berechnet."""
+        from stockintel.analysis.entity import link_items, normalize_companies
+
+        report = normalize_companies(db)
+        # Nach dem Merge erneut verknüpfen (kanonische Companies haben jetzt
+        # Aliase -> "Apple"-News landet bei AAPL) und Scores aktualisieren.
+        try:
+            link_items(db)
+            generate_recommendations(db)
+        except Exception as e:  # noqa: BLE001 - Folgeschritte nicht fatal
+            logger.warning(f"Post-Cleanup-Schritte fehlgeschlagen: {e}")
+        return {"status": "ok", "report": report}
 
     @app.get("/signals/detailed", response_model=list[SignalDetailInfo])
     async def list_signals_detailed(
@@ -1008,14 +965,21 @@ def create_app() -> FastAPI:
                     signals_by_source[source_key] = []
                 signals_by_source[source_key].append(detail)
 
-            # Aktuellen Kurs abrufen
-            current_stock_price = current_price(ticker.upper())
+            # Aktuellen Kurs abrufen (yfinance-Symbol aus Katalog, Anzeige in EUR)
+            entry = catalog.get(company.ticker)
+            yf_symbol = (entry.get("yf") if entry else None) or company.ticker
+            src_currency = entry.get("currency", "USD") if entry else "USD"
+            raw_price = current_price(yf_symbol)
+            current_stock_price = convert(raw_price, src_currency, "EUR")
 
             return CompanyDetailInfo(
                 ticker=company.ticker,
                 name=company.name,
                 sector=company.sector,
+                wkn=entry.get("wkn") if entry else None,
+                isin=entry.get("isin") if entry else None,
                 current_price=current_stock_price,
+                currency="EUR",
                 signal_count=signal_count,
                 signals_by_source=signals_by_source,
             )
@@ -1026,8 +990,6 @@ def create_app() -> FastAPI:
 
         Supported periods: 1d, 1w, 1m, 3m, 6m, 1y, 3y, 5y, max
         """
-        from datetime import date
-
         ticker = ticker.upper()
 
         # Map period strings to lookback days
@@ -1049,19 +1011,28 @@ def create_app() -> FastAPI:
                 detail=f"Invalid period '{period}'. Supported: {', '.join(period_days.keys())}"
             )
 
+        # yfinance-Symbol + Notierungswaehrung aus dem Katalog ableiten.
+        entry = catalog.get(ticker)
+        yf_symbol = (entry.get("yf") if entry else None) or ticker
+        src_currency = entry.get("currency", "USD") if entry else "USD"
+        # FX-Kurs einmal bestimmen und auf alle Punkte anwenden (Anzeige in EUR).
+        rate = fx_rate(src_currency, "EUR") or 1.0
+
         lookback_days = period_days[period]
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=lookback_days)
 
-        # Fetch price history
-        price_points = fetch_history(ticker, start_date, end_date, interval="1d")
+        # Fetch price history (Rohdaten in Notierungswaehrung)
+        price_points = fetch_history(yf_symbol, start_date, end_date, interval="1d")
 
         # Get current price
-        current_stock_price = current_price(ticker)
+        current_stock_price = current_price(yf_symbol)
+        if current_stock_price is not None:
+            current_stock_price = current_stock_price * rate
 
-        # Convert to response format
+        # Convert to response format (Kurse -> EUR)
         points = [
-            PricePointInfo(ts=p.ts.isoformat(), close=p.close)
+            PricePointInfo(ts=p.ts.isoformat(), close=p.close * rate)
             for p in price_points
         ]
 
@@ -1070,6 +1041,7 @@ def create_app() -> FastAPI:
             period=period,
             points=points,
             current_price=current_stock_price,
+            currency="EUR",
         )
 
     @app.get("/ticker/{ticker}")

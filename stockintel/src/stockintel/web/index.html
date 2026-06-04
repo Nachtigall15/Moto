@@ -159,7 +159,10 @@
             </div>
 
             <div style="border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 1rem;">
-                <h3 style="margin-top: 0;">Alle Companies</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    <h3 style="margin-top: 0;">Alle Companies</h3>
+                    <button class="action-btn" id="cleanup-btn" title="Doppelte Firmen zusammenführen und Phantom-Einträge entfernen">🧹 Doppelte bereinigen</button>
+                </div>
                 <div class="table-wrap">
                     <table id="companies-table">
                         <thead>

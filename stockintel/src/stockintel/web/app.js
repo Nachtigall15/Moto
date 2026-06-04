@@ -359,12 +359,17 @@ function attachCompanyListeners() {
                 const detail = await fetchJSON(`/company/${encodeURIComponent(company.ticker)}`);
 
                 // Build signals grouped by source
+                const wknIsin = [
+                    detail.wkn ? `WKN ${escapeHtml(detail.wkn)}` : null,
+                    detail.isin ? `ISIN ${escapeHtml(detail.isin)}` : null,
+                ].filter(Boolean).join(" · ");
                 let signalsHtml = `
                     <div class="modal-field">
                         <div class="modal-label">Kurs (Live)</div>
                         <div class="modal-value" style="font-size: 1.3rem; font-weight: bold;">
-                            ${detail.current_price !== null ? `$${detail.current_price.toFixed(2)}` : '–'}
+                            ${detail.current_price !== null ? `${detail.current_price.toFixed(2)} €` : '–'}
                         </div>
+                        ${wknIsin ? `<div style="color: #8b949e; font-size: 0.8rem; font-family: monospace; margin-top: 0.3rem;">${wknIsin}</div>` : ''}
                     </div>
                 `;
 
@@ -910,6 +915,28 @@ async function triggerScore() {
     }
 }
 
+async function triggerCleanup() {
+    const btn = document.getElementById("cleanup-btn");
+    if (!btn) return;
+    const orig = btn.textContent;
+    btn.textContent = "Bereinige…";
+    btn.disabled = true;
+    try {
+        const res = await fetchJSON("/admin/cleanup-companies", { method: "POST" });
+        const r = res.report || {};
+        const merged = (r.merged || []).length;
+        const renamed = (r.renamed || []).length;
+        const deleted = (r.deleted || []).length;
+        alert(`Bereinigung fertig:\n• ${merged} zusammengeführt\n• ${renamed} umbenannt\n• ${deleted} entfernt`);
+        await loadAll();
+    } catch (e) {
+        alert("Bereinigung fehlgeschlagen: " + e.message);
+    } finally {
+        btn.textContent = orig;
+        btn.disabled = false;
+    }
+}
+
 // --- Event Listeners -----------------------------------------------------
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -918,6 +945,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("refresh-btn").addEventListener("click", loadAll);
     document.getElementById("score-btn").addEventListener("click", triggerScore);
     document.getElementById("autorefresh-btn").addEventListener("click", toggleAutoRefresh);
+    const cleanupBtn = document.getElementById("cleanup-btn");
+    if (cleanupBtn) cleanupBtn.addEventListener("click", triggerCleanup);
 
     // Stat cards click handlers for navigation
     document.getElementById("stat-items-card").addEventListener("click", () => {
@@ -950,11 +979,13 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 const result = await fetchJSON(`/search/companies?query=${encodeURIComponent(query)}`);
                 if (result.results && result.results.length > 0) {
-                    // Tabellen-Kopf mit Spalten WKN und Name
+                    // Tabellen-Kopf mit Spalten WKN, ISIN und Name
+                    const gridCols = "grid-template-columns: 80px 90px 130px 1fr auto;";
                     const header = `
-                        <div style="display: grid; grid-template-columns: 90px 110px 1fr auto; gap: 0.8rem; padding: 0.6rem 1rem; border-bottom: 2px solid var(--border); font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; position: sticky; top: 0; background: var(--bg-panel);">
+                        <div style="display: grid; ${gridCols} gap: 0.8rem; padding: 0.6rem 1rem; border-bottom: 2px solid var(--border); font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; position: sticky; top: 0; background: var(--bg-panel);">
                             <div>Ticker</div>
                             <div>WKN</div>
+                            <div>ISIN</div>
                             <div>Name</div>
                             <div></div>
                         </div>`;
@@ -963,14 +994,15 @@ document.addEventListener("DOMContentLoaded", () => {
                             ? `<span style="display: inline-block; background: #8957e5; color: #fff; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.65rem; margin-left: 0.4rem; vertical-align: middle;">PRE-IPO</span>`
                             : '';
                         return `
-                        <div class="search-result-item" style="display: grid; grid-template-columns: 90px 110px 1fr auto; gap: 0.8rem; align-items: center; padding: 0.9rem 1rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s;"
+                        <div class="search-result-item" style="display: grid; ${gridCols} gap: 0.8rem; align-items: center; padding: 0.9rem 1rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s;"
                              onmouseover="this.style.background='rgba(88, 166, 255, 0.15)'"
                              onmouseout="this.style.background='transparent'"
                              data-ticker="${escapeHtml(company.ticker)}"
                              data-name="${escapeHtml(company.name)}"
                              data-sector="${escapeHtml(company.sector || '')}">
                             <div style="font-weight: bold; color: #58a6ff;">${escapeHtml(company.ticker)}</div>
-                            <div style="color: #8b949e; font-family: monospace; font-size: 0.9rem;">${escapeHtml(company.wkn || '–')}</div>
+                            <div style="color: #8b949e; font-family: monospace; font-size: 0.85rem;">${escapeHtml(company.wkn || '–')}</div>
+                            <div style="color: #8b949e; font-family: monospace; font-size: 0.8rem;">${escapeHtml(company.isin || '–')}</div>
                             <div style="color: #c9d1d9;">
                                 ${escapeHtml(company.name)}${preIpoBadge}
                                 ${company.sector ? `<div style="color: #8b949e; font-size: 0.8rem; margin-top: 0.2rem;">📊 ${escapeHtml(company.sector)}</div>` : ''}

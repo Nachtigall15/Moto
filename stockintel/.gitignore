@@ -20,4 +20,7 @@ dist/
 *.db
 *.sqlite
 *.sqlite3
-data/
+# Nur das Laufzeit-Daten-Verzeichnis im Projekt-Root ignorieren (nicht das
+# Quellpaket src/stockintel/data/ mit dem Unternehmens-Katalog!).
+/data/
+:memory:

@@ -146,3 +146,83 @@ def test_link_items_end_to_end(tmp_path):
         # Alle bekommen NEUTRAL als Platzhalter
         assert all(s.direction == Direction.NEUTRAL for s in sigs)
         assert all(s.model == "rule-based-v1" for s in sigs)
+
+
+# --------------------------------------------------------------------------- #
+# normalize_companies: Dedup + Muell-Entfernung
+# --------------------------------------------------------------------------- #
+def test_normalize_companies_merges_and_cleans(tmp_path):
+    from stockintel.analysis.entity import normalize_companies
+    from stockintel.db.models import Horizon, Impact
+
+    db = Database(f"sqlite:///{tmp_path/'t.db'}")
+    db.create_all()
+    with db.session() as session:
+        raws = _seed_source_and_items(session, [
+            ("Apple launches iPhone", "Apple stock up"),   # ri0 -> APPLE (name)
+            ("$AAPL hits record", "AAPL rally"),           # ri1 -> AAPL (ticker)
+        ])
+        aapl = Company(ticker="AAPL", name="Apple Inc.", sector="Technology", on_watchlist=True)
+        apple = Company(ticker="APPLE", name="APPLE", on_watchlist=False)   # Duplikat
+        penis = Company(ticker="PENIS", name="Penis", on_watchlist=False)   # Muell
+        tencent = Company(ticker="TENCENT", name="TENCENT", on_watchlist=False)  # leerer Katalog-Rest
+        session.add_all([aapl, apple, penis, tencent])
+        session.flush()
+
+        def mksig(raw, co):
+            return Signal(raw_item_id=raw.id, company_id=co.id, relevance=80,
+                          direction=Direction.NEUTRAL, impact=Impact.LOW, horizon=Horizon.DAYS,
+                          confidence=0.0, rationale="rule", model="rule-based-v1")
+        session.add_all([mksig(raws[1], aapl), mksig(raws[0], apple)])
+        session.commit()
+
+    report = normalize_companies(db)
+
+    assert "APPLE -> AAPL" in report["merged"]
+    assert "PENIS" in report["deleted"]
+    # TENCENT loest auf TCEHY auf, hat aber 0 Signale + keine Watchlist -> entfernt
+    assert "TCEHY" in report["deleted"]
+
+    with db.session() as session:
+        companies = list(session.scalars(select(Company)))
+        assert [c.ticker for c in companies] == ["AAPL"]   # nur die kanonische bleibt
+        aapl = companies[0]
+        # Beide Signale (Ticker- und Name-Treffer) haengen jetzt an AAPL
+        sig_count = len(list(session.scalars(select(Signal).where(Signal.company_id == aapl.id))))
+        assert sig_count == 2
+        # Alias "Apple" wurde aus dem Katalog gesetzt
+        assert "Apple" in (aapl.aliases or "")
+
+
+def test_normalize_companies_keeps_watchlist_pre_ipo(tmp_path):
+    """Pre-IPO-Firmen auf der Watchlist (z.B. Anthropic) bleiben erhalten."""
+    from stockintel.analysis.entity import normalize_companies
+
+    db = Database(f"sqlite:///{tmp_path/'t.db'}")
+    db.create_all()
+    with db.session() as session:
+        session.add(Company(ticker="ANTHROPIC", name="Anthropic", on_watchlist=True))
+        session.commit()
+
+    normalize_companies(db)
+    with db.session() as session:
+        tickers = [c.ticker for c in session.scalars(select(Company))]
+        assert "ANTHROPIC" in tickers
+
+
+# --------------------------------------------------------------------------- #
+# Katalog
+# --------------------------------------------------------------------------- #
+def test_catalog_resolve_and_search():
+    from stockintel.data import companies as catalog
+
+    assert catalog.resolve_ticker("Apple") == "AAPL"
+    assert catalog.resolve_ticker("APPLE") == "AAPL"
+    assert catalog.resolve_ticker("865985") == "AAPL"           # WKN
+    assert catalog.resolve_ticker("US0378331005") == "AAPL"     # ISIN
+    assert catalog.resolve_ticker("tencent") == "TCEHY"
+    assert catalog.resolve_ticker("voellig-unbekannt") is None  # kein Phantom
+
+    res = catalog.search("siemens")
+    assert res and res[0]["ticker"] == "SIE"
+    assert res[0]["wkn"] and res[0]["isin"]

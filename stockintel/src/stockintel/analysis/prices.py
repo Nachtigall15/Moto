@@ -154,6 +154,58 @@ def current_price(ticker: str) -> float | None:
     return val if val == val else None  # NaN-Check
 
 
+# --- Waehrungs-Umrechnung (Anzeige in EUR) --------------------------------
+
+# Kleiner Prozess-Cache fuer FX-Kurse: {("USD","EUR"): (rate, ts)}.
+_FX_CACHE: dict[tuple[str, str], tuple[float, dt.datetime]] = {}
+_FX_TTL = dt.timedelta(hours=6)
+
+
+def fx_rate(from_currency: str, to_currency: str = "EUR") -> float | None:
+    """Wechselkurs ``from_currency`` -> ``to_currency`` (z.B. USD->EUR).
+
+    Nutzt yfinance (``"<FROM><TO>=X"``). Ergebnis wird einige Stunden
+    gecacht. Liefert ``1.0`` bei gleicher Waehrung, ``None`` bei Fehlern.
+    """
+    frm = (from_currency or "").upper().strip()
+    to = (to_currency or "EUR").upper().strip()
+    if not frm or frm == to:
+        return 1.0
+
+    now = dt.datetime.now(dt.timezone.utc)
+    cached = _FX_CACHE.get((frm, to))
+    if cached and now - cached[1] < _FX_TTL:
+        return cached[0]
+
+    try:
+        import yfinance as yf
+    except ImportError:
+        return None
+    try:
+        hist = yf.Ticker(f"{frm}{to}=X").history(period="5d")
+        closes = hist["Close"]
+        rate = float(closes.iloc[-1])
+    except Exception as exc:  # noqa: BLE001 - FX/Netz robust kapseln
+        logger.warning("FX-Kurs %s->%s fehlgeschlagen: %s", frm, to, exc)
+        return None
+    if rate != rate or rate <= 0:  # NaN/ungueltig
+        return None
+    _FX_CACHE[(frm, to)] = (rate, now)
+    return rate
+
+
+def convert(value: float | None, from_currency: str, to_currency: str = "EUR") -> float | None:
+    """Rechnet einen Betrag in die Zielwaehrung um (oder gibt ihn unveraendert
+    zurueck, wenn kein FX-Kurs verfuegbar ist)."""
+    if value is None:
+        return None
+    rate = fx_rate(from_currency, to_currency)
+    if rate is None:
+        return value
+    return value * rate
+
+
+
 def returns_at_horizons(
     history: list[PricePoint],
     t0: dt.datetime,
