@@ -45,6 +45,10 @@ def cmd_init_db(_: argparse.Namespace) -> int:
     from stockintel.analysis.entity import sync_companies
 
     settings = load_settings()
+    print(f"DEBUG: Loaded {len(settings.watchlist)} companies from watchlist config")
+    for item in settings.watchlist:
+        print(f"  - {item.get('ticker', '?')}: {item.get('name', '')}")
+
     db = get_database(settings)
     db.create_all()
     new_companies = sync_companies(db, settings.watchlist)
@@ -53,6 +57,8 @@ def cmd_init_db(_: argparse.Namespace) -> int:
     print(f"Tabellen ({len(tables)}): {', '.join(tables)}")
     if new_companies:
         print(f"Watchlist synchronisiert: {new_companies} neue Company-Einträge.")
+    else:
+        print(f"DEBUG: sync_companies returned 0 (watchlist={len(settings.watchlist)} items)")
     return 0
 
 
