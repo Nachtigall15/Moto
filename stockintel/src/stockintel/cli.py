@@ -1,14 +1,18 @@
 """Kommandozeile für StockIntel.
 
 Verfügbare Befehle:
-  * ``stockintel init-db``    – Datenbank-Schema anlegen + Watchlist syncen
-  * ``stockintel collect``    – aktive Collectors abrufen (``--loop`` für Dauerbetrieb)
-  * ``stockintel link``       – RawItems regelbasiert mit Companies verknüpfen
-  * ``stockintel analyze``    – offene Signals mit dem KI-Triage-Modell bewerten
-  * ``stockintel items``      – Items anzeigen (Filter: ``--ticker``, ``--source``)
-  * ``stockintel signals``    – bewertete Signals anzeigen (Filter: ``--ticker``)
-  * ``stockintel companies``  – bekannte Companies + Signal-Zähler
-  * ``stockintel info``       – Konfiguration/Status anzeigen
+  * ``stockintel init-db``       – Datenbank-Schema anlegen + Watchlist syncen
+  * ``stockintel collect``       – aktive Collectors abrufen (``--loop`` für Dauerbetrieb)
+  * ``stockintel link``          – RawItems regelbasiert mit Companies verknüpfen
+  * ``stockintel analyze``       – offene Signals mit dem KI-Triage-Modell bewerten
+  * ``stockintel find-ipo``      – EDGAR S-1 Filings scannen, IPO-Events anlegen
+  * ``stockintel link-themes``   – Themes erkennen, Beneficiaries verlinken
+  * ``stockintel items``         – Items anzeigen (Filter: ``--ticker``, ``--source``)
+  * ``stockintel signals``       – bewertete Signals anzeigen (Filter: ``--ticker``)
+  * ``stockintel ipos``          – IPO-Events anzeigen
+  * ``stockintel themes``        – Themes und ihre Profiteure anzeigen
+  * ``stockintel companies``     – bekannte Companies + Signal-Zähler
+  * ``stockintel info``          – Konfiguration/Status anzeigen
 """
 
 from __future__ import annotations
@@ -183,6 +187,90 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_find_ipo(_: argparse.Namespace) -> int:
+    from stockintel.analysis.ipo import find_ipo_events, link_ipo_investors
+
+    settings = load_settings()
+    db = get_database(settings)
+    stats = find_ipo_events(db)
+    print(
+        f"IPO-Events analysiert: {stats['ipo_events_found']} S-1 Filings, "
+        f"{stats['ipo_events_created']} neue IPO-Events"
+    )
+    investor_stats = link_ipo_investors(db)
+    if investor_stats["investors_linked"] > 0:
+        print(f"Investoren verknüpft: {investor_stats['investors_linked']}")
+    return 0
+
+
+def cmd_ipos(args: argparse.Namespace) -> int:
+    from sqlalchemy import desc, select
+
+    from stockintel.db.models import IpoEvent
+
+    settings = load_settings()
+    db = get_database(settings)
+    with db.session() as session:
+        stmt = select(IpoEvent).order_by(desc(IpoEvent.created_at)).limit(args.limit)
+        rows = session.scalars(stmt).all()
+        if not rows:
+            print("Keine IPO-Events. Erst 'stockintel find-ipo' ausführen.")
+            return 0
+        print(f"{'Company':<30} {'Ticker':<8} {'Expected Date':<15} Investors")
+        for event in rows:
+            when = event.expected_date.date().isoformat() if event.expected_date else "----------"
+            investor_count = len(event.investors) if event.investors else 0
+            print(
+                f"{event.company_name:<30} {(event.ticker or '-'):<8} {when:<15} {investor_count}"
+            )
+    return 0
+
+
+def cmd_link_themes(_: argparse.Namespace) -> int:
+    from stockintel.analysis.themes import link_themes_to_signals, sync_themes
+
+    settings = load_settings()
+    db = get_database(settings)
+    new_themes = sync_themes(db)
+    if new_themes:
+        print(f"Themes synchronisiert: {new_themes} neue Theme-Einträge.")
+    stats = link_themes_to_signals(db)
+    print(
+        f"Themes analysiert: {stats['themes_found']} Theme-Matches, "
+        f"{stats['beneficiaries_linked']} Beneficiary-Links erstellt"
+    )
+    return 0
+
+
+def cmd_themes(args: argparse.Namespace) -> int:
+    from sqlalchemy import desc, select
+
+    from stockintel.db.models import Company, Theme, ThemeBeneficiary
+
+    settings = load_settings()
+    db = get_database(settings)
+    with db.session() as session:
+        stmt = (
+            select(Theme.name, Company.ticker, ThemeBeneficiary.strength, ThemeBeneficiary.rationale)
+            .join(ThemeBeneficiary, ThemeBeneficiary.theme_id == Theme.id)
+            .join(Company, ThemeBeneficiary.company_id == Company.id)
+        )
+        if args.theme:
+            stmt = stmt.where(Theme.name == args.theme)
+        stmt = stmt.order_by(desc(ThemeBeneficiary.strength), Theme.name).limit(args.limit)
+
+        rows = session.execute(stmt).all()
+        if not rows:
+            print("Keine Theme-Beneficiary-Links. Erst 'stockintel link-themes' ausführen.")
+            return 0
+        print(f"{'Theme':<25} {'Ticker':<8} {'Strength':>8}  Rationale")
+        for theme_name, ticker, strength, rationale in rows:
+            print(
+                f"{theme_name:<25} {ticker:<8} {strength:>8.2f}  {(rationale or '').strip()[:50]}"
+            )
+    return 0
+
+
 def cmd_signals(args: argparse.Namespace) -> int:
     from sqlalchemy import desc, select
 
@@ -323,6 +411,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="Nur KI-bewertete Signals (regelbasierte ausblenden)",
     )
     p_signals.set_defaults(func=cmd_signals)
+
+    p_find_ipo = sub.add_parser(
+        "find-ipo",
+        help="EDGAR S-1 Filings scannen, IPO-Events anlegen",
+    )
+    p_find_ipo.set_defaults(func=cmd_find_ipo)
+
+    p_ipos = sub.add_parser("ipos", help="Erkannte IPO-Events anzeigen")
+    p_ipos.add_argument("--limit", type=int, default=20, help="Anzahl (Standard 20)")
+    p_ipos.set_defaults(func=cmd_ipos)
+
+    p_link_themes = sub.add_parser(
+        "link-themes",
+        help="Signals analysieren, Themes erkennen und Beneficiaries verlinken",
+    )
+    p_link_themes.set_defaults(func=cmd_link_themes)
+
+    p_themes = sub.add_parser("themes", help="Erkannte Hype-Themes und ihre Profiteure anzeigen")
+    p_themes.add_argument("--limit", type=int, default=30, help="Anzahl (Standard 30)")
+    p_themes.add_argument("--theme", type=str, default=None, help="Nur ein Theme (z.B. 'AI Infrastructure')")
+    p_themes.set_defaults(func=cmd_themes)
 
     p_companies = sub.add_parser(
         "companies", help="Bekannte Companies + Signal-Anzahl je Unternehmen",

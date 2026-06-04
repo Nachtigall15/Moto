@@ -3,6 +3,9 @@
 Phase 2:
 - ``entity``  – regelbasierte Entity-Resolution: RawItem -> Company (-> Signal).
 - ``triage``  – KI-Bewertung der Signals via Anthropic-SDK (günstiges Modell).
+
+Phase 3:
+- ``themes``  – Hype-Erkennung und Beneficiary-Linking.
 """
 
 from stockintel.analysis.entity import (
@@ -22,6 +25,16 @@ from stockintel.analysis.triage import (
     extract_tool_input,
     parse_triage_response,
 )
+from stockintel.analysis.themes import (
+    extract_themes_from_text,
+    link_themes_to_signals,
+    sync_themes,
+)
+from stockintel.analysis.ipo import (
+    extract_ipo_from_s1,
+    find_ipo_events,
+    link_ipo_investors,
+)
 
 __all__ = [
     "RULE_BASED_MODEL",
@@ -31,10 +44,16 @@ __all__ = [
     "build_triage_tool",
     "build_user_content",
     "extract_tool_input",
+    "extract_themes_from_text",
+    "extract_ipo_from_s1",
     "find_matches",
+    "find_ipo_events",
     "link_items",
+    "link_themes_to_signals",
+    "link_ipo_investors",
     "matcher_from_company",
     "parse_triage_response",
     "score_relevance",
     "sync_companies",
+    "sync_themes",
 ]
