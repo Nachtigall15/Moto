@@ -5,7 +5,7 @@
   },
   "deploy": {
     "numReplicas": 1,
-    "startCommand": "python -m stockintel.api",
+    "startCommand": "/app/entrypoint.sh",
     "restartPolicyMaxRetries": 5
   }
 }
