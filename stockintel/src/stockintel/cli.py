@@ -11,6 +11,7 @@ Verfügbare Befehle:
   * ``stockintel reaction-profiles`` – Basisraten je Ereignistyp berechnen/anzeigen
   * ``stockintel track``             – Forward-Tracking: fällige Snapshots live erfassen
   * ``stockintel detect-anomalies``  – ML-basierte Anomalieerkennung (Z-Score)
+  * ``stockintel report``            – HTML-Report generieren (Top-Signals, Anomalien, Empfehlungen)
   * ``stockintel find-ipo``          – EDGAR S-1 Filings scannen, IPO-Events anlegen
   * ``stockintel link-themes``       – Themes erkennen, Beneficiaries verlinken
   * ``stockintel items``             – Items anzeigen (Filter: ``--ticker``, ``--source``)
@@ -379,6 +380,25 @@ def cmd_detect_anomalies(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_report(args: argparse.Namespace) -> int:
+    """Generiert einen HTML-Report mit Top-Signals, Anomalien, Empfehlungen."""
+    from stockintel.delivery.reporter import generate_daily_report_html, save_report_to_file
+
+    settings = load_settings()
+    db = get_database(settings)
+
+    html = generate_daily_report_html(db, title="StockIntel Daily Report")
+
+    if args.output:
+        save_report_to_file(html, args.output)
+        print(f"Report gespeichert: {args.output}")
+    else:
+        # Stdout (für Piping)
+        print(html)
+
+    return 0
+
+
 def cmd_ipos(args: argparse.Namespace) -> int:
     from sqlalchemy import desc, select
     from sqlalchemy.orm import joinedload
@@ -667,6 +687,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="ML-basierte Anomalieerkennung für Events (Z-Score-basiert)",
     )
     p_anomaly.set_defaults(func=cmd_detect_anomalies)
+
+    p_report = sub.add_parser(
+        "report",
+        help="Generiert einen HTML-Report (Top-Signals, Anomalien, Empfehlungen)",
+    )
+    p_report.add_argument(
+        "--output", type=str, default=None,
+        help="Ausgabedatei (z.B. /tmp/report.html); ohne Angabe: stdout",
+    )
+    p_report.set_defaults(func=cmd_report)
 
     return parser
 
