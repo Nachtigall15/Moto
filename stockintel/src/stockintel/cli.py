@@ -1,14 +1,18 @@
 """Kommandozeile für StockIntel.
 
-Phase 0 unterstützt:
+Verfügbare Befehle:
   * ``stockintel init-db``  – Datenbank-Schema anlegen
+  * ``stockintel collect``  – aktive Collectors abrufen (``--loop`` für Dauerbetrieb)
+  * ``stockintel items``    – zuletzt gespeicherte Items anzeigen
   * ``stockintel info``     – Konfiguration/Status anzeigen
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import sys
+import time
 
 from sqlalchemy import inspect
 
@@ -27,12 +31,15 @@ def cmd_init_db(_: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_collect(_: argparse.Namespace) -> int:
+def _collect_once(settings, db) -> int:
+    """Führt genau einen Sammel-Durchlauf aller aktiven Collectors aus.
+
+    Bleibt pro Quelle robust (Fehler einer Quelle stoppen die anderen nicht)
+    und gibt die Anzahl insgesamt neu gespeicherter Items zurück.
+    """
     from stockintel.collectors import build_collectors
     from stockintel.ingestion import ingest
 
-    settings = load_settings()
-    db = get_database(settings)
     collectors = build_collectors(settings)
     if not collectors:
         print("Keine aktiven Collectors. In config/settings.yaml aktivieren.")
@@ -48,6 +55,39 @@ def cmd_collect(_: argparse.Namespace) -> int:
         total += count
         print(f"  {collector.source_key}: {count} neue Items")
     print(f"Gesamt neu: {total}")
+    return total
+
+
+def cmd_collect(args: argparse.Namespace) -> int:
+    settings = load_settings()
+    db = get_database(settings)
+
+    loop = getattr(args, "loop", False)
+    if not loop:
+        _collect_once(settings, db)
+        return 0
+
+    interval = max(1, int(getattr(args, "interval", 600)))
+    max_runs = int(getattr(args, "count", 0))  # 0 = unbegrenzt
+    print(
+        f"Schleifen-Modus: alle {interval}s"
+        + (f", {max_runs} Läufe" if max_runs else ", unbegrenzt (Strg-C zum Beenden)")
+    )
+    run = 0
+    try:
+        while True:
+            run += 1
+            stamp = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print(f"\n== Lauf {run} @ {stamp} ==")
+            try:
+                _collect_once(settings, db)
+            except Exception as exc:  # noqa: BLE001 - Schleife läuft trotz Fehler weiter
+                print(f"  Lauf {run}: unerwarteter Fehler: {exc}")
+            if max_runs and run >= max_runs:
+                break
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print(f"\nAbgebrochen nach {run} Lauf/Läufen.")
     return 0
 
 
@@ -98,6 +138,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.set_defaults(func=cmd_init_db)
 
     p_collect = sub.add_parser("collect", help="Aktive Collectors abrufen und speichern")
+    p_collect.add_argument(
+        "--loop", action="store_true",
+        help="Wiederholt sammeln statt nur einmal (Strg-C beendet)",
+    )
+    p_collect.add_argument(
+        "--interval", type=int, default=600,
+        help="Sekunden zwischen den Läufen im Schleifen-Modus (Standard 600)",
+    )
+    p_collect.add_argument(
+        "--count", type=int, default=0,
+        help="Anzahl der Läufe im Schleifen-Modus (0 = unbegrenzt)",
+    )
     p_collect.set_defaults(func=cmd_collect)
 
     p_items = sub.add_parser("items", help="Zuletzt gespeicherte Items anzeigen")

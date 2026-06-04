@@ -6,6 +6,7 @@ import feedparser
 
 from stockintel.collectors.base import BaseCollector, CollectedItem
 from stockintel.collectors.edgar import parse_company_tickers, parse_submissions
+from stockintel.collectors.finnhub import parse_company_news
 from stockintel.collectors.reddit import submission_to_item
 from stockintel.collectors.rss import parse_entries
 from stockintel.collectors.stocktwits import parse_stocktwits
@@ -81,6 +82,33 @@ def test_parse_stocktwits():
     assert items[0].external_id == "st_123"
     assert items[0].url == "https://stocktwits.com/trader1/message/123"
     assert items[0].published_at is not None
+
+
+SAMPLE_FINNHUB = [
+    {
+        "id": 7712341,
+        "headline": "NVIDIA meldet Rekordquartal",
+        "summary": "Umsatz über den Erwartungen.",
+        "url": "https://finnhub.io/news/7712341",
+        "datetime": 1_780_000_000,
+        "related": "NVDA",
+    },
+    {"headline": "Ohne id -> wird übersprungen", "datetime": 1_780_000_100},
+]
+
+
+def test_parse_company_news():
+    items = list(parse_company_news("NVDA", SAMPLE_FINNHUB))
+    assert len(items) == 1                       # Eintrag ohne id übersprungen
+    assert items[0].external_id == "fh_7712341"
+    assert items[0].title == "NVDA NVIDIA meldet Rekordquartal"
+    assert items[0].url == "https://finnhub.io/news/7712341"
+    assert items[0].published_at is not None
+
+
+def test_parse_company_news_handles_empty():
+    assert list(parse_company_news("NVDA", [])) == []
+    assert list(parse_company_news("NVDA", {"error": "x"})) == []   # kein list -> leer
 
 
 def test_reddit_submission_to_item():

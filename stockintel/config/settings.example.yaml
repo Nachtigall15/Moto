@@ -49,5 +49,8 @@ collectors:
     enabled: false                 # auf true setzen, sobald Credentials in .env stehen
     subreddits: ["wallstreetbets", "stocks", "investing"]
     limit: 25                      # neueste Beitraege je Subreddit
-  finnhub:    { enabled: false }   # Phase 1+, benoetigt FINNHUB_API_KEY
+  finnhub:
+    enabled: false                 # auf true setzen, sobald FINNHUB_API_KEY in .env steht
+    lookback_days: 7               # Zeitfenster der Unternehmens-News je Ticker
+    # limit: 50                    # optional: Obergrenze Items je Ticker
   youtube:    { enabled: false }   # Phase 1+

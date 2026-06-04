@@ -20,9 +20,38 @@ Danach EDGAR-`user_agent` in `config/settings.yaml` setzen, dann:
 
 ```bash
 . .venv/bin/activate
-stockintel collect              # aktive Quellen abrufen (EDGAR, RSS, StockTwits)
+stockintel collect              # aktive Quellen abrufen (EDGAR, RSS, StockTwits, Finnhub)
 stockintel items --limit 20     # zuletzt gespeicherte Items anzeigen
 ```
+
+### Laufend sammeln (Schleifen-Modus)
+
+Für wiederkehrende Läufe sammelt `collect` auf Wunsch in einer Schleife — ideal,
+um über die Zeit Daten anzuhäufen:
+
+```bash
+stockintel collect --loop                       # alle 600s, bis Strg-C
+stockintel collect --loop --interval 300        # alle 5 Minuten
+stockintel collect --loop --interval 300 --count 12   # 12 Läufe, dann Stopp
+```
+
+> **Hinweis:** In einer kurzlebigen Web-Session läuft die Schleife nur, solange
+> die Session aktiv ist; die lokale SQLite-DB ist nicht eingecheckt. Für dauerhaft
+> automatisierte Läufe eignet sich ein Cron-Job/Scheduler auf einer persistenten
+> Maschine (oder später APScheduler, siehe Roadmap).
+
+### Finnhub aktivieren
+
+Finnhub (Unternehmens-News, Free-Tier) ist standardmäßig in `settings.yaml`
+aktiv, braucht aber einen Key:
+
+```bash
+# in stockintel/.env
+FINNHUB_API_KEY=dein_key_von_finnhub.io
+```
+
+Ohne Key überspringt `collect` nur Finnhub (mit Hinweis) und sammelt die übrigen
+Quellen normal weiter.
 
 <details>
 <summary>Manuelles Setup (statt setup.sh)</summary>
@@ -51,9 +80,10 @@ stockintel items --limit 20                # zuletzt gespeicherte Items anzeigen
 ## Projektstand
 
 **Phase 1 — Daten-Collectors.** Aktiv: **EDGAR**, **RSS**, **StockTwits**
-(alle schlüssellos) sowie **Reddit** (braucht API-Credentials). Eingesammelte
-Informationen werden dedupliziert als `RawItem` gespeichert. Finnhub, YouTube
-und die KI-Bewertung folgen (siehe Roadmap).
+(alle schlüssellos), **Finnhub** (Unternehmens-News, Free-Tier-Key) sowie
+**Reddit** (braucht API-Credentials). Eingesammelte Informationen werden
+dedupliziert als `RawItem` gespeichert. `collect` kann per `--loop` wiederkehrend
+sammeln. YouTube und die KI-Bewertung folgen (siehe Roadmap).
 
 Frühere Stände:
 - **Phase 0 — Gerüst.** Verzeichnisstruktur, Konfiguration, vollständiges
