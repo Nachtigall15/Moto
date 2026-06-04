@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  stockintel:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./stockintel.db
+    volumes:
+      - ./data:/app/data
+      - ./stockintel.db:/app/stockintel.db
+    command: sh -c "stockintel init-db && stockintel api"
