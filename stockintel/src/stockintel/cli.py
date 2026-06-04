@@ -12,6 +12,10 @@ Verfügbare Befehle:
   * ``stockintel track``             – Forward-Tracking: fällige Snapshots live erfassen
   * ``stockintel detect-anomalies``  – ML-basierte Anomalieerkennung (Z-Score)
   * ``stockintel report``            – HTML-Report generieren (Top-Signals, Anomalien, Empfehlungen)
+  * ``stockintel sentiment``         – Sentiment-Analyse der Signals (Positiv/Negativ/Mixed)
+  * ``stockintel export-signals``    – Export Signals als CSV
+  * ``stockintel export-events``     – Export Events als CSV
+  * ``stockintel correlations``      – Ticker-Korrelationen anzeigen (basierend auf Returns)
   * ``stockintel find-ipo``          – EDGAR S-1 Filings scannen, IPO-Events anlegen
   * ``stockintel link-themes``       – Themes erkennen, Beneficiaries verlinken
   * ``stockintel items``             – Items anzeigen (Filter: ``--ticker``, ``--source``)
@@ -399,6 +403,80 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sentiment(_: argparse.Namespace) -> int:
+    """Sentiment-Analyse der Signals: Positiv/Negativ/Mixed/Neutral."""
+    from stockintel.analysis.sentiment import get_sentiment_distribution
+
+    settings = load_settings()
+    db = get_database(settings)
+
+    sentiment = get_sentiment_distribution(db)
+    total = sum(sentiment.values())
+
+    print("Signal Sentiment Distribution:")
+    print(f"  Positiv:  {sentiment['positive']:>4} ({sentiment['positive']/total*100:>5.1f}%)")
+    print(f"  Negativ:  {sentiment['negative']:>4} ({sentiment['negative']/total*100:>5.1f}%)")
+    print(f"  Mixed:    {sentiment['mixed']:>4} ({sentiment['mixed']/total*100:>5.1f}%)")
+    print(f"  Neutral:  {sentiment['neutral']:>4} ({sentiment['neutral']/total*100:>5.1f}%)")
+    print(f"  ─────────────────────")
+    print(f"  Total:    {total:>4}")
+
+    return 0
+
+
+def cmd_export_signals(_: argparse.Namespace) -> int:
+    """Exportiert alle Signals als CSV."""
+    from stockintel.delivery.exporters import export_signals_csv
+
+    settings = load_settings()
+    db = get_database(settings)
+
+    csv_data = export_signals_csv(db)
+    print(csv_data)
+
+    return 0
+
+
+def cmd_export_events(_: argparse.Namespace) -> int:
+    """Exportiert alle Events als CSV."""
+    from stockintel.delivery.exporters import export_events_csv
+
+    settings = load_settings()
+    db = get_database(settings)
+
+    csv_data = export_events_csv(db)
+    print(csv_data)
+
+    return 0
+
+
+def cmd_correlations(_: argparse.Namespace) -> int:
+    """Ticker-Korrelationen anzeigen (basierend auf Event-Returns)."""
+    from stockintel.analysis.correlation import get_correlated_pairs, find_sector_correlations
+
+    settings = load_settings()
+    db = get_database(settings)
+
+    pairs = get_correlated_pairs(db, min_correlation=0.5)
+
+    if pairs:
+        print("Korrelierte Ticker-Paare (Korrelation >= 0.5):")
+        print(f"{'Ticker 1':<8} {'Ticker 2':<8} {'Korrelation':>12}")
+        print("─" * 32)
+        for pair in pairs[:20]:
+            print(f"{pair['ticker1']:<8} {pair['ticker2']:<8} {pair['correlation']:>12.3f}")
+    else:
+        print("Keine korrelierten Paare gefunden (braucht mehr Event-Daten).")
+
+    sector_corrs = find_sector_correlations(db)
+    if sector_corrs:
+        print("\nDurchschnittliche Korrelation pro Sektor:")
+        for sector, corr in sorted(sector_corrs.items()):
+            print(f"  {sector:<20} {corr:>6.2f}")
+
+    return 0
+
+
 def cmd_ipos(args: argparse.Namespace) -> int:
     from sqlalchemy import desc, select
     from sqlalchemy.orm import joinedload
@@ -697,6 +775,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="Ausgabedatei (z.B. /tmp/report.html); ohne Angabe: stdout",
     )
     p_report.set_defaults(func=cmd_report)
+
+    p_sentiment = sub.add_parser(
+        "sentiment",
+        help="Sentiment-Analyse: Positiv/Negativ/Mixed/Neutral Distribution",
+    )
+    p_sentiment.set_defaults(func=cmd_sentiment)
+
+    p_export_sig = sub.add_parser(
+        "export-signals",
+        help="Exportiert alle Signals als CSV (nach stdout)",
+    )
+    p_export_sig.set_defaults(func=cmd_export_signals)
+
+    p_export_evt = sub.add_parser(
+        "export-events",
+        help="Exportiert alle Events als CSV (nach stdout)",
+    )
+    p_export_evt.set_defaults(func=cmd_export_events)
+
+    p_corr = sub.add_parser(
+        "correlations",
+        help="Zeigt korrelierte Ticker-Paare (basierend auf Event-Returns)",
+    )
+    p_corr.set_defaults(func=cmd_correlations)
 
     return parser
 
