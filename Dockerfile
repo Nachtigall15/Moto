@@ -16,5 +16,9 @@ RUN pip install --no-cache-dir -e ".[prod]"
 
 EXPOSE 8000
 
-# Datenbank initialisieren und Web-Server starten (bindet an 0.0.0.0:8000 für Railway).
-CMD ["sh", "-c", "stockintel init-db && python -m stockintel.api"]
+# Copy entrypoint script
+COPY stockintel/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Entrypoint: waits for DB, initializes schema, starts API (für Railway deployment)
+ENTRYPOINT ["/app/entrypoint.sh"]
