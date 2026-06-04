@@ -54,7 +54,7 @@ def _load_dotenv(path: Path) -> None:
 def load_settings(config_path: Path | None = None) -> Settings:
     """Lädt Einstellungen. Reihenfolge der DB-URL-Priorität:
 
-    1. Umgebungsvariable STOCKINTEL_DB_URL
+    1. Umgebungsvariable STOCKINTEL_DB_URL (Production: PostgreSQL)
     2. database.url in settings.yaml
     3. Default (lokales SQLite)
     """
@@ -72,4 +72,10 @@ def load_settings(config_path: Path | None = None) -> Settings:
         or raw.get("database", {}).get("url")
         or DEFAULT_DB_URL
     )
+
+    # API-Keys aus Umgebungsvariablen (für Production-Secrets)
+    if not os.environ.get("FINNHUB_API_KEY"):
+        if raw.get("finnhub", {}).get("api_key"):
+            os.environ["FINNHUB_API_KEY"] = raw["finnhub"]["api_key"]
+
     return Settings(db_url=db_url, raw=raw)

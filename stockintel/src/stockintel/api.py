@@ -115,46 +115,86 @@ def schedule_background_tasks(db: Database) -> None:
         scheduler = BackgroundScheduler()
         scheduler.start()
 
-    # Analyze: jeden Tag um 09:00
+    # Collection: alle 7 Minuten frische Daten sammeln (Finnhub, RSS, etc.)
+    scheduler.add_job(
+        func=lambda: _background_collect(db, settings),
+        trigger="interval",
+        minutes=7,
+        id="collect_frequent",
+        replace_existing=True,
+    )
+
+    # Analyze: alle 30 Minuten Signale analysieren
     scheduler.add_job(
         func=lambda: _background_analyze(db, settings),
-        trigger="cron",
-        hour=9,
-        minute=0,
-        id="analyze_daily",
+        trigger="interval",
+        minutes=30,
+        id="analyze_frequent",
         replace_existing=True,
     )
 
-    # Score: jeden Tag um 10:00
+    # Score: alle 60 Minuten neue Empfehlungen
     scheduler.add_job(
         func=lambda: _background_score(db),
-        trigger="cron",
-        hour=10,
-        minute=0,
-        id="score_daily",
+        trigger="interval",
+        hours=1,
+        id="score_hourly",
         replace_existing=True,
     )
 
-    # Forward-Tracking: stündlich fällige Kurs-Snapshots live erfassen.
+    # Forward-Tracking: alle 30 Minuten fällige Kurs-Snapshots erfassen.
     scheduler.add_job(
         func=lambda: _background_track(db, settings),
         trigger="interval",
-        hours=1,
-        id="track_hourly",
+        minutes=30,
+        id="track_frequent",
         replace_existing=True,
     )
 
-    # Event-Study: täglich um 10:30 Snapshots/Outcomes/Profile nachziehen.
+    # Event-Study: alle 2 Stunden Snapshots/Outcomes/Profile nachziehen.
     scheduler.add_job(
         func=lambda: _background_event_study(db, settings),
-        trigger="cron",
-        hour=10,
-        minute=30,
-        id="event_study_daily",
+        trigger="interval",
+        hours=2,
+        id="event_study_frequent",
         replace_existing=True,
     )
 
     logger.info("Background tasks scheduled")
+
+
+def _background_collect(db: Database, settings) -> None:
+    """Background: Sammelt neue Daten von allen aktiven Collectors."""
+    try:
+        from stockintel.analysis.entity import link_items, sync_companies
+        from stockintel.collectors import build_collectors
+        from stockintel.ingestion import ingest
+
+        collectors = build_collectors(settings)
+        if not collectors:
+            logger.warning("No active collectors configured")
+            return
+
+        total_items = 0
+        for collector in collectors:
+            try:
+                count = ingest(db, collector)
+                total_items += count
+                if count > 0:
+                    logger.info(f"Collected {count} items from {collector.source_key}")
+            except Exception as e:
+                logger.warning(f"Collection from {collector.source_key} failed: {e}")
+                continue
+
+        # Link new items to companies and create signals
+        sync_companies(db, settings.watchlist)
+        link_stats = link_items(db)
+        logger.info(
+            f"Background collect: {total_items} items, "
+            f"{link_stats['signals_created']} signals created"
+        )
+    except Exception as e:
+        logger.error(f"Background collect failed: {e}")
 
 
 def _background_analyze(db: Database, settings) -> None:

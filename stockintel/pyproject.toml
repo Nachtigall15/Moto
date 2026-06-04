@@ -33,6 +33,17 @@ api = [
     "uvicorn>=0.29",
     "apscheduler>=3.10",
 ]
+# Production: PostgreSQL + alle nötigen Pakete (API + Collectors)
+prod = [
+    "psycopg2-binary>=2.9",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "apscheduler>=3.10",
+    "httpx>=0.27",
+    "feedparser>=6.0",
+    "youtube-transcript-api>=0.6",
+    "yfinance>=0.2",
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.5",
