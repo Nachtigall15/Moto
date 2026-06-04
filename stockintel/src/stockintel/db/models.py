@@ -267,6 +267,8 @@ class EventOutcome(Base):
     abnormal_return: Mapped[float | None] = mapped_column(Float, nullable=True)    # vs. Benchmark
     # Strohfeuer: kurzfristiger Spike, der wieder abgegeben wird.
     is_hickup: Mapped[bool] = mapped_column(default=False)
+    # ML-erkannte statistische Anomalie (Z-Score-basiert)
+    is_anomaly: Mapped[bool] = mapped_column(default=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     computed_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

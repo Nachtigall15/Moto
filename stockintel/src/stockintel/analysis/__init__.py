@@ -59,6 +59,11 @@ from stockintel.analysis.scoring import (
     generate_recommendations,
     score_company,
 )
+from stockintel.analysis.anomaly import (
+    detect_return_anomalies,
+    estimate_event_type_risk,
+    flag_systematic_anomalies,
+)
 
 __all__ = [
     "RULE_BASED_MODEL",
@@ -74,12 +79,15 @@ __all__ = [
     "classify_event_type",
     "classify_hickup",
     "compute_event_outcome",
+    "detect_return_anomalies",
+    "estimate_event_type_risk",
     "extract_tool_input",
     "extract_themes_from_text",
     "extract_ipo_from_s1",
     "fetch_13f_holdings",
     "find_matches",
     "find_ipo_events",
+    "flag_systematic_anomalies",
     "generate_recommendations",
     "Holding",
     "is_hickup_from_returns",

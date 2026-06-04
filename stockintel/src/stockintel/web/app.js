@@ -7,6 +7,7 @@ let _chartRecommendations = null;
 let _chartCompanies = null;
 let _chartRelevance = null;
 let _chartReactionProfiles = null;
+let _chartHickupRate = null;
 
 // Auto-refresh state
 let autoRefreshInterval = null;
@@ -101,6 +102,15 @@ async function loadCharts() {
                         backgroundColor: "#3fb950",
                     },
                 ],
+            });
+
+            // Hickup-Quote Tracking
+            updateChart("_chartHickupRate", "hickup-rate-canvas", {
+                type: "bar",
+                labels: profiles.map(p => p.event_type.substring(0, 15)),
+                data: profiles.map(p => (p.hickup_rate * 100).toFixed(1)),
+                color: "#f85149",
+                label: "Strohfeuer-Quote (%)",
             });
         }
     } catch (e) {
@@ -327,25 +337,34 @@ async function loadEvents() {
 
 function attachEventListeners() {
     document.querySelectorAll("#events-body tr[data-event]").forEach(row => {
-        row.addEventListener("click", () => {
+        row.addEventListener("click", async () => {
             const event = JSON.parse(row.dataset.event);
-            const abnormalClass = event.abnormal_return > 0 ? "green" : "red";
-            const html = `
-                ${modalField("Ticker", event.ticker)}
-                ${modalField("Event-Typ", event.event_type)}
-                ${modalField("Erstellt", event.created_at)}
-                <hr style="border: none; border-top: 1px solid var(--border); margin: 1rem 0;">
-                ${modalField("Peak Return", event.peak_return !== null ? (event.peak_return * 100).toFixed(2) + '%' : '–')}
-                ${modalField("Final Return", event.final_return !== null ? (event.final_return * 100).toFixed(2) + '%' : '–')}
-                <div class="modal-field">
-                    <div class="modal-label">Abnormal Return (vs. Benchmark)</div>
-                    <div class="modal-value" style="color: ${event.abnormal_return > 0 ? '#3fb950' : '#f85149'}; font-weight: bold;">
-                        ${event.abnormal_return !== null ? (event.abnormal_return * 100).toFixed(2) + '%' : '–'}
+            showModal(`Event: ${event.ticker} (${event.event_type})`,
+                `<div class="loading">Lade Event-Details…</div>`);
+
+            try {
+                // TODO: Load event detail with snapshots for price chart
+                // For now, show basic info
+                const abnormalClass = event.abnormal_return > 0 ? "green" : "red";
+                const html = `
+                    ${modalField("Ticker", event.ticker)}
+                    ${modalField("Event-Typ", event.event_type)}
+                    ${modalField("Erstellt", event.created_at)}
+                    <hr style="border: none; border-top: 1px solid var(--border); margin: 1rem 0;">
+                    ${modalField("Peak Return", event.peak_return !== null ? (event.peak_return * 100).toFixed(2) + '%' : '–')}
+                    ${modalField("Final Return", event.final_return !== null ? (event.final_return * 100).toFixed(2) + '%' : '–')}
+                    <div class="modal-field">
+                        <div class="modal-label">Abnormal Return (vs. Benchmark)</div>
+                        <div class="modal-value" style="color: ${event.abnormal_return > 0 ? '#3fb950' : '#f85149'}; font-weight: bold;">
+                            ${event.abnormal_return !== null ? (event.abnormal_return * 100).toFixed(2) + '%' : '–'}
+                        </div>
                     </div>
-                </div>
-                ${modalField("Hickup", event.is_hickup ? "✓ Strohfeuer erkannt" : "–")}
-            `;
-            showModal(`Event: ${event.ticker} (${event.event_type})`, html);
+                    ${modalField("Hickup", event.is_hickup ? "✓ Strohfeuer erkannt" : "–")}
+                `;
+                showModal(`Event: ${event.ticker} (${event.event_type})`, html);
+            } catch (e) {
+                showModal(`Event: ${event.ticker}`, `<p style="color: red;">Fehler: ${escapeHtml(e.message)}</p>`);
+            }
         });
     });
 }
@@ -370,6 +389,59 @@ async function loadProfiles() {
     } catch (e) {
         body.innerHTML = `<tr><td colspan="5" class="loading">Fehler: ${escapeHtml(e.message)}</td></tr>`;
     }
+}
+
+async function loadAbnormalReturns() {
+    const body = document.getElementById("abnormal-returns-body");
+    try {
+        const events = await fetchJSON("/abnormal-returns-ranking?limit=30");
+        if (!events.length) {
+            body.innerHTML = `<tr><td colspan="5" class="loading">Keine Events mit Abnormal-Returns.</td></tr>`;
+            return;
+        }
+        body.innerHTML = events.map((e, i) => {
+            const abnormalClass = e.abnormal_return > 0 ? "green" : "red";
+            const statusEmoji = e.is_hickup ? "⚠️" : (e.abnormal_return > 0.05 ? "📈" : "📉");
+            return `
+                <tr data-abnormal-index="${i}" data-abnormal='${JSON.stringify(e)}'>
+                    <td class="ticker">${escapeHtml(e.ticker)}</td>
+                    <td>${escapeHtml(e.event_type)}</td>
+                    <td>${e.peak_return !== null ? (e.peak_return * 100).toFixed(2) + '%' : '–'}</td>
+                    <td style="color: ${e.abnormal_return > 0 ? '#3fb950' : '#f85149'}; font-weight: bold;">
+                        ${e.abnormal_return !== null ? (e.abnormal_return * 100).toFixed(2) + '%' : '–'}
+                    </td>
+                    <td>${statusEmoji} ${e.is_hickup ? 'Hickup' : ''}</td>
+                </tr>
+            `;
+        }).join("");
+        attachAbnormalListeners();
+    } catch (e) {
+        body.innerHTML = `<tr><td colspan="5" class="loading">Fehler: ${escapeHtml(e.message)}</td></tr>`;
+    }
+}
+
+function attachAbnormalListeners() {
+    document.querySelectorAll("#abnormal-returns-body tr[data-abnormal]").forEach(row => {
+        row.addEventListener("click", () => {
+            const event = JSON.parse(row.dataset.abnormal);
+            const abnormalColor = event.abnormal_return > 0 ? '#3fb950' : '#f85149';
+            const html = `
+                ${modalField("Ticker", event.ticker)}
+                ${modalField("Event-Typ", event.event_type)}
+                ${modalField("Erstellt", event.created_at)}
+                <hr style="border: none; border-top: 1px solid var(--border); margin: 1rem 0;">
+                ${modalField("Peak Return", event.peak_return !== null ? (event.peak_return * 100).toFixed(2) + '%' : '–')}
+                <div class="modal-field">
+                    <div class="modal-label">Abnormal Return (vs. Benchmark)</div>
+                    <div class="modal-value" style="color: ${abnormalColor}; font-weight: bold; font-size: 1.2rem;">
+                        ${event.abnormal_return !== null ? (event.abnormal_return * 100).toFixed(2) + '%' : '–'}
+                    </div>
+                </div>
+                ${modalField("Status", event.is_hickup ? "⚠️ Strohfeuer (Spike + Reversal)" : "✓ Nachhaltige Bewegung")}
+            `;
+            showModal(`Event Impact: ${event.ticker}`, html);
+        });
+    });
 }
 
 async function loadTrackingStatus() {
@@ -402,6 +474,7 @@ async function loadAll() {
         loadSignals(),
         loadCompanies(),
         loadTrackingStatus(),
+        loadAbnormalReturns(),
         loadEvents(),
         loadProfiles(),
     ]);

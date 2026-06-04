@@ -88,6 +88,24 @@ class TrackingStatusInfo(BaseModel):
     recent_snapshots: list[str]
 
 
+class SnapshotInfo(BaseModel):
+    """Price snapshot at event horizon."""
+    horizon: str
+    price: float
+
+
+class EventDetailInfo(BaseModel):
+    """Event with full details including snapshots."""
+    ticker: str
+    event_type: str
+    created_at: str
+    peak_return: float | None
+    final_return: float | None
+    abnormal_return: float | None
+    is_hickup: bool
+    snapshots: list[SnapshotInfo]
+
+
 def schedule_background_tasks(db: Database) -> None:
     """Registriert Background-Tasks."""
     global scheduler
@@ -416,6 +434,70 @@ def create_app() -> FastAPI:
                 )
 
             return result
+
+    @app.get("/event/{event_id}", response_model=EventDetailInfo)
+    async def get_event_detail(event_id: int):
+        """Event-Details mit allen Snapshots für Zeitreihen-Visualisierung."""
+        with db.session() as session:
+            event = session.execute(
+                select(Event, Company.ticker)
+                .join(Company, Event.company_id == Company.id)
+                .where(Event.id == event_id)
+            ).first()
+
+            if not event:
+                raise HTTPException(status_code=404, detail="Event not found")
+
+            evt, ticker = event
+            snapshots = session.execute(
+                select(EventSnapshot.horizon, EventSnapshot.price)
+                .where(EventSnapshot.event_id == event_id)
+                .order_by(EventSnapshot.horizon)
+            ).all()
+
+            outcome = session.execute(
+                select(EventOutcome).where(EventOutcome.event_id == event_id)
+            ).first()
+
+            return EventDetailInfo(
+                ticker=ticker,
+                event_type=evt.event_type.value if evt.event_type else "unknown",
+                created_at=evt.created_at.isoformat() if evt.created_at else "",
+                peak_return=outcome[0].peak_return if outcome else None,
+                final_return=outcome[0].final_return if outcome else None,
+                abnormal_return=outcome[0].abnormal_return if outcome else None,
+                is_hickup=outcome[0].is_hickup if outcome else False,
+                snapshots=[
+                    SnapshotInfo(horizon=snap[0], price=snap[1])
+                    for snap in snapshots
+                ],
+            )
+
+    @app.get("/abnormal-returns-ranking", response_model=list[EventInfo])
+    async def abnormal_returns_ranking(limit: int = Query(30, ge=1, le=100)):
+        """Abnormal Returns Ranking: Events sortiert nach abnormalem Einfluss."""
+        with db.session() as session:
+            rows = session.execute(
+                select(Event, Company.ticker, EventOutcome)
+                .join(Company, Event.company_id == Company.id)
+                .outerjoin(EventOutcome, EventOutcome.event_id == Event.id)
+                .where(EventOutcome.abnormal_return.isnot(None))
+                .order_by(desc(func.abs(EventOutcome.abnormal_return)))
+                .limit(limit)
+            ).all()
+
+            return [
+                EventInfo(
+                    ticker=row.ticker,
+                    event_type=row[0].event_type.value if row[0].event_type else "unknown",
+                    created_at=row[0].created_at.isoformat() if row[0].created_at else "",
+                    peak_return=row[2].peak_return if row[2] else None,
+                    final_return=row[2].final_return if row[2] else None,
+                    abnormal_return=row[2].abnormal_return if row[2] else None,
+                    is_hickup=row[2].is_hickup if row[2] else False,
+                )
+                for row in rows
+            ]
 
     # --- Web-Dashboard (Phase 6) ---------------------------------------- #
     web_dir = Path(__file__).resolve().parent / "web"

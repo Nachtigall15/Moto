@@ -10,6 +10,7 @@ Verfügbare Befehle:
   * ``stockintel events``            – erkannte Events + Kursreaktionen anzeigen
   * ``stockintel reaction-profiles`` – Basisraten je Ereignistyp berechnen/anzeigen
   * ``stockintel track``             – Forward-Tracking: fällige Snapshots live erfassen
+  * ``stockintel detect-anomalies``  – ML-basierte Anomalieerkennung (Z-Score)
   * ``stockintel find-ipo``          – EDGAR S-1 Filings scannen, IPO-Events anlegen
   * ``stockintel link-themes``       – Themes erkennen, Beneficiaries verlinken
   * ``stockintel items``             – Items anzeigen (Filter: ``--ticker``, ``--source``)
@@ -351,6 +352,33 @@ def cmd_find_ipo(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_detect_anomalies(_: argparse.Namespace) -> int:
+    """ML-basierte Anomalieerkennung: Events mit statistisch unerwarteten Returns."""
+    from stockintel.analysis.anomaly import (
+        detect_return_anomalies,
+        flag_systematic_anomalies,
+    )
+
+    settings = load_settings()
+    db = get_database(settings)
+    stats = detect_return_anomalies(db, z_threshold=2.0)
+    print(
+        f"Anomalieerkennung (Z-Score > 2.0): {stats['anomalies_detected']} Events "
+        f"als statistische Ausreißer markiert"
+    )
+
+    systematic = flag_systematic_anomalies(db, outlier_rate_threshold=0.3)
+    if systematic["systematic_types"]:
+        print(f"⚠️  Systematische Anomalien erkannt ({len(systematic['systematic_types'])} Event-Typen):")
+        for typ_info in systematic["systematic_types"]:
+            rate = typ_info["anomaly_rate"] * 100
+            print(f"   - {typ_info['event_type']}: {rate:.1f}% Anomalienrate ({typ_info['count']} Events)")
+    else:
+        print("Keine systematischen Anomalien erkannt.")
+
+    return 0
+
+
 def cmd_ipos(args: argparse.Namespace) -> int:
     from sqlalchemy import desc, select
     from sqlalchemy.orm import joinedload
@@ -633,6 +661,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_info = sub.add_parser("info", help="Konfiguration/Status anzeigen")
     p_info.set_defaults(func=cmd_info)
+
+    p_anomaly = sub.add_parser(
+        "detect-anomalies",
+        help="ML-basierte Anomalieerkennung für Events (Z-Score-basiert)",
+    )
+    p_anomaly.set_defaults(func=cmd_detect_anomalies)
 
     return parser
 
