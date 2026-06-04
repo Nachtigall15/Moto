@@ -20,9 +20,24 @@ Danach EDGAR-`user_agent` in `config/settings.yaml` setzen, dann:
 
 ```bash
 . .venv/bin/activate
-stockintel collect              # aktive Quellen abrufen (EDGAR, RSS, StockTwits, Finnhub)
-stockintel items --limit 20     # zuletzt gespeicherte Items anzeigen
+stockintel collect                  # aktive Quellen abrufen + automatisch verknüpfen
+stockintel items --limit 20         # zuletzt gespeicherte Items anzeigen
+stockintel items --ticker NVDA      # nur Items, die NVDA betreffen
+stockintel items --source edgar     # nur Items aus einer Quelle
+stockintel companies                # Companies + Signal-Anzahl je Aktie
 ```
+
+### Was passiert beim `collect`?
+
+1. Alle aktivierten Collectors holen neue Items und speichern sie als `RawItem`.
+2. Die Watchlist aus `settings.yaml` wird in die `companies`-Tabelle gespiegelt.
+3. **Entity-Resolution** (regelbasiert): Jedes neue Item wird auf Ticker und
+   Firmennamen durchsucht; pro Treffer entsteht ein `Signal` (RawItem ⇄ Company).
+   So funktionieren Filter wie `items --ticker NVDA` sofort.
+
+Die KI-Bewertung (Richtung, Kurswirkung, Konfidenz) folgt in Phase 2 — bis
+dahin tragen die Signale neutrale Platzhalter und `model="rule-based-v1"`.
+Manuelles Re-Linking ohne neuen Sammellauf: `stockintel link`.
 
 ### Laufend sammeln (Schleifen-Modus)
 
@@ -79,11 +94,17 @@ stockintel items --limit 20                # zuletzt gespeicherte Items anzeigen
 
 ## Projektstand
 
+**Phase 2 (Vorstufe) — Entity-Resolution.** Eine **regelbasierte** Verknüpfung
+(`analysis/entity.py`) ordnet jeden neuen `RawItem` per Ticker-/Namens-Match
+einem Unternehmen aus der Watchlist zu und legt ein `Signal` (mit neutralen
+Platzhaltern) an. Läuft automatisch nach jedem `collect`. Damit funktionieren
+Abfragen wie `items --ticker NVDA` sofort. Die echte KI-Bewertung kommt danach.
+
 **Phase 1 — Daten-Collectors.** Aktiv: **EDGAR**, **RSS**, **StockTwits**
 (alle schlüssellos), **Finnhub** (Unternehmens-News, Free-Tier-Key) sowie
 **Reddit** (braucht API-Credentials). Eingesammelte Informationen werden
 dedupliziert als `RawItem` gespeichert. `collect` kann per `--loop` wiederkehrend
-sammeln. YouTube und die KI-Bewertung folgen (siehe Roadmap).
+sammeln. YouTube folgt (siehe Roadmap).
 
 Frühere Stände:
 - **Phase 0 — Gerüst.** Verzeichnisstruktur, Konfiguration, vollständiges
@@ -101,7 +122,7 @@ stockintel/
 │   ├── cli.py              Kommandozeile (init-db, info)
 │   ├── db/                 Datenbank: models.py, database.py
 │   ├── collectors/         Quellen-Adapter (Phase 1)
-│   ├── analysis/           KI-Bewertung (Phase 2)
+│   ├── analysis/           Entity-Resolution + KI-Bewertung (Phase 2)
 │   ├── linking/            Hype->Profiteure, IPO->Investoren (Phase 3)
 │   ├── eventstudy/         Historische Kursreaktionen / Hickups (Phase 4)
 │   ├── scoring/            Buy/Hold/Sell (Phase 4)

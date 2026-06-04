@@ -1,6 +1,26 @@
-"""KI-Bewertung (Phase 2).
+"""Analyse-Schicht.
 
-Triage mit einem günstigen Modell (Relevanz/Ticker), danach Tiefenanalyse mit
-einem starken Modell (Relevanz, Richtung, Kurswirkung, Horizont, Begründung).
-Wird in Phase 2 implementiert.
+Phase 2 (in Arbeit):
+- ``entity``  – regelbasierte Entity-Resolution: RawItem -> Company (-> Signal).
+- KI-Triage und Tiefenanalyse folgen (Anthropic-SDK).
 """
+
+from stockintel.analysis.entity import (
+    CompanyMatcher,
+    Match,
+    find_matches,
+    link_items,
+    matcher_from_company,
+    score_relevance,
+    sync_companies,
+)
+
+__all__ = [
+    "CompanyMatcher",
+    "Match",
+    "find_matches",
+    "link_items",
+    "matcher_from_company",
+    "score_relevance",
+    "sync_companies",
+]
