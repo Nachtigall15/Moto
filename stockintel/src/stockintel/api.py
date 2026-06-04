@@ -374,89 +374,117 @@ def create_app() -> FastAPI:
                 for row in rows
             ]
 
-    # Bekannte Companies mit Sektor-Informationen
+    # Company-Katalog: ticker -> wkn, name, sector, pre_ipo
+    # WKN = deutsche Wertpapierkennnummer. pre_ipo=True: noch nicht boersennotiert,
+    # aber News werden ueber den Namen gematcht (Entity-Linking via Name).
     _COMPANY_DATABASE = {
-        "AAPL": {"name": "Apple Inc.", "sector": "Technology"},
-        "MSFT": {"name": "Microsoft Corporation", "sector": "Technology"},
-        "GOOGL": {"name": "Alphabet Inc.", "sector": "Technology"},
-        "GOOG": {"name": "Alphabet Inc.", "sector": "Technology"},
-        "AMZN": {"name": "Amazon.com Inc.", "sector": "Consumer Cyclical"},
-        "NVDA": {"name": "NVIDIA Corporation", "sector": "Semiconductors"},
-        "META": {"name": "Meta Platforms Inc.", "sector": "Technology"},
-        "TSLA": {"name": "Tesla Inc.", "sector": "Automotive"},
-        "BRK.B": {"name": "Berkshire Hathaway Inc.", "sector": "Financial"},
-        "JNJ": {"name": "Johnson & Johnson", "sector": "Healthcare"},
-        "V": {"name": "Visa Inc.", "sector": "Financial"},
-        "WMT": {"name": "Walmart Inc.", "sector": "Consumer Defensive"},
-        "JPM": {"name": "JPMorgan Chase & Co.", "sector": "Financial"},
-        "PG": {"name": "Procter & Gamble Co.", "sector": "Consumer Defensive"},
-        "NFLX": {"name": "Netflix Inc.", "sector": "Communication Services"},
-        "MRVL": {"name": "Marvell Technology Inc.", "sector": "Semiconductors"},
-        "AMD": {"name": "Advanced Micro Devices Inc.", "sector": "Semiconductors"},
-        "INTC": {"name": "Intel Corporation", "sector": "Semiconductors"},
-        "QCOM": {"name": "Qualcomm Inc.", "sector": "Semiconductors"},
-        "ASML": {"name": "ASML Holding N.V.", "sector": "Semiconductors"},
-        "TSM": {"name": "Taiwan Semiconductor Manufacturing Company", "sector": "Semiconductors"},
-        "COST": {"name": "Costco Wholesale Corporation", "sector": "Consumer Defensive"},
-        "BA": {"name": "The Boeing Company", "sector": "Industrials"},
-        "GE": {"name": "General Electric Company", "sector": "Industrials"},
-        "IBM": {"name": "International Business Machines Corporation", "sector": "Technology"},
-        "ORCL": {"name": "Oracle Corporation", "sector": "Technology"},
-        "CSCO": {"name": "Cisco Systems Inc.", "sector": "Technology"},
-        "ADBE": {"name": "Adobe Inc.", "sector": "Technology"},
-        "CRM": {"name": "Salesforce Inc.", "sector": "Technology"},
-        "NOW": {"name": "ServiceNow Inc.", "sector": "Technology"},
-        "UBER": {"name": "Uber Technologies Inc.", "sector": "Transportation"},
-        "LYFT": {"name": "Lyft Inc.", "sector": "Transportation"},
-        "SPOT": {"name": "Spotify Technology S.A.", "sector": "Communication Services"},
-        "DASH": {"name": "DoorDash Inc.", "sector": "Consumer Cyclical"},
-        "SNOW": {"name": "Snowflake Inc.", "sector": "Technology"},
-        "CRWD": {"name": "CrowdStrike Holdings Inc.", "sector": "Technology"},
-        "MSTR": {"name": "MicroStrategy Incorporated", "sector": "Technology"},
+        # --- Boersennotiert (mit WKN) ---
+        "AAPL": {"wkn": "865985", "name": "Apple Inc.", "sector": "Technology"},
+        "MSFT": {"wkn": "870747", "name": "Microsoft Corporation", "sector": "Technology"},
+        "GOOGL": {"wkn": "A14Y6F", "name": "Alphabet Inc. (Class A)", "sector": "Technology"},
+        "GOOG": {"wkn": "A14Y6H", "name": "Alphabet Inc. (Class C)", "sector": "Technology"},
+        "AMZN": {"wkn": "906866", "name": "Amazon.com Inc.", "sector": "Consumer Cyclical"},
+        "NVDA": {"wkn": "918422", "name": "NVIDIA Corporation", "sector": "Semiconductors"},
+        "META": {"wkn": "A1JWVX", "name": "Meta Platforms Inc.", "sector": "Technology"},
+        "TSLA": {"wkn": "A1CX3T", "name": "Tesla Inc.", "sector": "Automotive"},
+        "BRK.B": {"wkn": "A0YJQ2", "name": "Berkshire Hathaway Inc.", "sector": "Financial"},
+        "JNJ": {"wkn": "853260", "name": "Johnson & Johnson", "sector": "Healthcare"},
+        "V": {"wkn": "A0NC7B", "name": "Visa Inc.", "sector": "Financial"},
+        "WMT": {"wkn": "860853", "name": "Walmart Inc.", "sector": "Consumer Defensive"},
+        "JPM": {"wkn": "850628", "name": "JPMorgan Chase & Co.", "sector": "Financial"},
+        "PG": {"wkn": "852062", "name": "Procter & Gamble Co.", "sector": "Consumer Defensive"},
+        "NFLX": {"wkn": "552484", "name": "Netflix Inc.", "sector": "Communication Services"},
+        "MRVL": {"wkn": "A2QGD4", "name": "Marvell Technology Inc.", "sector": "Semiconductors"},
+        "AMD": {"wkn": "863186", "name": "Advanced Micro Devices Inc.", "sector": "Semiconductors"},
+        "INTC": {"wkn": "855681", "name": "Intel Corporation", "sector": "Semiconductors"},
+        "QCOM": {"wkn": "883121", "name": "Qualcomm Inc.", "sector": "Semiconductors"},
+        "ASML": {"wkn": "A1J4U4", "name": "ASML Holding N.V.", "sector": "Semiconductors"},
+        "TSM": {"wkn": "909800", "name": "Taiwan Semiconductor Manufacturing", "sector": "Semiconductors"},
+        "COST": {"wkn": "888351", "name": "Costco Wholesale Corporation", "sector": "Consumer Defensive"},
+        "BA": {"wkn": "850471", "name": "The Boeing Company", "sector": "Industrials"},
+        "GE": {"wkn": "A2PL9X", "name": "General Electric Company", "sector": "Industrials"},
+        "IBM": {"wkn": "851399", "name": "International Business Machines", "sector": "Technology"},
+        "ORCL": {"wkn": "871460", "name": "Oracle Corporation", "sector": "Technology"},
+        "CSCO": {"wkn": "878841", "name": "Cisco Systems Inc.", "sector": "Technology"},
+        "ADBE": {"wkn": "871981", "name": "Adobe Inc.", "sector": "Technology"},
+        "CRM": {"wkn": "A0B87V", "name": "Salesforce Inc.", "sector": "Technology"},
+        "NOW": {"wkn": "A1JX4P", "name": "ServiceNow Inc.", "sector": "Technology"},
+        "UBER": {"wkn": "A2PHHG", "name": "Uber Technologies Inc.", "sector": "Transportation"},
+        "LYFT": {"wkn": "A2PE38", "name": "Lyft Inc.", "sector": "Transportation"},
+        "SPOT": {"wkn": "A2JEGN", "name": "Spotify Technology S.A.", "sector": "Communication Services"},
+        "DASH": {"wkn": "A2QTU5", "name": "DoorDash Inc.", "sector": "Consumer Cyclical"},
+        "SNOW": {"wkn": "A2QB38", "name": "Snowflake Inc.", "sector": "Technology"},
+        "CRWD": {"wkn": "A2PK2R", "name": "CrowdStrike Holdings Inc.", "sector": "Technology"},
+        "MSTR": {"wkn": "A0WMPJ", "name": "MicroStrategy Incorporated", "sector": "Technology"},
+        "PLTR": {"wkn": "A2QA4J", "name": "Palantir Technologies Inc.", "sector": "Technology"},
+        "ARM": {"wkn": "A40JBT", "name": "Arm Holdings plc", "sector": "Semiconductors"},
+        "AVGO": {"wkn": "A2JG9Z", "name": "Broadcom Inc.", "sector": "Semiconductors"},
+        "MU": {"wkn": "869020", "name": "Micron Technology Inc.", "sector": "Semiconductors"},
+        "SMCI": {"wkn": "A1C0SX", "name": "Super Micro Computer Inc.", "sector": "Technology"},
+        "COIN": {"wkn": "A2QP7J", "name": "Coinbase Global Inc.", "sector": "Financial"},
+        "RIVN": {"wkn": "A3C47B", "name": "Rivian Automotive Inc.", "sector": "Automotive"},
+        "LCID": {"wkn": "A3CVXG", "name": "Lucid Group Inc.", "sector": "Automotive"},
+        # --- Pre-IPO / nicht boersennotiert (News via Name-Matching) ---
+        "ANTHROPIC": {"wkn": None, "name": "Anthropic", "sector": "Artificial Intelligence", "pre_ipo": True},
+        "OPENAI": {"wkn": None, "name": "OpenAI", "sector": "Artificial Intelligence", "pre_ipo": True},
+        "SPACEX": {"wkn": None, "name": "SpaceX", "sector": "Aerospace", "pre_ipo": True},
+        "STRIPE": {"wkn": None, "name": "Stripe", "sector": "FinTech", "pre_ipo": True},
+        "DATABRICKS": {"wkn": None, "name": "Databricks", "sector": "Technology", "pre_ipo": True},
+        "XAI": {"wkn": None, "name": "xAI", "sector": "Artificial Intelligence", "pre_ipo": True},
+        "DISCORD": {"wkn": None, "name": "Discord", "sector": "Technology", "pre_ipo": True},
+        "CANVA": {"wkn": None, "name": "Canva", "sector": "Technology", "pre_ipo": True},
+        "REVOLUT": {"wkn": None, "name": "Revolut", "sector": "FinTech", "pre_ipo": True},
+        "BYTEDANCE": {"wkn": None, "name": "ByteDance", "sector": "Technology", "pre_ipo": True},
+        "EPICGAMES": {"wkn": None, "name": "Epic Games", "sector": "Gaming", "pre_ipo": True},
     }
+
+    def _catalog_entry(ticker: str) -> dict:
+        data = _COMPANY_DATABASE[ticker]
+        return {
+            "ticker": ticker,
+            "wkn": data.get("wkn"),
+            "name": data["name"],
+            "sector": data["sector"],
+            "pre_ipo": data.get("pre_ipo", False),
+        }
 
     @app.get("/search/companies")
     async def search_companies(query: str = Query(...)):
-        """Sucht nach Companies in bekannter Datenbank."""
+        """Sucht nach Companies im Katalog (Ticker, Name oder WKN)."""
         if not query or len(query.strip()) < 1:
             return {"results": [], "error": "Query zu kurz"}
 
         query_upper = query.upper().strip()
 
-        # Exakte Treffer
+        # Exakter Ticker-Treffer zuerst
         if query_upper in _COMPANY_DATABASE:
-            data = _COMPANY_DATABASE[query_upper]
-            return {
-                "results": [{
-                    "ticker": query_upper,
-                    "name": data["name"],
-                    "sector": data["sector"],
-                }],
-                "error": None
-            }
+            return {"results": [_catalog_entry(query_upper)], "error": None}
 
-        # Fuzzy Match - suche nach Ticker, der mit Query beginnt oder name contains query
+        # Fuzzy: Ticker-Prefix, Name enthaelt Query, oder WKN-Treffer
         results = []
         for ticker, data in _COMPANY_DATABASE.items():
-            if ticker.startswith(query_upper) or query_upper in data["name"].upper():
-                results.append({
-                    "ticker": ticker,
-                    "name": data["name"],
-                    "sector": data["sector"],
-                })
+            wkn = (data.get("wkn") or "").upper()
+            if (
+                ticker.startswith(query_upper)
+                or query_upper in data["name"].upper()
+                or (wkn and query_upper in wkn)
+            ):
+                results.append(_catalog_entry(ticker))
 
         if results:
-            # Sortiere: Exakte Ticker-Treffer zuerst, dann Nametreffer
+            # Sortiere: exakter Ticker zuerst, dann Prefix-Treffer
             results.sort(key=lambda x: (x["ticker"] != query_upper, not x["ticker"].startswith(query_upper)))
-            return {"results": results[:15], "error": None}  # Max 15 Ergebnisse
+            return {"results": results[:20], "error": None}
 
-        # Fallback: Akzeptiere als Custom Ticker wenn 1-5 Zeichen
-        if 1 <= len(query_upper) <= 5 and query_upper.isalpha():
+        # Fallback: freie Eingabe als Custom-Ticker (1-6 Buchstaben)
+        if 1 <= len(query_upper) <= 6 and query_upper.isalpha():
             return {
                 "results": [{
                     "ticker": query_upper,
-                    "name": query,
+                    "wkn": None,
+                    "name": query.strip(),
                     "sector": None,
+                    "pre_ipo": False,
                 }],
                 "error": None
             }
@@ -480,7 +508,8 @@ def create_app() -> FastAPI:
 
     @app.post("/watchlist")
     async def add_to_watchlist(ticker: str = Query(...), name: str = Query(...), sector: str | None = Query(None)):
-        """Fügt ein Unternehmen zur Watchlist hinzu."""
+        """Fügt ein Unternehmen zur Watchlist hinzu und verknüpft sofort
+        bereits gesammelte News über Namens-Matching (auch für Pre-IPO-Firmen)."""
         with db.session() as session:
             company = session.execute(
                 select(Company).where(Company.ticker == ticker.upper())
@@ -502,7 +531,20 @@ def create_app() -> FastAPI:
                 session.add(company)
 
             session.commit()
-            return {"status": "ok", "ticker": company.ticker}
+            result_ticker = company.ticker
+
+        # Sofort bereits vorhandene News über Namen/Ticker verknüpfen, damit
+        # auch nicht-gehandelte Firmen (z.B. Anthropic) direkt Treffer zeigen.
+        signals_linked = 0
+        try:
+            from stockintel.analysis.entity import link_items
+
+            link_stats = link_items(db)
+            signals_linked = link_stats.get("signals_created", 0)
+        except Exception as e:  # noqa: BLE001 - Linking-Fehler nicht fatal
+            logger.warning(f"Linking nach Watchlist-Add fehlgeschlagen: {e}")
+
+        return {"status": "ok", "ticker": result_ticker, "signals_linked": signals_linked}
 
     @app.put("/watchlist/{ticker}")
     async def update_watchlist_item(ticker: str, name: str | None = Query(None), sector: str | None = Query(None)):

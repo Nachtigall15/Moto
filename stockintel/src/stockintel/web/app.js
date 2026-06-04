@@ -72,6 +72,7 @@ async function loadCharts() {
                 }
             ],
             indexAxis: "y",
+            integerTicks: true,  // Ganzzahlige Achse (keine 0,5er-Schritte)
         });
 
         // Signals per Company (Top 5 from Watchlist)
@@ -84,6 +85,7 @@ async function loadCharts() {
             labels: topCompanies.map(c => c.ticker),
             data: topCompanies.map(c => c.signal_count),
             color: "#58a6ff",
+            integerTicks: true,
         });
 
         // Relevance Distribution (Histogram)
@@ -97,6 +99,7 @@ async function loadCharts() {
             labels: relevanceBuckets.map((_, i) => `${i * 10}-${(i + 1) * 10}`),
             data: relevanceBuckets,
             color: "#58a6ff",
+            integerTicks: true,
         });
 
         // Reaction Profiles: Peak vs Final Returns (if data exists)
@@ -172,6 +175,15 @@ function updateChart(instanceName, canvasId, config) {
         ];
     }
 
+    // Ganzzahlige Ticks (keine 0,5er-Schritte bei kleinen Zählwerten).
+    // precision:0 + stepSize:1 erzwingt Integer-Achsen auf der Werte-Achse.
+    const valueTicks = config.integerTicks
+        ? { color: "#8b949e", precision: 0, stepSize: 1 }
+        : { color: "#8b949e" };
+    const categoryTicks = { color: "#8b949e" };
+    // Bei horizontalem Balken (indexAxis "y") ist x die Werte-Achse, sonst y.
+    const horizontal = config.indexAxis === "y";
+
     const chartConfig = {
         type: config.type,
         data: {
@@ -188,8 +200,8 @@ function updateChart(instanceName, canvasId, config) {
                 },
             },
             scales: config.type !== "doughnut" ? {
-                x: { ticks: { color: "#8b949e" }, grid: { color: "#30363d" } },
-                y: { ticks: { color: "#8b949e" }, grid: { color: "#30363d" } },
+                x: { ticks: horizontal ? valueTicks : categoryTicks, grid: { color: "#30363d" }, beginAtZero: true },
+                y: { ticks: horizontal ? categoryTicks : valueTicks, grid: { color: "#30363d" }, beginAtZero: true },
             } : {},
         },
     };
@@ -729,21 +741,35 @@ document.addEventListener("DOMContentLoaded", () => {
             try {
                 const result = await fetchJSON(`/search/companies?query=${encodeURIComponent(query)}`);
                 if (result.results && result.results.length > 0) {
-                    resultsDiv.innerHTML = result.results.map(company => `
-                        <div class="search-result-item" style="padding: 1.2rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; display: flex; justify-content: space-between; align-items: center;"
+                    // Tabellen-Kopf mit Spalten WKN und Name
+                    const header = `
+                        <div style="display: grid; grid-template-columns: 90px 110px 1fr auto; gap: 0.8rem; padding: 0.6rem 1rem; border-bottom: 2px solid var(--border); font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; position: sticky; top: 0; background: var(--bg-panel);">
+                            <div>Ticker</div>
+                            <div>WKN</div>
+                            <div>Name</div>
+                            <div></div>
+                        </div>`;
+                    const rows = result.results.map(company => {
+                        const preIpoBadge = company.pre_ipo
+                            ? `<span style="display: inline-block; background: #8957e5; color: #fff; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.65rem; margin-left: 0.4rem; vertical-align: middle;">PRE-IPO</span>`
+                            : '';
+                        return `
+                        <div class="search-result-item" style="display: grid; grid-template-columns: 90px 110px 1fr auto; gap: 0.8rem; align-items: center; padding: 0.9rem 1rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s;"
                              onmouseover="this.style.background='rgba(88, 166, 255, 0.15)'"
                              onmouseout="this.style.background='transparent'"
                              data-ticker="${escapeHtml(company.ticker)}"
                              data-name="${escapeHtml(company.name)}"
                              data-sector="${escapeHtml(company.sector || '')}">
-                            <div style="flex: 1;">
-                                <div style="font-weight: bold; color: #58a6ff; font-size: 1.1rem;">${escapeHtml(company.ticker)}</div>
-                                <div style="color: #c9d1d9; font-size: 0.95rem; margin-top: 0.2rem;">${escapeHtml(company.name)}</div>
-                                ${company.sector ? `<div style="color: #8b949e; font-size: 0.85rem; margin-top: 0.3rem;">📊 ${escapeHtml(company.sector)}</div>` : ''}
+                            <div style="font-weight: bold; color: #58a6ff;">${escapeHtml(company.ticker)}</div>
+                            <div style="color: #8b949e; font-family: monospace; font-size: 0.9rem;">${escapeHtml(company.wkn || '–')}</div>
+                            <div style="color: #c9d1d9;">
+                                ${escapeHtml(company.name)}${preIpoBadge}
+                                ${company.sector ? `<div style="color: #8b949e; font-size: 0.8rem; margin-top: 0.2rem;">📊 ${escapeHtml(company.sector)}</div>` : ''}
                             </div>
-                            <div style="background: rgba(88, 166, 255, 0.2); padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.8rem; margin-left: 1rem; white-space: nowrap;">➕ Hinzufügen</div>
-                        </div>
-                    `).join("");
+                            <div style="background: rgba(88, 166, 255, 0.2); padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.8rem; white-space: nowrap;">➕ Hinzufügen</div>
+                        </div>`;
+                    }).join("");
+                    resultsDiv.innerHTML = header + rows;
                     resultsDiv.style.display = "block";
 
                     // Attach click listeners to results
@@ -759,14 +785,13 @@ document.addEventListener("DOMContentLoaded", () => {
                                 await fetchJSON(`/watchlist?${params}`, { method: "POST" });
                                 document.getElementById("search-company-input").value = "";
                                 resultsDiv.style.display = "none";
-                                await loadWatchlist();
-                                // Aktualisiere Companies und Chart nach Watchlist-Änderung
-                                await loadCompanies();
-                                await loadCharts();
-
-                                // Automatisch nach News für diese Company suchen
-                                document.getElementById("ticker-filter").value = ticker;
-                                await loadSignals();
+                                // Watchlist, Companies-Tabelle, Chart und Signale aktualisieren
+                                await Promise.all([
+                                    loadWatchlist(),
+                                    loadCompanies(),
+                                    loadCharts(),
+                                    loadSignals(),
+                                ]);
                             } catch (e) {
                                 alert("Fehler beim Hinzufügen: " + e.message);
                             }
