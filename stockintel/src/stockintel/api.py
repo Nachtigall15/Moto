@@ -17,7 +17,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 
 from stockintel.analysis.scoring import generate_recommendations
 from stockintel.analysis.triage import analyze_signals

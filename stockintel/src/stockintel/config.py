@@ -54,9 +54,10 @@ def _load_dotenv(path: Path) -> None:
 def load_settings(config_path: Path | None = None) -> Settings:
     """Lädt Einstellungen. Reihenfolge der DB-URL-Priorität:
 
-    1. Umgebungsvariable STOCKINTEL_DB_URL (Production: PostgreSQL)
-    2. database.url in settings.yaml
-    3. Default (lokales SQLite)
+    1. Umgebungsvariable STOCKINTEL_DB_URL (explicit custom)
+    2. Railway-Umgebungsvariablen (DATABASE_URL, POSTGRESQL_URL, etc.)
+    3. database.url in settings.yaml
+    4. Default (lokales SQLite)
     """
     _load_dotenv(ROOT / ".env")
 
@@ -69,6 +70,8 @@ def load_settings(config_path: Path | None = None) -> Settings:
 
     db_url = (
         os.environ.get("STOCKINTEL_DB_URL")
+        or os.environ.get("DATABASE_URL")  # Railway PostgreSQL
+        or os.environ.get("POSTGRESQL_URL")  # Railway alt
         or raw.get("database", {}).get("url")
         or DEFAULT_DB_URL
     )
