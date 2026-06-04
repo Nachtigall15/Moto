@@ -76,6 +76,11 @@ def load_settings(config_path: Path | None = None) -> Settings:
         or DEFAULT_DB_URL
     )
 
+    # SQLAlchemy 2.0 akzeptiert nur "postgresql://", nicht das alte
+    # "postgres://" (das Railway/Heroku teils liefern). Normalisieren.
+    if db_url.startswith("postgres://"):
+        db_url = "postgresql://" + db_url[len("postgres://"):]
+
     # API-Keys aus Umgebungsvariablen (für Production-Secrets)
     if not os.environ.get("FINNHUB_API_KEY"):
         if raw.get("finnhub", {}).get("api_key"):
