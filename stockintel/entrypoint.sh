@@ -40,6 +40,7 @@ fi
 
 # Initialize database schema (idempotent - safe to run multiple times)
 echo "[ENTRYPOINT] Initializing database schema..."
+python -m stockintel.cli info 2>&1 | head -10
 python -m stockintel.cli init-db
 
 # Start the API server
