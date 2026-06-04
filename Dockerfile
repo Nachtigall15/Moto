@@ -13,6 +13,9 @@ COPY stockintel/ .
 # Explizit config/settings.yaml kopieren, damit watchlist geladen wird
 COPY stockintel/config/settings.yaml config/settings.yaml
 
+# Force rebuild (cache bust) - 2026-06-04 15:27:00 UTC
+RUN echo "Building with entrypoint.sh initialization"
+
 # Paket mit PRODUCTION-Dependencies installieren (PostgreSQL, FastAPI, Collectors, Scheduler).
 # Der [prod] Extra beinhaltet: psycopg2, fastapi, uvicorn, apscheduler, collectors
 RUN pip install --no-cache-dir -e ".[prod]"
