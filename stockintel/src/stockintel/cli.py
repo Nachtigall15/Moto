@@ -1,18 +1,20 @@
 """Kommandozeile für StockIntel.
 
 Verfügbare Befehle:
-  * ``stockintel init-db``       – Datenbank-Schema anlegen + Watchlist syncen
-  * ``stockintel collect``       – aktive Collectors abrufen (``--loop`` für Dauerbetrieb)
-  * ``stockintel link``          – RawItems regelbasiert mit Companies verknüpfen
-  * ``stockintel analyze``       – offene Signals mit dem KI-Triage-Modell bewerten
-  * ``stockintel find-ipo``      – EDGAR S-1 Filings scannen, IPO-Events anlegen
-  * ``stockintel link-themes``   – Themes erkennen, Beneficiaries verlinken
-  * ``stockintel items``         – Items anzeigen (Filter: ``--ticker``, ``--source``)
-  * ``stockintel signals``       – bewertete Signals anzeigen (Filter: ``--ticker``)
-  * ``stockintel ipos``          – IPO-Events anzeigen
-  * ``stockintel themes``        – Themes und ihre Profiteure anzeigen
-  * ``stockintel companies``     – bekannte Companies + Signal-Zähler
-  * ``stockintel info``          – Konfiguration/Status anzeigen
+  * ``stockintel init-db``           – Datenbank-Schema anlegen + Watchlist syncen
+  * ``stockintel collect``           – aktive Collectors abrufen (``--loop`` für Dauerbetrieb)
+  * ``stockintel link``              – RawItems regelbasiert mit Companies verknüpfen
+  * ``stockintel analyze``           – offene Signals mit dem KI-Triage-Modell bewerten
+  * ``stockintel score``             – Buy/Hold/Sell Recommendations generieren
+  * ``stockintel find-ipo``          – EDGAR S-1 Filings scannen, IPO-Events anlegen
+  * ``stockintel link-themes``       – Themes erkennen, Beneficiaries verlinken
+  * ``stockintel items``             – Items anzeigen (Filter: ``--ticker``, ``--source``)
+  * ``stockintel signals``           – bewertete Signals anzeigen (Filter: ``--ticker``)
+  * ``stockintel recommendations``   – Buy/Hold/Sell Empfehlungen anzeigen
+  * ``stockintel ipos``              – IPO-Events anzeigen
+  * ``stockintel themes``            – Themes und ihre Profiteure anzeigen
+  * ``stockintel companies``         – bekannte Companies + Signal-Zähler
+  * ``stockintel info``              – Konfiguration/Status anzeigen
 """
 
 from __future__ import annotations
@@ -184,6 +186,47 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         f"Bewertet: {stats['analyzed']} von {stats['pending']} "
         f"(Fehler: {stats['errors']})"
     )
+    return 0
+
+
+def cmd_score(_: argparse.Namespace) -> int:
+    from stockintel.analysis.scoring import generate_recommendations
+
+    settings = load_settings()
+    db = get_database(settings)
+    stats = generate_recommendations(db)
+    print(
+        f"Recommendations generiert: {stats['recommendations_created']} neu, "
+        f"{stats['recommendations_updated']} aktualisiert"
+    )
+    return 0
+
+
+def cmd_recommendations(args: argparse.Namespace) -> int:
+    from sqlalchemy import desc, select
+
+    from stockintel.db.models import Company, Recommendation
+
+    settings = load_settings()
+    db = get_database(settings)
+    with db.session() as session:
+        stmt = (
+            select(Company.ticker, Company.name, Recommendation.action, Recommendation.confidence, Recommendation.rationale)
+            .join(Recommendation, Recommendation.company_id == Company.id)
+            .order_by(desc(Recommendation.confidence), Company.ticker)
+            .limit(args.limit)
+        )
+        rows = session.execute(stmt).all()
+        if not rows:
+            print("Keine Recommendations. Erst 'stockintel score' ausführen.")
+            return 0
+        print(f"{'Ticker':<8} {'Action':<8} {'Confidence':>10}  Name / Rationale")
+        for ticker, name, action, confidence, rationale in rows:
+            print(
+                f"{ticker:<8} {action.value:<8} {confidence:>10.2f}  {name[:40]}"
+            )
+            if rationale:
+                print(f"         → {rationale[:70]}")
     return 0
 
 
@@ -402,6 +445,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximale Anzahl Signals pro Lauf (Standard 20)",
     )
     p_analyze.set_defaults(func=cmd_analyze)
+
+    p_score = sub.add_parser(
+        "score",
+        help="Buy/Hold/Sell Recommendations generieren aus Signals",
+    )
+    p_score.set_defaults(func=cmd_score)
+
+    p_recs = sub.add_parser("recommendations", help="Buy/Hold/Sell Recommendations anzeigen")
+    p_recs.add_argument("--limit", type=int, default=20, help="Anzahl (Standard 20)")
+    p_recs.set_defaults(func=cmd_recommendations)
 
     p_signals = sub.add_parser("signals", help="Bewertete Signals anzeigen")
     p_signals.add_argument("--limit", type=int, default=20, help="Anzahl (Standard 20)")

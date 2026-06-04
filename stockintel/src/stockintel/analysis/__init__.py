@@ -35,6 +35,15 @@ from stockintel.analysis.ipo import (
     find_ipo_events,
     link_ipo_investors,
 )
+from stockintel.analysis.eventstudy import (
+    classify_event_type,
+    classify_hickup,
+    signal_to_event,
+)
+from stockintel.analysis.scoring import (
+    generate_recommendations,
+    score_company,
+)
 
 __all__ = [
     "RULE_BASED_MODEL",
@@ -43,17 +52,22 @@ __all__ = [
     "analyze_signals",
     "build_triage_tool",
     "build_user_content",
+    "classify_event_type",
+    "classify_hickup",
     "extract_tool_input",
     "extract_themes_from_text",
     "extract_ipo_from_s1",
     "find_matches",
     "find_ipo_events",
+    "generate_recommendations",
     "link_items",
     "link_themes_to_signals",
     "link_ipo_investors",
     "matcher_from_company",
     "parse_triage_response",
+    "score_company",
     "score_relevance",
+    "signal_to_event",
     "sync_companies",
     "sync_themes",
 ]
