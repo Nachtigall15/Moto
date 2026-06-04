@@ -65,6 +65,12 @@ FINNHUB_API_KEY=d8gj8ehr01qlgcujsthgd8gj8ehr01qlgcujsti0
 2. Nach ~2-3 Minuten sieht du: "Deployment Successful" ✅
 3. Die URL steht oben im Project (z.B. `https://stockintel-abc123.railway.app`)
 
+**Die Datenbank wird automatisch initialisiert** ✨
+- Das System wartet beim Start, bis PostgreSQL verfügbar ist
+- Erstellt dann automatisch alle notwendigen Tabellen
+- Synchronisiert deine Watchlist
+- Startet dann den Server
+
 **Öffne die URL im Browser** → dein Dashboard läuft live!
 
 ---
