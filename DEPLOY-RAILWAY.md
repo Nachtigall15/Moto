@@ -59,19 +59,23 @@ FINNHUB_API_KEY=d8gj8ehr01qlgcujsthgd8gj8ehr01qlgcujsti0
 
 ---
 
-## Schritt 5 – Deploy & Online!
+## Schritt 5 – Redeploy nach dem Fix
 
-1. Railway deployed automatisch nach jedem Push
-2. Nach ~2-3 Minuten sieht du: "Deployment Successful" ✅
-3. Die URL steht oben im Project (z.B. `https://stockintel-abc123.railway.app`)
+Da wir gerade die Datenbank-Initialisierung gefixed haben, musst du einen **neuen Deploy erzwingen**:
 
-**Die Datenbank wird automatisch initialisiert** ✨
-- Das System wartet beim Start, bis PostgreSQL verfügbar ist
-- Erstellt dann automatisch alle notwendigen Tabellen
-- Synchronisiert deine Watchlist
-- Startet dann den Server
+1. Im Railway-Projekt → Services → `stockintel`
+2. Klick auf **Deployments**
+3. Klick auf **Redeploy** (oder push einen neuen Commit zu `claude/gallant-hamilton-lr5Ud`)
 
-**Öffne die URL im Browser** → dein Dashboard läuft live!
+**Die Datenbank wird jetzt automatisch initialisiert** ✨
+- Beim Start wartet das System, bis PostgreSQL verfügbar ist (bis 120 Sekunden)
+- Erstellt dann automatisch alle 13 Tabellen
+- Synchronisiert deine Watchlist aus `config/settings.yaml`
+- Startet dann den Web-Server
+
+Nach ~2-3 Minuten sieht du: **"Deployment Successful"** ✅
+
+**Öffne deine URL im Browser** → dein Dashboard läuft live!
 
 ---
 
