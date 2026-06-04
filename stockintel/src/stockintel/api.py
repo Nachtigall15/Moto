@@ -499,6 +499,157 @@ def create_app() -> FastAPI:
                 for row in rows
             ]
 
+    @app.get("/sentiment-distribution")
+    async def get_sentiment_distribution():
+        """Sentiment-Verteilung der Signals (Positiv/Negativ/Mixed/Neutral)."""
+        from stockintel.analysis.sentiment import get_sentiment_distribution
+
+        distribution = get_sentiment_distribution(db)
+        return {
+            "positive": distribution.get("positive", 0),
+            "negative": distribution.get("negative", 0),
+            "mixed": distribution.get("mixed", 0),
+            "neutral": distribution.get("neutral", 0),
+            "total": sum(distribution.values()),
+        }
+
+    @app.get("/export/signals.csv")
+    async def export_signals_csv():
+        """Export alle Signals als CSV."""
+        from stockintel.delivery.exporters import export_signals_csv
+
+        csv_data = export_signals_csv(db)
+        return {
+            "format": "text/csv",
+            "data": csv_data,
+        }
+
+    @app.get("/export/events.csv")
+    async def export_events_csv():
+        """Export alle Events als CSV."""
+        from stockintel.delivery.exporters import export_events_csv
+
+        csv_data = export_events_csv(db)
+        return {
+            "format": "text/csv",
+            "data": csv_data,
+        }
+
+    @app.get("/export/recommendations.json")
+    async def export_recommendations_json():
+        """Export alle Recommendations als JSON."""
+        from stockintel.delivery.exporters import export_recommendations_json
+
+        json_data = export_recommendations_json(db)
+        return {
+            "format": "application/json",
+            "data": json_data,
+        }
+
+    @app.get("/correlations")
+    async def get_correlations(min_correlation: float = Query(0.5, ge=0.0, le=1.0)):
+        """Korrelierte Ticker-Paare (basierend auf Event-Returns)."""
+        from stockintel.analysis.correlation import get_correlated_pairs
+
+        pairs = get_correlated_pairs(db, min_correlation)
+        return {
+            "pairs": pairs,
+            "min_threshold": min_correlation,
+            "count": len(pairs),
+        }
+
+    @app.get("/sector-correlations")
+    async def get_sector_correlations():
+        """Durchschnittliche Korrelation innerhalb von Sektoren."""
+        from stockintel.analysis.correlation import find_sector_correlations
+
+        sector_corrs = find_sector_correlations(db)
+        return {
+            "sector_correlations": sector_corrs,
+        }
+
+    @app.get("/alerts/evaluate-default")
+    async def evaluate_default_alerts():
+        """Evaluiert vordefinierte Alert-Regeln."""
+        from stockintel.delivery.alerts_custom import DEFAULT_RULES, evaluate_rules
+
+        alerts = evaluate_rules(db, DEFAULT_RULES)
+        return {
+            "alerts_triggered": alerts,
+            "total_matches": sum(len(v) for v in alerts.values()),
+        }
+
+    @app.get("/ticker/{ticker}")
+    async def get_ticker_detail(ticker: str):
+        """Ticker-Detailseite: Signals, Events, Recommendations."""
+        from sqlalchemy.orm import joinedload
+
+        with db.session() as session:
+            company = session.execute(
+                select(Company).where(Company.ticker == ticker.upper())
+            ).first()
+
+            if not company:
+                raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
+
+            company = company[0]
+
+            # Signals für diese Company
+            signals = session.execute(
+                select(Signal)
+                .where(Signal.company_id == company.id)
+                .options(joinedload(Signal.raw_item))
+                .order_by(desc(Signal.relevance))
+                .limit(20)
+            ).scalars().all()
+
+            # Events für diese Company
+            events = session.execute(
+                select(Event, EventOutcome)
+                .where(Event.company_id == company.id)
+                .outerjoin(EventOutcome, EventOutcome.event_id == Event.id)
+                .order_by(desc(Event.created_at))
+                .limit(10)
+            ).all()
+
+            # Recommendation für diese Company
+            recommendation = session.execute(
+                select(Recommendation).where(Recommendation.company_id == company.id)
+            ).first()
+
+            return {
+                "ticker": company.ticker,
+                "name": company.name,
+                "sector": company.sector,
+                "signal_count": len(signals),
+                "event_count": len(events),
+                "signals": [
+                    {
+                        "relevance": s.relevance,
+                        "direction": s.direction.value,
+                        "confidence": s.confidence,
+                        "title": (s.raw_item.title or "")[:100] if s.raw_item else "",
+                        "published_at": s.raw_item.published_at.isoformat() if s.raw_item and s.raw_item.published_at else "",
+                    }
+                    for s in signals
+                ],
+                "events": [
+                    {
+                        "event_type": row[0].event_type.value,
+                        "created_at": row[0].created_at.isoformat(),
+                        "peak_return": row[1].peak_return if row[1] else None,
+                        "abnormal_return": row[1].abnormal_return if row[1] else None,
+                        "is_hickup": row[1].is_hickup if row[1] else False,
+                    }
+                    for row in events
+                ],
+                "recommendation": {
+                    "action": recommendation[0].action.value,
+                    "confidence": recommendation[0].confidence,
+                    "rationale": recommendation[0].rationale,
+                } if recommendation else None,
+            }
+
     # --- Web-Dashboard (Phase 6) ---------------------------------------- #
     web_dir = Path(__file__).resolve().parent / "web"
     if web_dir.is_dir():
