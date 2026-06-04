@@ -26,6 +26,16 @@ event_study:
   # der anfaenglichen Bewegung, der wieder abgegeben wird).
   hickup_reversal_ratio: 0.6
 
+# IPO -> Investoren. Institutionelle Vermoegensverwalter (13F-Filer), deren
+# Positionen mit erkannten IPO-Events abgeglichen werden ('stockintel find-ipo').
+# CIK = SEC Central Index Key des Managers (ohne fuehrende Nullen ok).
+ipo:
+  managers: []
+  # Beispiel:
+  # managers:
+  #   - { cik: "1067983", name: "Berkshire Hathaway" }
+  #   - { cik: "1350694", name: "Bridgewater Associates" }
+
 # KI-Modelle (Phase 2). Triage guenstig, Tiefenanalyse stark.
 models:
   triage: "claude-haiku-4-5-20251001"

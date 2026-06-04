@@ -295,32 +295,43 @@ def cmd_find_ipo(_: argparse.Namespace) -> int:
         f"IPO-Events analysiert: {stats['ipo_events_found']} S-1 Filings, "
         f"{stats['ipo_events_created']} neue IPO-Events"
     )
-    investor_stats = link_ipo_investors(db)
-    if investor_stats["investors_linked"] > 0:
-        print(f"Investoren verknüpft: {investor_stats['investors_linked']}")
+    investor_stats = link_ipo_investors(db, settings)
+    if investor_stats["investors_found"]:
+        print(
+            f"13F: {investor_stats['investors_found']} Positionen geprüft, "
+            f"{investor_stats['investors_linked']} Investor-Links erstellt"
+        )
     return 0
 
 
 def cmd_ipos(args: argparse.Namespace) -> int:
     from sqlalchemy import desc, select
+    from sqlalchemy.orm import joinedload
 
     from stockintel.db.models import IpoEvent
 
     settings = load_settings()
     db = get_database(settings)
     with db.session() as session:
-        stmt = select(IpoEvent).order_by(desc(IpoEvent.created_at)).limit(args.limit)
-        rows = session.scalars(stmt).all()
+        stmt = (
+            select(IpoEvent)
+            .options(joinedload(IpoEvent.investors))
+            .order_by(desc(IpoEvent.created_at))
+            .limit(args.limit)
+        )
+        rows = session.scalars(stmt).unique().all()
         if not rows:
             print("Keine IPO-Events. Erst 'stockintel find-ipo' ausführen.")
             return 0
         print(f"{'Company':<30} {'Ticker':<8} {'Expected Date':<15} Investors")
         for event in rows:
             when = event.expected_date.date().isoformat() if event.expected_date else "----------"
-            investor_count = len(event.investors) if event.investors else 0
+            investors = event.investors or []
             print(
-                f"{event.company_name:<30} {(event.ticker or '-'):<8} {when:<15} {investor_count}"
+                f"{event.company_name:<30} {(event.ticker or '-'):<8} {when:<15} {len(investors)}"
             )
+            for inv in investors:
+                print(f"         → {inv.investor_name}")
     return 0
 
 

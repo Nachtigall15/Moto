@@ -35,6 +35,13 @@ from stockintel.analysis.ipo import (
     find_ipo_events,
     link_ipo_investors,
 )
+from stockintel.analysis.thirteenf import (
+    Holding,
+    fetch_13f_holdings,
+    issuer_matches,
+    normalize_issuer,
+    parse_13f_infotable,
+)
 from stockintel.analysis.eventstudy import (
     backfill_event_snapshots,
     build_events_from_signals,
@@ -65,9 +72,14 @@ __all__ = [
     "extract_tool_input",
     "extract_themes_from_text",
     "extract_ipo_from_s1",
+    "fetch_13f_holdings",
     "find_matches",
     "find_ipo_events",
     "generate_recommendations",
+    "Holding",
+    "issuer_matches",
+    "normalize_issuer",
+    "parse_13f_infotable",
     "link_items",
     "link_themes_to_signals",
     "link_ipo_investors",

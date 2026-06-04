@@ -6,21 +6,30 @@ Phase 3b: regelbasiert + später KI-augmentiert.
 
 from __future__ import annotations
 
+import logging
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
+from stockintel.analysis.thirteenf import Holding, fetch_13f_holdings, issuer_matches
 from stockintel.db.models import IpoEvent, IpoInvestor, RawItem, Source
 
 if TYPE_CHECKING:
+    from stockintel.config import Settings
     from stockintel.db.database import Database
+
+logger = logging.getLogger(__name__)
+
+HoldingsProvider = Callable[[str], list[Holding]]
 
 
 # S-1 Filings sind explizit im EDGAR Form-Index
 # 13F-HR: institutionelle Positionen (>$100M Portfolios)
 S1_FORM_TYPE = "S-1"
 S1_FORM_TYPES = ["S-1", "S-1/A", "S-1MEF"]  # S-1 + Amendments
+DEFAULT_13F_USER_AGENT = "stockintel research example@example.com"
 
 
 def extract_ipo_from_s1(url: str, title: str, body: str | None = None) -> dict | None:
@@ -101,12 +110,110 @@ def find_ipo_events(db: Database) -> dict[str, int]:
     return stats
 
 
-def link_ipo_investors(db: Database) -> dict[str, int]:
-    """Verknüpft IpoEvents mit Investoren (später: aus 13F Filings).
+def _managers_from_settings(settings: Settings | None) -> list[dict]:
+    """Liest die zu verfolgenden 13F-Manager aus den Settings (Sektion ``ipo``)."""
+    if settings is None:
+        return []
+    ipo_cfg = settings.section("ipo")
+    managers = ipo_cfg.get("managers")
+    if not isinstance(managers, list):
+        return []
+    return [m for m in managers if isinstance(m, dict) and m.get("cik")]
 
-    Für jetzt: Stub (TODO nach 13F-Parsing).
+
+def _edgar_user_agent(settings: Settings | None) -> str | None:
+    """Übernimmt den EDGAR-User-Agent aus der Collector-Konfiguration (falls gesetzt)."""
+    if settings is None:
+        return None
+    edgar_cfg = settings.section("collectors").get("edgar")
+    if isinstance(edgar_cfg, dict):
+        return edgar_cfg.get("user_agent")
+    return None
+
+
+def link_ipo_investors(
+    db: Database,
+    settings: Settings | None = None,
+    managers: list[dict] | None = None,
+    holdings_provider: HoldingsProvider | None = None,
+    user_agent: str | None = None,
+) -> dict[str, int]:
+    """Verknüpft IpoEvents mit institutionellen Haltern aus 13F-Filings.
+
+    Für jeden verfolgten Vermögensverwalter (``managers`` = Liste mit ``cik`` +
+    ``name``; Default: aus Settings) werden dessen 13F-Positionen geladen und per
+    Namensabgleich den bekannten IPO-Events zugeordnet. Treffer werden als
+    ``IpoInvestor`` gespeichert.
+
+    ``holdings_provider`` (Callable ``cik -> list[Holding]``) ist für Tests
+    injizierbar; Default ist der EDGAR-Abruf. Idempotent: ein (IPO, Investor)-Paar
+    wird nicht doppelt angelegt.
+
     Returns: {investors_found, investors_linked}.
     """
-    # Später: Parse 13F-Filings für institutional holdings
-    # Für jetzt leeres Scaffold
-    return {"investors_found": 0, "investors_linked": 0}
+    managers = managers if managers is not None else _managers_from_settings(settings)
+    stats = {"investors_found": 0, "investors_linked": 0}
+    if not managers:
+        return stats
+
+    ua = user_agent or _edgar_user_agent(settings) or DEFAULT_13F_USER_AGENT
+    provider = holdings_provider or (lambda cik: fetch_13f_holdings(cik, ua))
+
+    with db.session() as session:
+        ipos = session.scalars(
+            select(IpoEvent).options(joinedload(IpoEvent.investors))
+        ).unique().all()
+        if not ipos:
+            return stats
+
+        # Bereits vorhandene (ipo_id, investor_name) für Idempotenz.
+        existing = {
+            (inv.ipo_id, inv.investor_name)
+            for ipo in ipos
+            for inv in ipo.investors
+        }
+
+        for manager in managers:
+            cik = str(manager.get("cik"))
+            manager_name = manager.get("name") or f"CIK {cik}"
+            try:
+                holdings = provider(cik)
+            except Exception as exc:  # noqa: BLE001 - ein Manager-Fehler stoppt nicht alle
+                logger.warning("13F-Provider für %s fehlgeschlagen: %s", manager_name, exc)
+                continue
+            stats["investors_found"] += len(holdings)
+
+            for ipo in ipos:
+                match = next(
+                    (h for h in holdings if issuer_matches(h.issuer, ipo.company_name)),
+                    None,
+                )
+                if match is None:
+                    continue
+                key = (ipo.id, manager_name)
+                if key in existing:
+                    continue
+                session.add(
+                    IpoInvestor(
+                        ipo_id=ipo.id,
+                        investor_name=manager_name,
+                        stake_note=_format_stake(match),
+                    )
+                )
+                existing.add(key)
+                stats["investors_linked"] += 1
+
+        session.commit()
+    return stats
+
+
+def _format_stake(holding: Holding) -> str:
+    """Kurze Notiz zur Position (Stückzahl/Wert) für die Anzeige."""
+    parts = [f"Emittent: {holding.issuer}"]
+    if holding.shares:
+        parts.append(f"{holding.shares:,.0f} Stück")
+    if holding.value:
+        parts.append(f"Wert {holding.value:,.0f}")
+    if holding.cusip:
+        parts.append(f"CUSIP {holding.cusip}")
+    return " | ".join(parts)
