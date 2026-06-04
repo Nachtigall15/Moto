@@ -492,6 +492,135 @@ async function loadPriceHistory(ticker, period) {
     }
 }
 
+async function showCompanySelectionModal() {
+    const companies = await fetchJSON("/companies?limit=100");
+    const watchlist = await fetchJSON("/watchlist");
+    const watchlistTickers = new Set(watchlist.map(w => w.ticker));
+
+    let modalContent = `
+        <div style="margin-bottom: 1rem;">
+            <input type="text" id="comparison-company-filter" placeholder="Unternehmen filtern..." style="width: 100%; padding: 0.8rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-card); color: var(--text);" />
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem; max-height: 400px; overflow-y: auto;">
+    `;
+
+    const filtered = companies.filter(c => watchlistTickers.has(c.ticker));
+    filtered.forEach(company => {
+        const isSelected = selectedCompaniesForComparison.some(c => c.ticker === company.ticker);
+        const bgColor = isSelected ? "rgba(88, 166, 255, 0.2)" : "rgba(88, 166, 255, 0.05)";
+        const borderColor = isSelected ? "#58a6ff" : "#30363d";
+        modalContent += `
+            <div class="comparison-company-item" data-ticker="${company.ticker}" style="padding: 1rem; border: 2px solid ${borderColor}; border-radius: 6px; background: ${bgColor}; cursor: pointer; transition: all 0.2s;">
+                <div style="font-weight: bold; color: #58a6ff; margin-bottom: 0.3rem;">${escapeHtml(company.ticker)}</div>
+                <div style="color: #c9d1d9; font-size: 0.9rem;">${escapeHtml(company.name)}</div>
+                <div style="color: #8b949e; font-size: 0.8rem; margin-top: 0.3rem;">📊 ${escapeHtml(company.sector || "–")}</div>
+            </div>
+        `;
+    });
+
+    modalContent += `</div>
+        <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
+            <button id="comparison-confirm-btn" class="action-btn" style="flex: 1;">Vergleichen (${selectedCompaniesForComparison.length} gewählt)</button>
+            <button id="comparison-clear-btn" class="action-btn" style="flex: 1; background: #f85149;">Zurücksetzen</button>
+        </div>
+    `;
+
+    showModal("Firmen zum Vergleich auswählen", modalContent);
+
+    // Attach listeners
+    document.querySelectorAll(".comparison-company-item").forEach(item => {
+        item.addEventListener("click", () => {
+            const ticker = item.dataset.ticker;
+            const company = filtered.find(c => c.ticker === ticker);
+
+            const index = selectedCompaniesForComparison.findIndex(c => c.ticker === ticker);
+            if (index === -1) {
+                selectedCompaniesForComparison.push(company);
+            } else {
+                selectedCompaniesForComparison.splice(index, 1);
+            }
+
+            // Update UI
+            item.style.borderColor = selectedCompaniesForComparison.some(c => c.ticker === ticker) ? "#58a6ff" : "#30363d";
+            item.style.background = selectedCompaniesForComparison.some(c => c.ticker === ticker) ? "rgba(88, 166, 255, 0.2)" : "rgba(88, 166, 255, 0.05)";
+            document.getElementById("comparison-confirm-btn").textContent = `Vergleichen (${selectedCompaniesForComparison.length} gewählt)`;
+        });
+    });
+
+    document.getElementById("comparison-confirm-btn").addEventListener("click", () => {
+        if (selectedCompaniesForComparison.length > 0) {
+            closeModal();
+            document.getElementById("comparison-content").style.display = "block";
+            renderComparisonCharts(selectedCompaniesForComparison, "1m");
+            document.querySelector('[data-period="1m"]').style.background = "#58a6ff";
+            document.querySelector('[data-period="1m"]').style.color = "#0d1117";
+        }
+    });
+
+    document.getElementById("comparison-clear-btn").addEventListener("click", () => {
+        selectedCompaniesForComparison = [];
+        document.querySelectorAll(".comparison-company-item").forEach(item => {
+            item.style.borderColor = "#30363d";
+            item.style.background = "rgba(88, 166, 255, 0.05)";
+        });
+        document.getElementById("comparison-confirm-btn").textContent = `Vergleichen (${selectedCompaniesForComparison.length} gewählt)`;
+    });
+
+    // Filter functionality
+    document.getElementById("comparison-company-filter").addEventListener("input", (e) => {
+        const query = e.target.value.toLowerCase();
+        document.querySelectorAll(".comparison-company-item").forEach(item => {
+            const ticker = item.dataset.ticker.toLowerCase();
+            const visible = ticker.includes(query);
+            item.style.display = visible ? "" : "none";
+        });
+    });
+}
+
+async function renderComparisonCharts(companies, period) {
+    const chartsDiv = document.getElementById("comparison-charts");
+    chartsDiv.innerHTML = companies.map((_, i) => `<div id="comparison-chart-${i}" style="position: relative;"><div class="loading">Lade ${companies[i].ticker}…</div></div>`).join("");
+
+    for (let i = 0; i < companies.length; i++) {
+        const company = companies[i];
+        try {
+            const priceData = await fetchJSON(`/company/${encodeURIComponent(company.ticker)}/price-history?period=${encodeURIComponent(period)}`);
+
+            if (!priceData.points || priceData.points.length === 0) {
+                document.getElementById(`comparison-chart-${i}`).innerHTML = `<div style="padding: 1rem; text-align: center; color: #8b949e;">Keine Kursdaten für ${escapeHtml(company.ticker)}</div>`;
+                continue;
+            }
+
+            const labels = priceData.points.map(p => new Date(p.ts).toLocaleDateString('de-DE', { month: '2-digit', day: '2-digit' }));
+            const data = priceData.points.map(p => p.close);
+
+            const canvas = document.createElement("canvas");
+            canvas.id = `comparison-canvas-${i}`;
+            canvas.style.maxHeight = "250px";
+            document.getElementById(`comparison-chart-${i}`).innerHTML = "";
+            document.getElementById(`comparison-chart-${i}`).appendChild(canvas);
+
+            updateChart(`_comparisonChart${i}`, `comparison-canvas-${i}`, {
+                type: "line",
+                labels: labels,
+                data: data,
+                borderColor: ["#58a6ff", "#3fb950", "#f85149", "#d29922", "#8957e5", "#f0883e"][i % 6],
+                backgroundColor: `rgba(88, 166, 255, 0.1)`,
+                tension: 0.3,
+                fill: true,
+            });
+
+            // Add company header
+            const header = document.createElement("div");
+            header.style.cssText = "font-weight: bold; color: #58a6ff; margin-bottom: 0.5rem; margin-top: 1rem;";
+            header.textContent = `${company.ticker} - ${company.name}`;
+            document.getElementById(`comparison-chart-${i}`).insertBefore(header, canvas);
+        } catch (e) {
+            document.getElementById(`comparison-chart-${i}`).innerHTML = `<div style="padding: 1rem; text-align: center; color: #f85149;">Fehler: ${escapeHtml(e.message)}</div>`;
+        }
+    }
+}
+
 async function loadEvents() {
     const body = document.getElementById("events-body");
     const ticker = document.getElementById("event-ticker-filter").value.trim();
@@ -917,5 +1046,28 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("event-ticker-filter").addEventListener("input", () => {
         clearTimeout(debounceEvent);
         debounceEvent = setTimeout(loadEvents, 400);
+    });
+
+    // Comparison: Company Selection and Charts
+    let selectedCompaniesForComparison = [];
+    const comparisonButton = document.getElementById("comparison-select-btn");
+    if (comparisonButton) {
+        comparisonButton.addEventListener("click", showCompanySelectionModal);
+    }
+
+    // Period buttons for comparison
+    document.querySelectorAll(".comparison-period-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const period = btn.dataset.period;
+            document.querySelectorAll(".comparison-period-btn").forEach(b => {
+                b.style.background = "#0d1117";
+                b.style.color = "#c9d1d9";
+            });
+            btn.style.background = "#58a6ff";
+            btn.style.color = "#0d1117";
+            if (selectedCompaniesForComparison.length > 0) {
+                renderComparisonCharts(selectedCompaniesForComparison, period);
+            }
+        });
     });
 });
