@@ -5,13 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StockIntel Dashboard</title>
     <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <header>
         <div class="header-content">
             <h1>📊 StockIntel</h1>
             <span class="subtitle">Markt-Intelligence-Engine</span>
-            <button id="refresh-btn" class="refresh-btn" title="Aktualisieren">↻</button>
+            <div class="header-buttons">
+                <button id="autorefresh-btn" class="action-btn small" title="Auto-Refresh toggle">🔄 Auto</button>
+                <button id="refresh-btn" class="refresh-btn" title="Manuell aktualisieren">↻</button>
+            </div>
         </div>
         <p class="disclaimer">Kein Anlageberatungs-Tool — informatives Recherche-Werkzeug.</p>
     </header>
@@ -34,6 +38,26 @@
             <div class="stat-card">
                 <div class="stat-value" id="stat-recommendations">–</div>
                 <div class="stat-label">Recommendations</div>
+            </div>
+        </section>
+
+        <!-- Charts Row -->
+        <section class="charts-row">
+            <div class="chart-panel">
+                <h3>Recommendations Distribution</h3>
+                <canvas id="recommendations-canvas"></canvas>
+            </div>
+            <div class="chart-panel">
+                <h3>Signals per Company</h3>
+                <canvas id="companies-canvas"></canvas>
+            </div>
+            <div class="chart-panel">
+                <h3>Signal Relevance Distribution</h3>
+                <canvas id="relevance-canvas"></canvas>
+            </div>
+            <div class="chart-panel">
+                <h3>Reaction-Profiles: Average Returns</h3>
+                <canvas id="reaction-profiles-canvas"></canvas>
             </div>
         </section>
 
@@ -108,11 +132,98 @@
                 </table>
             </div>
         </section>
+
+        <!-- Forward-Tracking Status -->
+        <section class="panel">
+            <div class="panel-header">
+                <h2>🔍 Forward-Tracking Status</h2>
+            </div>
+            <div class="table-wrap">
+                <table id="tracking-table">
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>Event-Typ</th>
+                            <th>Event-Zeit</th>
+                            <th>Ausstehend</th>
+                            <th>Letzte Messwerte</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tracking-body">
+                        <tr><td colspan="5" class="loading">Lade…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Events -->
+        <section class="panel">
+            <div class="panel-header">
+                <h2>📈 Events (Event-Study)</h2>
+                <div class="filters">
+                    <input type="text" id="event-ticker-filter" placeholder="Ticker (z.B. NVDA)" />
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table id="events-table">
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>Event-Typ</th>
+                            <th>Erstellt</th>
+                            <th>Peak Return</th>
+                            <th>Final Return</th>
+                            <th>Abnormal Return</th>
+                            <th>Hickup</th>
+                        </tr>
+                    </thead>
+                    <tbody id="events-body">
+                        <tr><td colspan="7" class="loading">Lade…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Reaction Profiles -->
+        <section class="panel">
+            <div class="panel-header">
+                <h2>📊 Reaction-Profiles (Basisraten)</h2>
+            </div>
+            <div class="table-wrap">
+                <table id="profiles-table">
+                    <thead>
+                        <tr>
+                            <th>Event-Typ</th>
+                            <th>Sample Size</th>
+                            <th>Ø Peak Return</th>
+                            <th>Ø Final Return</th>
+                            <th>Hickup-Quote</th>
+                        </tr>
+                    </thead>
+                    <tbody id="profiles-body">
+                        <tr><td colspan="5" class="loading">Keine Profiles (braucht `event-study` Lauf)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </main>
 
     <footer>
         <p>StockIntel v0.0.1 · <span id="last-updated">–</span></p>
     </footer>
+
+    <!-- Detail Modal -->
+    <div id="detail-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">Details</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Content wird dynamisch eingefügt -->
+            </div>
+        </div>
+    </div>
 
     <script src="/static/app.js"></script>
 </body>

@@ -23,7 +23,7 @@ from stockintel.analysis.scoring import generate_recommendations
 from stockintel.analysis.triage import analyze_signals
 from stockintel.config import load_settings
 from stockintel.db.database import get_database
-from stockintel.db.models import Company, Recommendation, Signal
+from stockintel.db.models import Company, Event, EventOutcome, EventSnapshot, Recommendation, ReactionProfile, Signal
 
 if TYPE_CHECKING:
     from stockintel.db.database import Database
@@ -57,6 +57,35 @@ class RecommendationInfo(BaseModel):
     action: str
     confidence: float
     rationale: str | None
+
+
+class EventInfo(BaseModel):
+    """Event with outcome."""
+    ticker: str
+    event_type: str
+    created_at: str
+    peak_return: float | None
+    final_return: float | None
+    abnormal_return: float | None
+    is_hickup: bool
+
+
+class ReactionProfileInfo(BaseModel):
+    """Aggregated reaction statistics per event type."""
+    event_type: str
+    sample_size: int
+    avg_peak_return: float
+    avg_final_return: float
+    hickup_rate: float
+
+
+class TrackingStatusInfo(BaseModel):
+    """Forward-Tracking status: pending and recent snapshots."""
+    ticker: str
+    event_type: str
+    event_created_at: str
+    pending_horizons: list[str]
+    recent_snapshots: list[str]
 
 
 def schedule_background_tasks(db: Database) -> None:
@@ -300,6 +329,93 @@ def create_app() -> FastAPI:
                 "recommendations": rec_count,
                 "timestamp": datetime.now().isoformat(),
             }
+
+    @app.get("/events", response_model=list[EventInfo])
+    async def list_events(limit: int = Query(50, ge=1, le=1000), ticker: str | None = None):
+        """Listet Events mit Outcomes."""
+        with db.session() as session:
+            stmt = select(Event, Company.ticker, EventOutcome).join(
+                Company, Event.company_id == Company.id
+            ).outerjoin(EventOutcome, EventOutcome.event_id == Event.id)
+            if ticker:
+                stmt = stmt.where(Company.ticker == ticker.upper())
+            stmt = stmt.order_by(desc(Event.created_at)).limit(limit)
+            rows = session.execute(stmt).all()
+
+            return [
+                EventInfo(
+                    ticker=row.ticker,
+                    event_type=row[0].event_type.value if row[0].event_type else "unknown",
+                    created_at=row[0].created_at.isoformat() if row[0].created_at else "",
+                    peak_return=row[2].peak_return if row[2] else None,
+                    final_return=row[2].final_return if row[2] else None,
+                    abnormal_return=row[2].abnormal_return if row[2] else None,
+                    is_hickup=row[2].is_hickup if row[2] else False,
+                )
+                for row in rows
+            ]
+
+    @app.get("/reaction-profiles", response_model=list[ReactionProfileInfo])
+    async def list_reaction_profiles():
+        """Listet aggregierte Reaction-Profiles pro Event-Typ."""
+        with db.session() as session:
+            rows = session.execute(select(ReactionProfile)).all()
+
+            return [
+                ReactionProfileInfo(
+                    event_type=row[0].event_type.value if row[0].event_type else "unknown",
+                    sample_size=row[0].sample_size or 0,
+                    avg_peak_return=row[0].avg_peak_return or 0.0,
+                    avg_final_return=row[0].avg_final_return or 0.0,
+                    hickup_rate=row[0].hickup_rate or 0.0,
+                )
+                for row in rows
+            ]
+
+    @app.get("/tracking-status", response_model=list[TrackingStatusInfo])
+    async def get_tracking_status(limit: int = Query(20, ge=1, le=100)):
+        """Forward-Tracking Status: Events mit ausstehenden Snapshots."""
+        from sqlalchemy import func
+
+        with db.session() as session:
+            # Events mit weniger Snapshots als erwartet (braucht Horizon-Info aus settings)
+            events_with_snapshots = session.execute(
+                select(
+                    Event.id,
+                    Company.ticker,
+                    Event.event_type,
+                    Event.created_at,
+                    func.count(EventSnapshot.id).label("snapshot_count"),
+                )
+                .join(Company, Event.company_id == Company.id)
+                .outerjoin(EventSnapshot, EventSnapshot.event_id == Event.id)
+                .group_by(Event.id, Company.ticker, Event.event_type, Event.created_at)
+                .order_by(desc(Event.created_at))
+                .limit(limit)
+            ).all()
+
+            result = []
+            for event_id, ticker, event_type, created_at, snap_count in events_with_snapshots:
+                # Snapshots für dieses Event laden
+                snapshots = session.execute(
+                    select(EventSnapshot.horizon).where(EventSnapshot.event_id == event_id)
+                ).scalars().all()
+
+                recent = list(snapshots[-3:]) if snapshots else []
+                pending_count = max(0, 6 - len(snapshots))  # Annahme: 6 Horizonte
+                pending = [f"h{i+1}" for i in range(pending_count)]
+
+                result.append(
+                    TrackingStatusInfo(
+                        ticker=ticker,
+                        event_type=event_type.value if event_type else "unknown",
+                        event_created_at=created_at.isoformat() if created_at else "",
+                        pending_horizons=pending,
+                        recent_snapshots=recent,
+                    )
+                )
+
+            return result
 
     # --- Web-Dashboard (Phase 6) ---------------------------------------- #
     web_dir = Path(__file__).resolve().parent / "web"
