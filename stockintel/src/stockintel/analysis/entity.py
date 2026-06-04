@@ -118,6 +118,82 @@ def score_relevance(matches: list[Match]) -> int:
     return min(100, base + bonus)
 
 
+# Muster, die für die Substanz-Messung als "kein Inhalt" entfernt werden:
+# Cashtags ($TSLA), @-Mentions, URLs.
+_NOISE_RE = re.compile(r"\$[A-Za-z.]{1,6}\b|@\w+|https?://\S+|www\.\S+", re.IGNORECASE)
+_WORD_RE = re.compile(r"[A-Za-zÄÖÜäöüß]{3,}")
+
+# Füllwörter + typischer Pump-/Hype-Jargon, die KEINE inhaltliche Substanz
+# tragen. So fällt "to the moon, buy buy buy, lfg 🚀" auf Substanz ~0.
+_STOPWORDS = {
+    # englische Füllwörter
+    "the", "and", "for", "are", "you", "this", "that", "with", "from", "have",
+    "will", "just", "not", "but", "all", "can", "get", "out", "now", "its",
+    "was", "they", "what", "who", "why", "how", "when", "your", "our", "his",
+    "her", "she", "him", "them", "any", "one", "two", "too", "lol", "lmao",
+    # Pump-/Hype-Slang
+    "buy", "sell", "moon", "rocket", "hold", "calls", "puts", "lfg", "hodl",
+    "bull", "bear", "pump", "dump", "yolo", "send", "dip", "ath", "squeeze",
+    "long", "short", "gonna", "wanna", "guys", "bro", "haha", "omg", "wtf",
+    # deutsche Füllwörter
+    "und", "der", "die", "das", "ist", "ein", "eine", "mit", "für", "auf",
+    "den", "dem", "des", "wird", "sind", "war", "hat", "aber", "auch", "wie",
+}
+
+
+def content_substance(title: str | None, body: str | None, ticker: str, name: str) -> int:
+    """Zählt die *bedeutungstragenden* Wörter eines Items (rein, testbar).
+
+    Entfernt Cashtags, @-Mentions, URLs, den Ticker, die Namens-Tokens des
+    Unternehmens sowie Füll-/Hype-Wörter und zählt danach die verbleibenden
+    Wörter mit >= 3 Buchstaben. Ein reiner "$TSLA"-Meme-Post oder ein
+    "to the moon 🚀 buy buy"-Hype hat so Substanz ~0, eine echte Schlagzeile viele.
+    """
+    text = f"{title or ''} {body or ''}"
+    text = _NOISE_RE.sub(" ", text)
+    # Firmen-eigene Tokens (Ticker + Namensbestandteile) zählen nicht als Substanz.
+    own = {ticker.lower()}
+    for part in re.split(r"\s+", name or ""):
+        cleaned = part.strip().lower()
+        if len(cleaned) >= 3:
+            own.add(cleaned)
+    words = [
+        w for w in _WORD_RE.findall(text)
+        if w.lower() not in own and w.lower() not in _STOPWORDS
+    ]
+    return len(words)
+
+
+def content_quality_factor(title: str | None, body: str | None, ticker: str, name: str) -> float:
+    """Qualitäts-Faktor 0..1 aus der Inhalts-Substanz (rein, testbar).
+
+    Dient als deterministische Qualitätssicherung VOR der KI: substanzlose
+    Social-Posts (nur Ticker + Bild) werden stark gedämpft, echte Nachrichten
+    bleiben hoch bewertet.
+    """
+    n = content_substance(title, body, ticker, name)
+    if n == 0:
+        return 0.2
+    if n <= 2:
+        return 0.45
+    if n <= 5:
+        return 0.7
+    if n <= 10:
+        return 0.9
+    return 1.0
+
+
+def quality_adjusted_relevance(
+    matches: list[Match], title: str | None, body: str | None, ticker: str, name: str
+) -> int:
+    """Regelbasierte Relevanz × Inhalts-Qualität, mit Mindestwert 5 (rein)."""
+    base = score_relevance(matches)
+    if base == 0:
+        return 0
+    factor = content_quality_factor(title, body, ticker, name)
+    return max(5, round(base * factor))
+
+
 def _aliases_from_json(value: str | None) -> tuple[str, ...]:
     if not value:
         return ()
@@ -325,6 +401,9 @@ def link_items(db: Database) -> dict[str, int]:
             session.execute(select(Signal.raw_item_id, Signal.company_id)).all()
         )
 
+        # Company-Metadaten (Ticker/Name) für die Substanz-Messung vorhalten.
+        meta = {c.id: (c.ticker, c.name) for c in companies}
+
         for item in session.scalars(select(RawItem)):
             stats["items_scanned"] += 1
             for company_id, matcher in matchers:
@@ -334,10 +413,14 @@ def link_items(db: Database) -> dict[str, int]:
                 if not matches:
                     continue
                 kinds = sorted({m.kind for m in matches})
+                ticker, name = meta[company_id]
+                # Qualitätssicherung: substanzlose Posts (nur Ticker/Bild)
+                # werden hier schon gedämpft, lange vor der KI-Triage.
+                relevance = quality_adjusted_relevance(matches, item.title, item.body, ticker, name)
                 session.add(Signal(
                     raw_item_id=item.id,
                     company_id=company_id,
-                    relevance=score_relevance(matches),
+                    relevance=relevance,
                     direction=Direction.NEUTRAL,    # echte Bewertung -> KI (Phase 2)
                     impact=Impact.LOW,
                     horizon=Horizon.DAYS,
@@ -347,5 +430,48 @@ def link_items(db: Database) -> dict[str, int]:
                 ))
                 existing.add((item.id, company_id))
                 stats["signals_created"] += 1
+        session.commit()
+    return stats
+
+
+def rescore_rule_based(db: Database) -> dict[str, int]:
+    """Berechnet die Relevanz aller noch regelbasierten Signals neu — inkl.
+    der Inhalts-Qualitätssicherung. So werden auch bereits gesammelte
+    Müll-Posts (z.B. ``$TSLA`` ohne Text) nachträglich runtergestuft.
+
+    KI-bewertete Signals (``model != RULE_BASED_MODEL``) bleiben unberührt.
+
+    Returns: ``{'rescored': int, 'downgraded': int}``.
+    """
+    stats = {"rescored": 0, "downgraded": 0}
+    with db.session() as session:
+        rows = session.execute(
+            select(
+                Signal.id, Signal.relevance, Signal.rationale,
+                RawItem.title, RawItem.body, Company.ticker, Company.name,
+            )
+            .join(RawItem, Signal.raw_item_id == RawItem.id)
+            .join(Company, Signal.company_id == Company.id)
+            .where(Signal.model == RULE_BASED_MODEL)
+        ).all()
+
+        for sig_id, old_rel, rationale, title, body, ticker, name in rows:
+            # Treffer-Arten aus der gespeicherten Begründung ableiten (ticker/name/alias).
+            title_l = (title or "").lower()
+            in_title = bool(ticker and ticker.lower() in title_l) or bool(name and name.lower() in title_l)
+            matches: list[Match] = [
+                Match(kind=kind, in_title=in_title)
+                for kind in ("ticker", "name", "alias")
+                if rationale and kind in rationale
+            ]
+            if not matches:
+                matches = [Match(kind="ticker", in_title=in_title)]
+            new_rel = quality_adjusted_relevance(matches, title, body, ticker, name)
+            if new_rel != old_rel:
+                sig = session.get(Signal, sig_id)
+                sig.relevance = new_rel
+                stats["rescored"] += 1
+                if new_rel < old_rel:
+                    stats["downgraded"] += 1
         session.commit()
     return stats

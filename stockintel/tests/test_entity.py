@@ -226,3 +226,65 @@ def test_catalog_resolve_and_search():
     res = catalog.search("siemens")
     assert res and res[0]["ticker"] == "SIE"
     assert res[0]["wkn"] and res[0]["isin"]
+
+
+# --------------------------------------------------------------------------- #
+# Qualitätssicherung: Inhalts-Substanz dämpft Müll-Posts
+# --------------------------------------------------------------------------- #
+def test_content_quality_downgrades_low_substance():
+    from stockintel.analysis.entity import (
+        CompanyMatcher, find_matches, score_relevance, quality_adjusted_relevance,
+    )
+
+    def qa(title, body):
+        m = find_matches(CompanyMatcher(ticker="TSLA", name="Tesla"), title, body)
+        return score_relevance(m), quality_adjusted_relevance(m, title, body, "TSLA", "Tesla")
+
+    base_meme, qa_meme = qa("$TSLA", "")                       # nur Ticker, kein Text
+    base_hype, qa_hype = qa("$TSLA to the moon 🚀 buy buy", "") # Pump-Hype
+    base_news, qa_news = qa("TSLA Tesla recalls cars over brake defect, regulator opens probe",
+                            "The recall affects 1.2 million vehicles.")  # echte News
+
+    # Regel-Basis ist überall hoch (Ticker im Titel), aber die QA trennt klar:
+    assert base_meme == base_hype  # gleiche rohe Regel-Basis
+    assert qa_meme < 25 and qa_hype < 25      # Müll wird stark gedämpft
+    assert qa_news > 60                        # echte News bleibt hoch
+    assert qa_news > qa_meme and qa_news > qa_hype
+
+
+def test_rescore_rule_based_downgrades_existing(tmp_path):
+    from stockintel.analysis.entity import link_items, rescore_rule_based, sync_companies
+    from sqlalchemy import select
+
+    db = Database(f"sqlite:///{tmp_path/'t.db'}")
+    db.create_all()
+    sync_companies(db, [{"ticker": "TSLA", "name": "Tesla"}])
+    with db.session() as session:
+        _seed_source_and_items(session, [
+            ("$TSLA", None),                                            # Müll -> niedrig
+            ("TSLA Tesla beats earnings, raises full-year guidance", "Strong quarter."),  # News -> hoch
+        ])
+        session.commit()
+
+    link_items(db)
+    # Simuliere "alte" Daten: setze alle rule-based Signals zurück auf 80.
+    with db.session() as session:
+        for sig in session.scalars(select(Signal)):
+            sig.relevance = 80
+        session.commit()
+
+    stats = rescore_rule_based(db)
+    assert stats["downgraded"] >= 1
+
+    with db.session() as session:
+        sigs = {(_title_of(session, s)): s.relevance for s in session.scalars(select(Signal))}
+    # Der reine "$TSLA"-Post ist jetzt deutlich niedriger als die echte News.
+    meme = min(sigs.values())
+    news = max(sigs.values())
+    assert meme < 25 < news
+
+
+def _title_of(session, signal):
+    from stockintel.db.models import RawItem
+    ri = session.get(RawItem, signal.raw_item_id)
+    return ri.title if ri else ""

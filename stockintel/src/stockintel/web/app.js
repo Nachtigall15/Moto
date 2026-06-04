@@ -274,11 +274,15 @@ async function loadSignals() {
         body.innerHTML = signals.map((s, i) => {
             const time = s.published_at ? new Date(s.published_at).toLocaleString('de-DE', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–';
             const urlBadge = s.url ? `<span style="display: inline-block; margin-left: 0.3rem; font-size: 0.8rem;"><a href="${escapeHtml(s.url)}" target="_blank" style="color: #58a6ff; text-decoration: none;">🔗</a></span>` : '';
+            // Qualitäts-Kennzeichnung: KI-geprüft vs. regelbasierter Platzhalter.
+            const qaBadge = s.analyzed
+                ? `<span title="Von der KI bewertet" style="display:inline-block; background:#238636; color:#fff; padding:0.05rem 0.4rem; border-radius:3px; font-size:0.65rem; margin-left:0.4rem;">✓ KI</span>`
+                : `<span title="Noch nicht KI-geprüft – Relevanz ist ein vorläufiger Regel-Schätzwert" style="display:inline-block; background:#6e7681; color:#fff; padding:0.05rem 0.4rem; border-radius:3px; font-size:0.65rem; margin-left:0.4rem;">ungeprüft</span>`;
             return `
             <tr data-signal-index="${i}" data-signal='${JSON.stringify(s)}' style="cursor: pointer;">
                 <td class="ticker">${escapeHtml(s.ticker)}</td>
                 <td>${badge(s.direction, s.direction)}</td>
-                <td>${relevanceBar(s.relevance)}</td>
+                <td>${relevanceBar(s.relevance)}${qaBadge}</td>
                 <td>${(s.confidence * 100).toFixed(0)}%</td>
                 <td>
                     <div style="font-size: 0.85rem; color: #8b949e; margin-bottom: 0.2rem;">

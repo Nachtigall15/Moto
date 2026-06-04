@@ -67,6 +67,7 @@ class SignalDetailInfo(BaseModel):
     url: str | None
     published_at: str | None
     rationale: str | None
+    analyzed: bool = False  # True = KI-bewertet, False = regelbasierter Platzhalter
 
 
 class RecommendationInfo(BaseModel):
@@ -224,7 +225,7 @@ def schedule_background_tasks(db: Database) -> None:
 def _background_collect(db: Database, settings) -> None:
     """Background: Sammelt neue Daten von allen aktiven Collectors."""
     try:
-        from stockintel.analysis.entity import link_items, sync_companies
+        from stockintel.analysis.entity import link_items, rescore_rule_based, sync_companies
         from stockintel.collectors import build_collectors
         from stockintel.ingestion import ingest
 
@@ -247,6 +248,8 @@ def _background_collect(db: Database, settings) -> None:
         # Link new items to companies and create signals
         sync_companies(db, settings.watchlist)
         link_stats = link_items(db)
+        # Qualitätssicherung: substanzlose Posts (nur Ticker/Bild) runterstufen.
+        rescore_rule_based(db)
         logger.info(
             f"Background collect: {total_items} items, "
             f"{link_stats['signals_created']} signals created"
@@ -540,13 +543,17 @@ def create_app() -> FastAPI:
         """Räumt die Companies auf: dedupliziert (z.B. AAPL+APPLE -> AAPL) und
         löscht Phantom-Firmen ohne Signale/Watchlist. Danach werden News neu
         verknüpft und Recommendations neu berechnet."""
-        from stockintel.analysis.entity import link_items, normalize_companies
+        from stockintel.analysis.entity import link_items, normalize_companies, rescore_rule_based
 
         report = normalize_companies(db)
         # Nach dem Merge erneut verknüpfen (kanonische Companies haben jetzt
-        # Aliase -> "Apple"-News landet bei AAPL) und Scores aktualisieren.
+        # Aliase -> "Apple"-News landet bei AAPL), Qualitäts-Scores nachziehen
+        # und Recommendations neu berechnen.
         try:
             link_items(db)
+            rescore = rescore_rule_based(db)
+            report["rescored"] = rescore.get("rescored", 0)
+            report["downgraded"] = rescore.get("downgraded", 0)
             generate_recommendations(db)
         except Exception as e:  # noqa: BLE001 - Folgeschritte nicht fatal
             logger.warning(f"Post-Cleanup-Schritte fehlgeschlagen: {e}")
@@ -638,6 +645,7 @@ def create_app() -> FastAPI:
                     url=row[0].raw_item.url if row[0].raw_item else None,
                     published_at=row[0].raw_item.published_at.isoformat() if row[0].raw_item and row[0].raw_item.published_at else None,
                     rationale=row[0].rationale,
+                    analyzed=row[0].model != RULE_BASED_MODEL,
                 )
                 for row in rows
             ]
@@ -969,6 +977,7 @@ def create_app() -> FastAPI:
     @app.get("/company/{ticker}", response_model=CompanyDetailInfo)
     async def get_company_detail(ticker: str):
         """Company-Detailseite: Aktueller Kurs + Signale gruppiert nach Quelle."""
+        from stockintel.analysis.entity import RULE_BASED_MODEL
         from stockintel.db.models import RawItem
 
         with db.session() as session:
@@ -1007,6 +1016,7 @@ def create_app() -> FastAPI:
                     url=signal.raw_item.url if signal.raw_item else None,
                     published_at=signal.raw_item.published_at.isoformat() if signal.raw_item and signal.raw_item.published_at else None,
                     rationale=signal.rationale,
+                    analyzed=signal.model != RULE_BASED_MODEL,
                 )
                 if source_key not in signals_by_source:
                     signals_by_source[source_key] = []
