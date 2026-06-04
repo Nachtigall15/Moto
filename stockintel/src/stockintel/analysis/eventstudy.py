@@ -26,6 +26,7 @@ from stockintel.db.models import (
     EventOutcome,
     EventSnapshot,
     EventType,
+    ReactionProfile,
     Signal,
 )
 
@@ -151,28 +152,50 @@ def signal_to_event(db: Database, signal: Signal) -> Event | None:
         return event
 
 
+DEFAULT_REVERSAL_RATIO = 0.6   # Anteil der Spitzenbewegung, der zurückkommt
+DEFAULT_MIN_SPIKE = 0.05       # Mindest-Spike (5%), damit Rauschen kein Hickup ist
+
+
+def is_hickup_from_returns(
+    peak_return: float | None,
+    final_return: float | None,
+    reversal_ratio: float = DEFAULT_REVERSAL_RATIO,
+    min_spike: float = DEFAULT_MIN_SPIKE,
+) -> bool:
+    """Hickup-Regel auf Renditen-Basis (Strohfeuer).
+
+    Ein Hickup liegt vor, wenn es einen nennenswerten Spike gab
+    (``peak_return >= min_spike``) und davon mindestens ``reversal_ratio`` wieder
+    abgegeben wurde. ``reversal_ratio`` entspricht ``event_study.hickup_reversal_ratio``.
+    """
+    if peak_return is None or final_return is None:
+        return False
+    if peak_return < min_spike:
+        return False
+    given_back = peak_return - final_return
+    return given_back >= reversal_ratio * peak_return
+
+
 def classify_hickup(
     baseline_price: float | None,
     peak_price: float | None,
     final_price: float | None,
-    peak_threshold: float = 0.05,  # 5% Spike
-    revert_threshold: float = 0.03,  # 3% Rückkehr
+    reversal_ratio: float = DEFAULT_REVERSAL_RATIO,
+    min_spike: float = DEFAULT_MIN_SPIKE,
 ) -> bool:
-    """Erkennt Hickup: Spike + Rückkehr (Strohfeuer).
+    """Erkennt Hickup (Spike + Rückkehr) aus Kursen.
 
-    Hickup = (peak_return > peak_threshold) AND (final_return < peak_return - revert_threshold).
+    Rechnet Baseline/Peak/Final in Renditen um und wendet
+    :func:`is_hickup_from_returns` an. Fehlende/0-Baseline -> kein Hickup.
     """
     if not all([baseline_price, peak_price, final_price]):
         return False
-
     if baseline_price == 0:
         return False
 
     peak_return = (peak_price - baseline_price) / baseline_price
     final_return = (final_price - baseline_price) / baseline_price
-
-    # Ist ein Spike vorhanden UND ist er wieder zurückgekommen?
-    return (peak_return > peak_threshold) and (final_return <= peak_return - revert_threshold)
+    return is_hickup_from_returns(peak_return, final_return, reversal_ratio, min_spike)
 
 
 def _horizon_sort_key(snapshot: EventSnapshot) -> dt.timedelta:
@@ -184,7 +207,10 @@ def _horizon_sort_key(snapshot: EventSnapshot) -> dt.timedelta:
     return parse_horizon(snapshot.horizon or "") or dt.timedelta(0)
 
 
-def compute_event_outcome(event: Event) -> EventOutcome | None:
+def compute_event_outcome(
+    event: Event,
+    reversal_ratio: float = DEFAULT_REVERSAL_RATIO,
+) -> EventOutcome | None:
     """Berechnet das Outcome aus Event-Snapshots.
 
     Liefert Baseline, Peak-Return, Final-Return, abnormale Rendite (vs.
@@ -206,7 +232,7 @@ def compute_event_outcome(event: Event) -> EventOutcome | None:
 
     peak_return = (peak - baseline) / baseline
     final_return = (final - baseline) / baseline
-    is_hickup = classify_hickup(baseline, peak, final)
+    is_hickup = classify_hickup(baseline, peak, final, reversal_ratio=reversal_ratio)
 
     # Abnormale Rendite: Eigenbewegung minus Benchmark-Bewegung (Markt herausrechnen).
     abnormal_return = final_return
@@ -367,7 +393,11 @@ def backfill_event_snapshots(
         return written
 
 
-def persist_event_outcome(db: Database, event_id: int) -> EventOutcome | None:
+def persist_event_outcome(
+    db: Database,
+    event_id: int,
+    reversal_ratio: float = DEFAULT_REVERSAL_RATIO,
+) -> EventOutcome | None:
     """Berechnet das Outcome eines Events und schreibt/aktualisiert es (idempotent)."""
     with db.session() as session:
         event = session.scalar(
@@ -377,7 +407,7 @@ def persist_event_outcome(db: Database, event_id: int) -> EventOutcome | None:
         )
         if event is None:
             return None
-        computed = compute_event_outcome(event)
+        computed = compute_event_outcome(event, reversal_ratio=reversal_ratio)
         if computed is None:
             return None
 
@@ -414,10 +444,14 @@ def run_event_study(
     Robust ohne Marktdaten: Ohne yfinance/Netzwerk entstehen Events, aber keine
     Snapshots/Outcomes (Zähler bleiben 0).
 
-    Returns: {events_created, snapshots_written, outcomes_computed, hickups}.
+    Returns: {events_created, snapshots_written, outcomes_computed, hickups,
+    profiles_updated}.
     """
-    horizons, benchmark = _event_study_config(settings)
-    stats = {"events_created": 0, "snapshots_written": 0, "outcomes_computed": 0, "hickups": 0}
+    horizons, benchmark, reversal_ratio = _event_study_config(settings)
+    stats = {
+        "events_created": 0, "snapshots_written": 0,
+        "outcomes_computed": 0, "hickups": 0, "profiles_updated": 0,
+    }
 
     stats["events_created"] = build_events_from_signals(db, limit=limit)
 
@@ -429,21 +463,89 @@ def run_event_study(
     for event_id in event_ids:
         written = backfill_event_snapshots(db, event_id, horizons, benchmark)
         stats["snapshots_written"] += written
-        outcome = persist_event_outcome(db, event_id)
+        outcome = persist_event_outcome(db, event_id, reversal_ratio=reversal_ratio)
         if outcome is not None:
             stats["outcomes_computed"] += 1
             if outcome.is_hickup:
                 stats["hickups"] += 1
 
+    # Basisraten je Ereignistyp aus allen Outcomes aktualisieren.
+    profile_stats = aggregate_reaction_profiles(db)
+    stats["profiles_updated"] = profile_stats["profiles_updated"]
+
     logger.info("Event-Study: %s", stats)
     return stats
 
 
-def _event_study_config(settings: Settings | None) -> tuple[list[str], str | None]:
-    """Liest Horizonte + Benchmark aus den Settings (mit Defaults)."""
+def aggregate_reaction_profiles(db: Database) -> dict[str, int]:
+    """Aggregiert alle ``EventOutcome``s je ``EventType`` zu ``ReactionProfile``.
+
+    Berechnet pro Ereignistyp: Stichprobengröße, durchschnittlicher Peak-/Final-
+    Return und Hickup-Quote. Diese Basisraten dienen als historischer Kontext
+    (Konfidenz, Buy/Hold/Sell). Idempotent: ein Profil je EventType (Upsert).
+
+    Returns: {profiles_updated, events_aggregated}.
+    """
+    from collections import defaultdict
+
+    stats = {"profiles_updated": 0, "events_aggregated": 0}
+    with db.session() as session:
+        rows = session.execute(
+            select(
+                Event.event_type,
+                EventOutcome.peak_return,
+                EventOutcome.final_return,
+                EventOutcome.is_hickup,
+            ).join(EventOutcome, EventOutcome.event_id == Event.id)
+        ).all()
+
+        buckets: dict[EventType, list[tuple]] = defaultdict(list)
+        for event_type, peak, final, hickup in rows:
+            buckets[event_type].append((peak, final, hickup))
+
+        for event_type, items in buckets.items():
+            n = len(items)
+            peaks = [p for p, _, _ in items if p is not None]
+            finals = [f for _, f, _ in items if f is not None]
+            hickups = sum(1 for _, _, h in items if h)
+
+            avg_peak = sum(peaks) / len(peaks) if peaks else None
+            avg_final = sum(finals) / len(finals) if finals else None
+            hickup_rate = hickups / n if n else None
+
+            profile = session.scalar(
+                select(ReactionProfile).where(ReactionProfile.event_type == event_type)
+            )
+            if profile:
+                profile.sample_size = n
+                profile.avg_peak_return = avg_peak
+                profile.avg_final_return = avg_final
+                profile.hickup_rate = hickup_rate
+                profile.updated_at = dt.datetime.now(dt.timezone.utc)
+            else:
+                session.add(
+                    ReactionProfile(
+                        event_type=event_type,
+                        sample_size=n,
+                        avg_peak_return=avg_peak,
+                        avg_final_return=avg_final,
+                        hickup_rate=hickup_rate,
+                    )
+                )
+            stats["profiles_updated"] += 1
+            stats["events_aggregated"] += n
+
+        session.commit()
+    return stats
+
+
+def _event_study_config(settings: Settings | None) -> tuple[list[str], str | None, float]:
+    """Liest Horizonte, Benchmark und Hickup-Reversal-Ratio aus den Settings."""
     if settings is None:
-        return DEFAULT_HORIZONS, DEFAULT_BENCHMARK
+        return DEFAULT_HORIZONS, DEFAULT_BENCHMARK, DEFAULT_REVERSAL_RATIO
     cfg = settings.section("event_study")
     horizons = cfg.get("horizons") if isinstance(cfg.get("horizons"), list) else None
     benchmark = cfg.get("index_benchmark") or DEFAULT_BENCHMARK
-    return (horizons or DEFAULT_HORIZONS), benchmark
+    ratio = cfg.get("hickup_reversal_ratio")
+    reversal_ratio = float(ratio) if isinstance(ratio, (int, float)) else DEFAULT_REVERSAL_RATIO
+    return (horizons or DEFAULT_HORIZONS), benchmark, reversal_ratio

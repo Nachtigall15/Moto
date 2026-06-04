@@ -8,6 +8,7 @@ Verfügbare Befehle:
   * ``stockintel score``             – Buy/Hold/Sell Recommendations generieren
   * ``stockintel event-study``       – Events + Kursreaktionen (yfinance) berechnen
   * ``stockintel events``            – erkannte Events + Kursreaktionen anzeigen
+  * ``stockintel reaction-profiles`` – Basisraten je Ereignistyp berechnen/anzeigen
   * ``stockintel find-ipo``          – EDGAR S-1 Filings scannen, IPO-Events anlegen
   * ``stockintel link-themes``       – Themes erkennen, Beneficiaries verlinken
   * ``stockintel items``             – Items anzeigen (Filter: ``--ticker``, ``--source``)
@@ -285,6 +286,35 @@ def cmd_events(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_reaction_profiles(_: argparse.Namespace) -> int:
+    from sqlalchemy import desc, select
+
+    from stockintel.analysis.eventstudy import aggregate_reaction_profiles
+    from stockintel.db.models import ReactionProfile
+
+    settings = load_settings()
+    db = get_database(settings)
+    agg = aggregate_reaction_profiles(db)
+    print(
+        f"Reaction-Profiles aktualisiert: {agg['profiles_updated']} Typen "
+        f"aus {agg['events_aggregated']} Outcomes"
+    )
+    with db.session() as session:
+        rows = session.scalars(
+            select(ReactionProfile).order_by(desc(ReactionProfile.sample_size))
+        ).all()
+        if not rows:
+            print("Noch keine Basisraten. Erst 'stockintel event-study' (mit Marktdaten) laufen lassen.")
+            return 0
+        print(f"\n{'Event-Typ':<18} {'N':>4} {'Ø Peak':>9} {'Ø Final':>9} {'Hickup-Quote':>13}")
+        for p in rows:
+            peak = f"{p.avg_peak_return*100:+.1f}%" if p.avg_peak_return is not None else "    –"
+            final = f"{p.avg_final_return*100:+.1f}%" if p.avg_final_return is not None else "    –"
+            hick = f"{p.hickup_rate*100:.0f}%" if p.hickup_rate is not None else "  –"
+            print(f"{p.event_type.value:<18} {p.sample_size:>4} {peak:>9} {final:>9} {hick:>13}")
+    return 0
+
+
 def cmd_find_ipo(_: argparse.Namespace) -> int:
     from stockintel.analysis.ipo import find_ipo_events, link_ipo_investors
 
@@ -545,6 +575,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_events.add_argument("--limit", type=int, default=20, help="Anzahl (Standard 20)")
     p_events.add_argument("--ticker", type=str, default=None, help="Nur eine Aktie (z.B. NVDA)")
     p_events.set_defaults(func=cmd_events)
+
+    p_profiles = sub.add_parser(
+        "reaction-profiles",
+        help="Basisraten je Ereignistyp (Ø Reaktion, Hickup-Quote) berechnen/anzeigen",
+    )
+    p_profiles.set_defaults(func=cmd_reaction_profiles)
 
     p_find_ipo = sub.add_parser(
         "find-ipo",
