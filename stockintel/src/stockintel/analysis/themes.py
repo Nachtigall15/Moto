@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 from stockintel.db.models import Company, Signal, Theme, ThemeBeneficiary
 
@@ -106,9 +107,9 @@ def link_themes_to_signals(db: Database) -> dict[str, int]:
     stats = {"themes_found": 0, "beneficiaries_linked": 0}
 
     with db.session() as session:
-        # Alle Signals mit RawItem laden
+        # Alle Signals mit RawItem (eager-loaded) laden
         signals = session.scalars(
-            select(Signal).join(Signal.raw_item)
+            select(Signal).options(joinedload(Signal.raw_item))
         ).all()
 
         # Theme-Namen und ihre Beneficiary-Patterns
@@ -152,29 +153,31 @@ def link_themes_to_signals(db: Database) -> dict[str, int]:
                 if not theme or not pattern:
                     continue
 
-                # Finde Companies in Beneficiary-Sektoren
+                # Beneficiary-Sektoren normalisieren (einmal, nicht pro Company)
+                target_sectors_lower = {s.lower() for s in pattern.beneficiary_sectors}
+
+                # Finde Companies deren Sektor in Beneficiary-Sektoren liegt
                 for company in companies.values():
                     if not company.sector:
                         continue
 
                     # Match: Sector in pattern.beneficiary_sectors?
-                    if any(
-                        sector.lower() in company.sector.lower()
-                        for sector in pattern.beneficiary_sectors
-                    ):
-                        # Duplikate meiden
-                        if (theme.id, company.id) in existing_links:
-                            continue
+                    if not any(s in company.sector.lower() for s in target_sectors_lower):
+                        continue
 
-                        beneficiary = ThemeBeneficiary(
-                            theme_id=theme.id,
-                            company_id=company.id,
-                            strength=0.7,  # Default; später verfeinert
-                            rationale=f"Sector '{company.sector}' profitiert von Theme '{theme_name}'.",
-                        )
-                        session.add(beneficiary)
-                        stats["beneficiaries_linked"] += 1
-                        existing_links.add((theme.id, company.id))
+                    # Duplikate meiden
+                    if (theme.id, company.id) in existing_links:
+                        continue
+
+                    beneficiary = ThemeBeneficiary(
+                        theme_id=theme.id,
+                        company_id=company.id,
+                        strength=0.7,  # Default; später verfeinert
+                        rationale=f"Sector '{company.sector}' profitiert von Theme '{theme_name}'.",
+                    )
+                    session.add(beneficiary)
+                    stats["beneficiaries_linked"] += 1
+                    existing_links.add((theme.id, company.id))
 
         session.commit()
 

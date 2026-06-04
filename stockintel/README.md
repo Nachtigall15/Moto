@@ -93,6 +93,24 @@ FINNHUB_API_KEY=dein_key_von_finnhub.io
 Ohne Key überspringt `collect` nur Finnhub (mit Hinweis) und sammelt die übrigen
 Quellen normal weiter.
 
+### Hype-Erkennung & Profiteure (Phase 3)
+
+Nach `collect` und `analyze` können Hypes erkannt und Beneficiaries verlinkt werden:
+
+```bash
+stockintel link-themes          # Themes (AI, EV, Cloud, etc.) erkennen
+stockintel themes --limit 30    # Themes und betroffene Companies anzeigen
+stockintel themes --theme "AI Infrastructure"  # nur ein Theme
+```
+
+**Themes** sind regelbasiert erkannt (Keyword-Matching: "AI", "electric vehicle", etc.)
+und ihre **Beneficiaries** werden nach Sektor gefiltert (z.B. "AI Infrastructure"
+→ alle Semiconductors-Unternehmen). Die Matches werden in der `theme_beneficiaries`
+Tabelle gespeichert mit Strength (0.0–1.0, default 0.7) und Rationale.
+
+Eigene Themes hinzufügen: `src/stockintel/analysis/themes.py` → `THEME_PATTERNS`
+liste erweitern mit Keywords, betroffene Sektoren, Beschreibung.
+
 <details>
 <summary>Manuelles Setup (statt setup.sh)</summary>
 
