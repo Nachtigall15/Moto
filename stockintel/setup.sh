@@ -29,10 +29,10 @@ fi
 # shellcheck disable=SC1091
 . .venv/bin/activate
 
-# 2) Abhängigkeiten (inkl. Collectors)
-echo "==> Installiere Paket + Collector-Abhängigkeiten"
+# 2) Abhängigkeiten (Collectors + KI-Analyse)
+echo "==> Installiere Paket + Collector- und Analyse-Abhängigkeiten"
 pip install --quiet --upgrade pip
-pip install --quiet -e ".[collectors]"
+pip install --quiet -e ".[collectors,analysis]"
 
 # 3) Konfiguration (nur anlegen, nie überschreiben)
 if [ ! -f "config/settings.yaml" ]; then

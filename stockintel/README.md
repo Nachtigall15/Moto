@@ -25,6 +25,8 @@ stockintel items --limit 20         # zuletzt gespeicherte Items anzeigen
 stockintel items --ticker NVDA      # nur Items, die NVDA betreffen
 stockintel items --source edgar     # nur Items aus einer Quelle
 stockintel companies                # Companies + Signal-Anzahl je Aktie
+stockintel analyze --limit 20       # offene Signals mit KI bewerten (braucht Key)
+stockintel signals --ticker NVDA    # Bewertungen ansehen
 ```
 
 ### Was passiert beim `collect`?
@@ -35,9 +37,32 @@ stockintel companies                # Companies + Signal-Anzahl je Aktie
    Firmennamen durchsucht; pro Treffer entsteht ein `Signal` (RawItem ⇄ Company).
    So funktionieren Filter wie `items --ticker NVDA` sofort.
 
-Die KI-Bewertung (Richtung, Kurswirkung, Konfidenz) folgt in Phase 2 — bis
-dahin tragen die Signale neutrale Platzhalter und `model="rule-based-v1"`.
-Manuelles Re-Linking ohne neuen Sammellauf: `stockintel link`.
+Die regelbasiert erzeugten Signale tragen neutrale Platzhalter und
+`model="rule-based-v1"`. Manuelles Re-Linking ohne neuen Sammellauf:
+`stockintel link`.
+
+### KI-Bewertung (Triage)
+
+`stockintel analyze` bewertet die offenen Signals mit einem günstigen
+**Triage-Modell** (Claude Haiku, aus `models.triage` in `settings.yaml`). Je
+Signal liefert das Modell per Tool-Use strukturiert: **Relevanz** (0–100),
+**Richtung** (positive/neutral/negative), **Kurswirkung** (low/medium/high),
+**Horizont** (days/weeks/months), **Konfidenz** (0–1) und eine kurze Begründung.
+
+```bash
+# in stockintel/.env
+ANTHROPIC_API_KEY=sk-ant-...
+
+stockintel analyze --limit 50     # bis zu 50 offene Signals bewerten
+stockintel signals --analyzed     # nur KI-bewertete Signals anzeigen
+```
+
+Ohne `ANTHROPIC_API_KEY` bricht `analyze` mit einem klaren Hinweis ab (kein
+Crash). Jeder Lauf verarbeitet bis zu `--limit` noch offene Signals; bereits
+bewertete (`model` = Triage-Modell) werden übersprungen. Das nötige Anthropic-SDK
+installiert `setup.sh` mit (Extra `analysis`).
+
+> Kein Anlageberatungs-Tool. Die Bewertungen sind informativ.
 
 ### Laufend sammeln (Schleifen-Modus)
 
@@ -94,11 +119,14 @@ stockintel items --limit 20                # zuletzt gespeicherte Items anzeigen
 
 ## Projektstand
 
-**Phase 2 (Vorstufe) — Entity-Resolution.** Eine **regelbasierte** Verknüpfung
+**Phase 2 — Entity-Resolution + KI-Triage.** Eine **regelbasierte** Verknüpfung
 (`analysis/entity.py`) ordnet jeden neuen `RawItem` per Ticker-/Namens-Match
 einem Unternehmen aus der Watchlist zu und legt ein `Signal` (mit neutralen
-Platzhaltern) an. Läuft automatisch nach jedem `collect`. Damit funktionieren
-Abfragen wie `items --ticker NVDA` sofort. Die echte KI-Bewertung kommt danach.
+Platzhaltern) an — läuft automatisch nach jedem `collect`. Die **KI-Triage**
+(`analysis/triage.py`) bewertet diese Signals anschließend mit einem günstigen
+Claude-Modell (strukturiert via Tool-Use, mit Prompt-Caching): Relevanz,
+Richtung, Kurswirkung, Horizont, Konfidenz, Begründung. Anzeige über
+`stockintel signals`. Tiefenanalyse mit einem stärkeren Modell folgt.
 
 **Phase 1 — Daten-Collectors.** Aktiv: **EDGAR**, **RSS**, **StockTwits**
 (alle schlüssellos), **Finnhub** (Unternehmens-News, Free-Tier-Key) sowie

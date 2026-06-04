@@ -4,7 +4,9 @@ Verfügbare Befehle:
   * ``stockintel init-db``    – Datenbank-Schema anlegen + Watchlist syncen
   * ``stockintel collect``    – aktive Collectors abrufen (``--loop`` für Dauerbetrieb)
   * ``stockintel link``       – RawItems regelbasiert mit Companies verknüpfen
+  * ``stockintel analyze``    – offene Signals mit dem KI-Triage-Modell bewerten
   * ``stockintel items``      – Items anzeigen (Filter: ``--ticker``, ``--source``)
+  * ``stockintel signals``    – bewertete Signals anzeigen (Filter: ``--ticker``)
   * ``stockintel companies``  – bekannte Companies + Signal-Zähler
   * ``stockintel info``       – Konfiguration/Status anzeigen
 """
@@ -157,6 +159,65 @@ def cmd_link(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_analyze(args: argparse.Namespace) -> int:
+    from stockintel.analysis.triage import analyze_signals
+
+    settings = load_settings()
+    db = get_database(settings)
+    models_cfg = settings.section("models")
+    model = models_cfg.get("triage") or "(Default)"
+    print(f"KI-Triage mit Modell: {model} (max {args.limit} Signals)")
+    try:
+        stats = analyze_signals(db, settings, limit=args.limit)
+    except RuntimeError as exc:
+        # Fehlender API-Key / fehlendes SDK: klare Meldung statt Traceback.
+        print(f"Abbruch: {exc}")
+        return 0
+    if stats["pending"] == 0:
+        print("Keine offenen Signals. Zuerst 'stockintel collect'/'link' ausführen.")
+        return 0
+    print(
+        f"Bewertet: {stats['analyzed']} von {stats['pending']} "
+        f"(Fehler: {stats['errors']})"
+    )
+    return 0
+
+
+def cmd_signals(args: argparse.Namespace) -> int:
+    from sqlalchemy import desc, select
+
+    from stockintel.analysis.entity import RULE_BASED_MODEL
+    from stockintel.db.models import Company, RawItem, Signal
+
+    settings = load_settings()
+    db = get_database(settings)
+    with db.session() as session:
+        stmt = (
+            select(Signal, Company.ticker, RawItem.title, RawItem.url)
+            .join(Company, Signal.company_id == Company.id)
+            .join(RawItem, Signal.raw_item_id == RawItem.id)
+        )
+        if args.ticker:
+            stmt = stmt.where(Company.ticker == args.ticker.upper())
+        if args.analyzed:
+            stmt = stmt.where(Signal.model != RULE_BASED_MODEL)
+        stmt = stmt.order_by(desc(Signal.relevance), desc(Signal.id)).limit(args.limit)
+
+        rows = session.execute(stmt).all()
+        if not rows:
+            print("Keine passenden Signals. Zuerst 'stockintel link'/'analyze' ausführen.")
+            return 0
+        for signal, ticker, title, url in rows:
+            flag = "·" if signal.model == RULE_BASED_MODEL else "✓"
+            text = (title or url or "").strip()[:60]
+            print(
+                f"{flag} {ticker:6} {signal.direction.value:8} "
+                f"{signal.impact.value:6} rel={signal.relevance:3} "
+                f"conf={signal.confidence:.2f}  {text}"
+            )
+    return 0
+
+
 def cmd_companies(_: argparse.Namespace) -> int:
     from sqlalchemy import func, select
 
@@ -244,6 +305,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="RawItems regelbasiert mit Companies verknüpfen (Signals anlegen)",
     )
     p_link.set_defaults(func=cmd_link)
+
+    p_analyze = sub.add_parser(
+        "analyze", help="Offene Signals mit dem KI-Triage-Modell bewerten",
+    )
+    p_analyze.add_argument(
+        "--limit", type=int, default=20,
+        help="Maximale Anzahl Signals pro Lauf (Standard 20)",
+    )
+    p_analyze.set_defaults(func=cmd_analyze)
+
+    p_signals = sub.add_parser("signals", help="Bewertete Signals anzeigen")
+    p_signals.add_argument("--limit", type=int, default=20, help="Anzahl (Standard 20)")
+    p_signals.add_argument("--ticker", type=str, default=None, help="Nur eine Aktie (z.B. NVDA)")
+    p_signals.add_argument(
+        "--analyzed", action="store_true",
+        help="Nur KI-bewertete Signals (regelbasierte ausblenden)",
+    )
+    p_signals.set_defaults(func=cmd_signals)
 
     p_companies = sub.add_parser(
         "companies", help="Bekannte Companies + Signal-Anzahl je Unternehmen",

@@ -22,6 +22,10 @@ from sqlalchemy import select
 from stockintel.db.database import Database
 from stockintel.db.models import Company, Direction, Horizon, Impact, RawItem, Signal
 
+#: Marker im ``Signal.model``-Feld für die regelbasierte Vorstufe (noch nicht
+#: KI-bewertet). Die KI-Triage selektiert genau diese Signals.
+RULE_BASED_MODEL = "rule-based-v1"
+
 
 @dataclass(slots=True)
 class CompanyMatcher:
@@ -210,7 +214,7 @@ def link_items(db: Database) -> dict[str, int]:
                     horizon=Horizon.DAYS,
                     confidence=0.0,
                     rationale=f"rule-based match: {', '.join(kinds)}",
-                    model="rule-based-v1",
+                    model=RULE_BASED_MODEL,
                 ))
                 existing.add((item.id, company_id))
                 stats["signals_created"] += 1
