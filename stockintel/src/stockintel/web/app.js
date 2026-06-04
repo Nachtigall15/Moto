@@ -227,7 +227,7 @@ async function loadSignals() {
     const ticker = document.getElementById("ticker-filter").value.trim();
     const analyzedOnly = document.getElementById("analyzed-only").checked;
 
-    let path = "/signals?limit=50";
+    let path = "/signals/detailed?limit=50";
     if (ticker) path += `&ticker=${encodeURIComponent(ticker)}`;
     if (analyzedOnly) path += `&analyzed_only=true`;
 
@@ -237,15 +237,23 @@ async function loadSignals() {
             body.innerHTML = `<tr><td colspan="5" class="loading">Keine Signals.</td></tr>`;
             return;
         }
-        body.innerHTML = signals.map((s, i) => `
-            <tr data-signal-index="${i}" data-signal='${JSON.stringify(s)}'>
+        body.innerHTML = signals.map((s, i) => {
+            const time = s.published_at ? new Date(s.published_at).toLocaleString('de-DE', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–';
+            const urlBadge = s.url ? `<span style="display: inline-block; margin-left: 0.3rem; font-size: 0.8rem;"><a href="${escapeHtml(s.url)}" target="_blank" style="color: #58a6ff; text-decoration: none;">🔗</a></span>` : '';
+            return `
+            <tr data-signal-index="${i}" data-signal='${JSON.stringify(s)}' style="cursor: pointer;">
                 <td class="ticker">${escapeHtml(s.ticker)}</td>
                 <td>${badge(s.direction, s.direction)}</td>
                 <td>${relevanceBar(s.relevance)}</td>
                 <td>${(s.confidence * 100).toFixed(0)}%</td>
-                <td>${escapeHtml(s.title || "")}</td>
+                <td>
+                    <div style="font-size: 0.85rem; color: #8b949e; margin-bottom: 0.2rem;">
+                        📰 ${escapeHtml(s.source_name)} | ${time}
+                    </div>
+                    <div>${escapeHtml(s.title || "")}${urlBadge}</div>
+                </td>
             </tr>
-        `).join("");
+        `}).join("");
         attachSignalListeners();
     } catch (e) {
         body.innerHTML = `<tr><td colspan="5" class="loading">Fehler: ${escapeHtml(e.message)}</td></tr>`;
@@ -256,13 +264,20 @@ function attachSignalListeners() {
     document.querySelectorAll("#signals-body tr[data-signal]").forEach(row => {
         row.addEventListener("click", () => {
             const signal = JSON.parse(row.dataset.signal);
-            const html = `
+            const time = signal.published_at ? new Date(signal.published_at).toLocaleString('de-DE') : '–';
+            let html = `
                 ${modalField("Ticker", signal.ticker)}
+                ${modalField("Quelle", signal.source_name)}
                 ${modalField("Richtung", signal.direction)}
                 ${modalField("Relevanz", signal.relevance + "%")}
                 ${modalField("Konfidenz", (signal.confidence * 100).toFixed(1) + "%")}
+                ${modalField("Veröffentlicht", time)}
                 ${modalField("Titel", signal.title)}
+                ${modalField("Rationale", signal.rationale)}
             `;
+            if (signal.url) {
+                html += `<div class="modal-field"><a href="${escapeHtml(signal.url)}" target="_blank" class="action-btn" style="display: inline-block;">🔗 Zur Quelle</a></div>`;
+            }
             showModal(`Signal: ${signal.ticker}`, html);
         });
     });
@@ -292,15 +307,70 @@ async function loadCompanies() {
 
 function attachCompanyListeners() {
     document.querySelectorAll("#companies-body tr[data-company]").forEach(row => {
-        row.addEventListener("click", () => {
+        row.addEventListener("click", async () => {
             const company = JSON.parse(row.dataset.company);
-            const html = `
-                ${modalField("Ticker", company.ticker)}
-                ${modalField("Name", company.name)}
-                ${modalField("Sektor", company.sector)}
-                ${modalField("Signal Count", company.signal_count)}
-            `;
-            showModal(`Company: ${company.ticker}`, html);
+            showModal(`Company: ${company.ticker}`, `<div class="loading">Lade Details für ${escapeHtml(company.ticker)}…</div>`);
+
+            try {
+                const detail = await fetchJSON(`/company/${encodeURIComponent(company.ticker)}`);
+
+                // Build signals grouped by source
+                let signalsHtml = `
+                    <div class="modal-field">
+                        <div class="modal-label">Kurs (Live)</div>
+                        <div class="modal-value" style="font-size: 1.3rem; font-weight: bold;">
+                            ${detail.current_price !== null ? `$${detail.current_price.toFixed(2)}` : '–'}
+                        </div>
+                    </div>
+                `;
+
+                if (detail.signal_count > 0) {
+                    signalsHtml += '<div style="margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 1rem;">';
+                    signalsHtml += `<h4 style="margin: 0 0 1rem 0;">Nachrichten und Signale (${detail.signal_count})</h4>`;
+
+                    // Group signals by source
+                    for (const [sourceKey, signals] of Object.entries(detail.signals_by_source)) {
+                        const sourceName = signals.length > 0 ? signals[0].source_name : sourceKey;
+                        signalsHtml += `<div style="margin: 1rem 0; padding: 1rem; background: rgba(88, 166, 255, 0.1); border-radius: 4px; border-left: 3px solid #58a6ff;">`;
+                        signalsHtml += `<h5 style="margin: 0 0 0.5rem 0; color: #58a6ff; font-size: 0.95rem;">📰 ${escapeHtml(sourceName)}</h5>`;
+
+                        signals.forEach(sig => {
+                            const time = sig.published_at ? new Date(sig.published_at).toLocaleString('de-DE') : '–';
+                            const directionColor = sig.direction === 'positive' ? '#3fb950' : (sig.direction === 'negative' ? '#f85149' : '#d29922');
+                            const urlLink = sig.url ? `<a href="${escapeHtml(sig.url)}" target="_blank" style="color: #58a6ff; text-decoration: none;">🔗</a>` : '';
+
+                            signalsHtml += `
+                                <div style="margin: 0.7rem 0; padding: 0.7rem; background: rgba(22, 27, 34, 0.5); border-radius: 3px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: start; gap: 0.5rem;">
+                                        <div style="flex: 1; min-width: 0;">
+                                            <div style="color: ${directionColor}; font-weight: bold; font-size: 0.9rem;">${sig.direction.toUpperCase()}</div>
+                                            <div style="color: #8b949e; font-size: 0.85rem; margin: 0.2rem 0;">${time}</div>
+                                            <div style="color: #c9d1d9; margin: 0.3rem 0;">${escapeHtml(sig.title || '(Kein Titel)')}</div>
+                                            <div style="color: #8b949e; font-size: 0.85rem; margin-top: 0.3rem;">Relevanz: ${sig.relevance}% | Konfidenz: ${(sig.confidence * 100).toFixed(0)}%</div>
+                                        </div>
+                                        <div>${urlLink}</div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+
+                        signalsHtml += `</div>`;
+                    }
+                    signalsHtml += `</div>`;
+                } else {
+                    signalsHtml += `<div style="margin-top: 1rem; padding: 1rem; background: rgba(210, 153, 34, 0.1); border-radius: 4px;">Keine Nachrichten/Signale vorhanden.</div>`;
+                }
+
+                const html = `
+                    ${modalField("Ticker", detail.ticker)}
+                    ${modalField("Name", detail.name)}
+                    ${modalField("Sektor", detail.sector || "–")}
+                    ${signalsHtml}
+                `;
+                showModal(`Company: ${detail.ticker}`, html);
+            } catch (e) {
+                showModal(`Company: ${company.ticker}`, `<p style="color: #f85149;">Fehler beim Laden: ${escapeHtml(e.message)}</p>`);
+            }
         });
     });
 }
@@ -466,10 +536,51 @@ async function loadTrackingStatus() {
     }
 }
 
+async function loadWatchlist() {
+    const body = document.getElementById("watchlist-body");
+    try {
+        const watchlist = await fetchJSON("/watchlist");
+        if (!watchlist.length) {
+            body.innerHTML = `<tr><td colspan="4" class="loading">Watchlist ist leer. Nutzen Sie das Formular, um Companies hinzuzufügen.</td></tr>`;
+            return;
+        }
+        body.innerHTML = watchlist.map(w => `
+            <tr>
+                <td class="ticker">${escapeHtml(w.ticker)}</td>
+                <td>${escapeHtml(w.name)}</td>
+                <td>${escapeHtml(w.sector || "–")}</td>
+                <td>
+                    <button class="action-btn small remove-watchlist-btn" data-ticker="${escapeHtml(w.ticker)}" style="background: #f85149;">🗑️ Entfernen</button>
+                </td>
+            </tr>
+        `).join("");
+        attachWatchlistRemoveListeners();
+    } catch (e) {
+        body.innerHTML = `<tr><td colspan="4" class="loading">Fehler: ${escapeHtml(e.message)}</td></tr>`;
+    }
+}
+
+function attachWatchlistRemoveListeners() {
+    document.querySelectorAll(".remove-watchlist-btn").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            const ticker = btn.dataset.ticker;
+            if (confirm(`Wirklich entfernen: ${ticker}?`)) {
+                try {
+                    await fetchJSON(`/watchlist/${encodeURIComponent(ticker)}`, { method: "DELETE" });
+                    await loadWatchlist();
+                } catch (e) {
+                    alert("Fehler beim Entfernen: " + e.message);
+                }
+            }
+        });
+    });
+}
+
 async function loadAll() {
     await Promise.all([
         loadStats(),
         loadCharts(),
+        loadWatchlist(),
         loadRecommendations(),
         loadSignals(),
         loadCompanies(),
@@ -558,6 +669,38 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("refresh-btn").addEventListener("click", loadAll);
     document.getElementById("score-btn").addEventListener("click", triggerScore);
     document.getElementById("autorefresh-btn").addEventListener("click", toggleAutoRefresh);
+
+    // Watchlist add button
+    document.getElementById("add-watchlist-btn").addEventListener("click", async () => {
+        const ticker = document.getElementById("new-ticker").value.trim().toUpperCase();
+        const name = document.getElementById("new-name").value.trim();
+        const sector = document.getElementById("new-sector").value.trim();
+
+        if (!ticker || !name) {
+            alert("Ticker und Name sind erforderlich.");
+            return;
+        }
+
+        const btn = document.getElementById("add-watchlist-btn");
+        const orig = btn.textContent;
+        btn.textContent = "Wird hinzugefügt…";
+        btn.disabled = true;
+
+        try {
+            const params = new URLSearchParams({ ticker, name });
+            if (sector) params.append("sector", sector);
+            await fetchJSON(`/watchlist?${params}`, { method: "POST" });
+            document.getElementById("new-ticker").value = "";
+            document.getElementById("new-name").value = "";
+            document.getElementById("new-sector").value = "";
+            await loadWatchlist();
+        } catch (e) {
+            alert("Fehler beim Hinzufügen: " + e.message);
+        } finally {
+            btn.textContent = orig;
+            btn.disabled = false;
+        }
+    });
 
     // Modal listeners
     document.getElementById("detail-modal").addEventListener("click", (e) => {
