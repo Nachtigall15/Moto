@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockIntel Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>📊 StockIntel</h1>
+            <span class="subtitle">Markt-Intelligence-Engine</span>
+            <button id="refresh-btn" class="refresh-btn" title="Aktualisieren">↻</button>
+        </div>
+        <p class="disclaimer">Kein Anlageberatungs-Tool — informatives Recherche-Werkzeug.</p>
+    </header>
+
+    <main>
+        <!-- Stats Overview -->
+        <section class="stats-grid" id="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-items">–</div>
+                <div class="stat-label">Items</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-signals">–</div>
+                <div class="stat-label">Signals</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-companies">–</div>
+                <div class="stat-label">Companies</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-recommendations">–</div>
+                <div class="stat-label">Recommendations</div>
+            </div>
+        </section>
+
+        <!-- Recommendations -->
+        <section class="panel">
+            <div class="panel-header">
+                <h2>🎯 Recommendations</h2>
+                <button class="action-btn" id="score-btn">Neu berechnen</button>
+            </div>
+            <div class="table-wrap">
+                <table id="recommendations-table">
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>Action</th>
+                            <th>Confidence</th>
+                            <th>Begründung</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recommendations-body">
+                        <tr><td colspan="4" class="loading">Lade…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Top Signals -->
+        <section class="panel">
+            <div class="panel-header">
+                <h2>📡 Top Signals</h2>
+                <div class="filters">
+                    <input type="text" id="ticker-filter" placeholder="Ticker (z.B. NVDA)" />
+                    <label><input type="checkbox" id="analyzed-only" /> Nur KI-bewertet</label>
+                </div>
+            </div>
+            <div class="table-wrap">
+                <table id="signals-table">
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>Richtung</th>
+                            <th>Relevanz</th>
+                            <th>Konfidenz</th>
+                            <th>Titel</th>
+                        </tr>
+                    </thead>
+                    <tbody id="signals-body">
+                        <tr><td colspan="5" class="loading">Lade…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Companies -->
+        <section class="panel">
+            <div class="panel-header">
+                <h2>🏢 Companies</h2>
+            </div>
+            <div class="table-wrap">
+                <table id="companies-table">
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>Name</th>
+                            <th>Sektor</th>
+                            <th>Signals</th>
+                        </tr>
+                    </thead>
+                    <tbody id="companies-body">
+                        <tr><td colspan="4" class="loading">Lade…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>StockIntel v0.0.1 · <span id="last-updated">–</span></p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

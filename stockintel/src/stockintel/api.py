@@ -9,10 +9,13 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import desc, select
 
@@ -256,6 +259,16 @@ def create_app() -> FastAPI:
                 "recommendations": rec_count,
                 "timestamp": datetime.now().isoformat(),
             }
+
+    # --- Web-Dashboard (Phase 6) ---------------------------------------- #
+    web_dir = Path(__file__).resolve().parent / "web"
+    if web_dir.is_dir():
+        app.mount("/static", StaticFiles(directory=str(web_dir)), name="static")
+
+        @app.get("/", include_in_schema=False)
+        async def dashboard():
+            """Liefert das Web-Dashboard aus."""
+            return FileResponse(str(web_dir / "index.html"))
 
     return app
 

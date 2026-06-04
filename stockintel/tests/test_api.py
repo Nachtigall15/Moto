@@ -95,3 +95,24 @@ def test_score_endpoint(client):
     """Score-Endpoint exists und antwortet."""
     response = client.post("/score")
     assert response.status_code == 200
+
+
+def test_dashboard_served(client):
+    """Web-Dashboard (/) liefert HTML aus."""
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "StockIntel" in response.text
+
+
+def test_static_css_served(client):
+    """Static CSS wird ausgeliefert."""
+    response = client.get("/static/style.css")
+    assert response.status_code == 200
+    assert "text/css" in response.headers["content-type"]
+
+
+def test_static_js_served(client):
+    """Static JS wird ausgeliefert."""
+    response = client.get("/static/app.js")
+    assert response.status_code == 200

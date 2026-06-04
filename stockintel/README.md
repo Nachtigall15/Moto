@@ -111,6 +111,37 @@ Tabelle gespeichert mit Strength (0.0–1.0, default 0.7) und Rationale.
 Eigene Themes hinzufügen: `src/stockintel/analysis/themes.py` → `THEME_PATTERNS`
 liste erweitern mit Keywords, betroffene Sektoren, Beschreibung.
 
+### REST-API & Web-Dashboard (Phase 5 + 6)
+
+Die Engine bringt eine FastAPI-Schnittstelle und ein Browser-Dashboard mit:
+
+```bash
+pip install -e .[api]      # fastapi, uvicorn, apscheduler (einmalig)
+./run_api.sh               # Server auf http://0.0.0.0:8000
+```
+
+Dann im Browser **http://localhost:8000/** öffnen — das Dashboard zeigt Stats,
+Recommendations, Top-Signals (filterbar) und Companies, alles live aus der DB.
+
+**API-Endpoints** (auch direkt nutzbar, z.B. für eigene Frontends):
+
+| Methode | Pfad | Zweck |
+|---|---|---|
+| GET | `/health` | Health-Check |
+| GET | `/stats` | Zähler: Items, Signals, Companies, Recommendations |
+| GET | `/companies?limit=` | Companies + Signal-Anzahl |
+| GET | `/signals?ticker=&analyzed_only=` | Signals (filterbar) |
+| GET | `/recommendations` | Buy/Hold/Sell-Empfehlungen |
+| POST | `/analyze?limit=` | KI-Triage anstoßen |
+| POST | `/score` | Recommendations neu berechnen |
+
+Die interaktive API-Doku (Swagger) liegt unter **`/docs`**. Ein Background-Scheduler
+(APScheduler) führt `analyze` (09:00) und `score` (10:00) täglich aus.
+
+**Alerts** (`src/stockintel/alerts.py`): Log-basiert standardmäßig aktiv; Slack
+(`STOCKINTEL_SLACK_WEBHOOK`) und Email (`STOCKINTEL_EMAIL_FROM`/`_TO`) per
+Environment-Variable zuschaltbar.
+
 <details>
 <summary>Manuelles Setup (statt setup.sh)</summary>
 
@@ -137,6 +168,24 @@ stockintel items --limit 20                # zuletzt gespeicherte Items anzeigen
 
 ## Projektstand
 
+**Phase 6 — Web-Dashboard.** Ein leichtgewichtiges Browser-Dashboard (`web/`,
+Vanilla-JS, ohne Build-Step) zeigt Stats, Recommendations, filterbare Top-Signals
+und Companies — ausgeliefert direkt von FastAPI unter `/`. Siehe Abschnitt oben.
+
+**Phase 5 — REST-API + Alerts.** FastAPI-Server (`api.py`) mit Endpoints für
+Stats, Companies, Signals, Recommendations sowie Trigger für `analyze`/`score`.
+Background-Scheduler (APScheduler) für tägliche Läufe. Alert-System (`alerts.py`)
+mit Log/Slack/Email-Handlern.
+
+**Phase 4 — Event-Study + Scoring.** `analysis/eventstudy.py` klassifiziert
+Events (Earnings, FDA, M&A, …) und erkennt Hickups (Spike + Rückkehr).
+`analysis/scoring.py` aggregiert Signals zu **Buy/Hold/Sell**-Empfehlungen
+(`stockintel score` / `recommendations`).
+
+**Phase 3 — Linking.** `analysis/themes.py` erkennt Hypes (AI, EV, Cloud, …) und
+verknüpft Profiteure nach Sektor. `analysis/ipo.py` scannt EDGAR-S-1-Filings für
+IPO-Events. CLI: `link-themes`, `themes`, `find-ipo`, `ipos`.
+
 **Phase 2 — Entity-Resolution + KI-Triage.** Eine **regelbasierte** Verknüpfung
 (`analysis/entity.py`) ordnet jeden neuen `RawItem` per Ticker-/Namens-Match
 einem Unternehmen aus der Watchlist zu und legt ein `Signal` (mit neutralen
@@ -144,7 +193,7 @@ Platzhaltern) an — läuft automatisch nach jedem `collect`. Die **KI-Triage**
 (`analysis/triage.py`) bewertet diese Signals anschließend mit einem günstigen
 Claude-Modell (strukturiert via Tool-Use, mit Prompt-Caching): Relevanz,
 Richtung, Kurswirkung, Horizont, Konfidenz, Begründung. Anzeige über
-`stockintel signals`. Tiefenanalyse mit einem stärkeren Modell folgt.
+`stockintel signals`.
 
 **Phase 1 — Daten-Collectors.** Aktiv: **EDGAR**, **RSS**, **StockTwits**
 (alle schlüssellos), **Finnhub** (Unternehmens-News, Free-Tier-Key) sowie
@@ -162,13 +211,17 @@ Frühere Stände:
 stockintel/
 ├── PROJECT.md              Konzept, Architektur, Roadmap
 ├── pyproject.toml          Paket- und Abhängigkeitsdefinition
+├── run_api.sh              API-Server starten (Phase 5/6)
 ├── config/                 Konfiguration (settings.yaml)
 ├── src/stockintel/
 │   ├── config.py           Einstellungen laden
-│   ├── cli.py              Kommandozeile (init-db, info)
+│   ├── cli.py              Kommandozeile (collect, analyze, score, …)
+│   ├── api.py              FastAPI REST-Server (Phase 5)
+│   ├── alerts.py           Alert-Handler: Log/Slack/Email (Phase 5)
+│   ├── web/                Web-Dashboard: HTML/CSS/JS (Phase 6)
 │   ├── db/                 Datenbank: models.py, database.py
 │   ├── collectors/         Quellen-Adapter (Phase 1)
-│   ├── analysis/           Entity-Resolution + KI-Bewertung (Phase 2)
+│   ├── analysis/           Entity, Triage, Themes, IPO, Eventstudy, Scoring
 │   ├── linking/            Hype->Profiteure, IPO->Investoren (Phase 3)
 │   ├── eventstudy/         Historische Kursreaktionen / Hickups (Phase 4)
 │   ├── scoring/            Buy/Hold/Sell (Phase 4)
