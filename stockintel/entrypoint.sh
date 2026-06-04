@@ -40,7 +40,9 @@ fi
 
 # Initialize database schema (idempotent - safe to run multiple times)
 echo "[ENTRYPOINT] Initializing database schema..."
-python -m stockintel.cli info 2>&1 | head -10
+echo "[ENTRYPOINT] Checking config file..."
+ls -la /app/config/ 2>&1 | head -5
+cat /app/config/settings.yaml 2>&1 | grep -A 3 "watchlist:" || echo "[ENTRYPOINT] Config file not found or no watchlist"
 python -m stockintel.cli init-db
 
 # Start the API server
