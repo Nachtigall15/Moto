@@ -88,6 +88,25 @@ def schedule_background_tasks(db: Database) -> None:
         replace_existing=True,
     )
 
+    # Forward-Tracking: stündlich fällige Kurs-Snapshots live erfassen.
+    scheduler.add_job(
+        func=lambda: _background_track(db, settings),
+        trigger="interval",
+        hours=1,
+        id="track_hourly",
+        replace_existing=True,
+    )
+
+    # Event-Study: täglich um 10:30 Snapshots/Outcomes/Profile nachziehen.
+    scheduler.add_job(
+        func=lambda: _background_event_study(db, settings),
+        trigger="cron",
+        hour=10,
+        minute=30,
+        id="event_study_daily",
+        replace_existing=True,
+    )
+
     logger.info("Background tasks scheduled")
 
 
@@ -107,6 +126,28 @@ def _background_score(db: Database) -> None:
         logger.info(f"Background score: {stats}")
     except Exception as e:
         logger.error(f"Background score failed: {e}")
+
+
+def _background_track(db: Database, settings) -> None:
+    """Background: fällige Forward-Tracking-Snapshots erfassen."""
+    try:
+        from stockintel.analysis.eventstudy import capture_due_snapshots
+
+        count = capture_due_snapshots(db, settings)
+        logger.info(f"Background track: {count} snapshots captured")
+    except Exception as e:
+        logger.error(f"Background track failed: {e}")
+
+
+def _background_event_study(db: Database, settings) -> None:
+    """Background: Event-Study (Snapshots/Outcomes/Profile) aktualisieren."""
+    try:
+        from stockintel.analysis.eventstudy import run_event_study
+
+        stats = run_event_study(db, settings, limit=100)
+        logger.info(f"Background event-study: {stats}")
+    except Exception as e:
+        logger.error(f"Background event-study failed: {e}")
 
 
 @asynccontextmanager

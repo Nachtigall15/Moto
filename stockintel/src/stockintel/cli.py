@@ -9,6 +9,7 @@ Verfügbare Befehle:
   * ``stockintel event-study``       – Events + Kursreaktionen (yfinance) berechnen
   * ``stockintel events``            – erkannte Events + Kursreaktionen anzeigen
   * ``stockintel reaction-profiles`` – Basisraten je Ereignistyp berechnen/anzeigen
+  * ``stockintel track``             – Forward-Tracking: fällige Snapshots live erfassen
   * ``stockintel find-ipo``          – EDGAR S-1 Filings scannen, IPO-Events anlegen
   * ``stockintel link-themes``       – Themes erkennen, Beneficiaries verlinken
   * ``stockintel items``             – Items anzeigen (Filter: ``--ticker``, ``--source``)
@@ -283,6 +284,22 @@ def cmd_events(args: argparse.Namespace) -> int:
                 f"{ticker:<8} {event.event_type.value:<16} {when:<12} "
                 f"{final:>8} {abn:>8} {hickup:<7} {(event.summary or '')[:40]}"
             )
+    return 0
+
+
+def cmd_track(_: argparse.Namespace) -> int:
+    from stockintel.analysis.eventstudy import capture_due_snapshots, run_event_study
+
+    settings = load_settings()
+    db = get_database(settings)
+    # Erst fällige Live-Horizonte erfassen, dann Outcomes/Profile aktualisieren.
+    captured = capture_due_snapshots(db, settings)
+    print(f"Forward-Tracking: {captured} fällige Snapshots live erfasst.")
+    stats = run_event_study(db, settings)
+    print(
+        f"Outcomes aktualisiert: {stats['outcomes_computed']} "
+        f"(Hickups: {stats['hickups']}, Profile: {stats['profiles_updated']})"
+    )
     return 0
 
 
@@ -581,6 +598,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Basisraten je Ereignistyp (Ø Reaktion, Hickup-Quote) berechnen/anzeigen",
     )
     p_profiles.set_defaults(func=cmd_reaction_profiles)
+
+    p_track = sub.add_parser(
+        "track",
+        help="Forward-Tracking: fällige Kurs-Snapshots live erfassen + Outcomes",
+    )
+    p_track.set_defaults(func=cmd_track)
 
     p_find_ipo = sub.add_parser(
         "find-ipo",

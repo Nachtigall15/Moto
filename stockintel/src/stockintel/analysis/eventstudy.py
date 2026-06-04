@@ -19,7 +19,13 @@ from typing import TYPE_CHECKING
 from sqlalchemy import desc, select
 from sqlalchemy.orm import joinedload
 
-from stockintel.analysis.prices import fetch_history, parse_horizon, price_at_or_after, price_at_or_before
+from stockintel.analysis.prices import (
+    current_price,
+    fetch_history,
+    parse_horizon,
+    price_at_or_after,
+    price_at_or_before,
+)
 from stockintel.db.models import (
     Direction,
     Event,
@@ -391,6 +397,89 @@ def backfill_event_snapshots(
             written += 1
         session.commit()
         return written
+
+
+def capture_due_snapshots(
+    db: Database,
+    settings: Settings | None = None,
+    now: dt.datetime | None = None,
+    max_age_days: int = 35,
+    fresh_window_hours: float = 2.0,
+    price_fn=None,
+) -> int:
+    """Forward-Tracking: erfasst gerade fällig gewordene Horizonte mit Live-Kurs.
+
+    Für jedes Event im Tracking-Fenster (t0 jünger als ``max_age_days``) wird
+    jeder konfigurierte Horizont (inkl. Baseline bei t0), dessen Zielzeit soeben
+    erreicht wurde (``now - fresh_window <= target <= now``) und der noch fehlt,
+    mit dem aktuellen Kurs als Snapshot abgelegt. Das schmale Frische-Fenster
+    sorgt für Intraday-Präzision (je Lauf wird nahe der echten Zielzeit gemessen);
+    ältere, verpasste Horizonte überlässt es dem historischen Backfill.
+
+    Idempotent über ``UniqueConstraint(event_id, horizon)``. ``price_fn`` (Callable
+    ``ticker -> float|None``) ist für Tests injizierbar; Default ist der yfinance-
+    Live-Kurs. Returns: Anzahl neu geschriebener Snapshots.
+    """
+    horizons, benchmark, _ = _event_study_config(settings)
+    now = now or dt.datetime.now(dt.timezone.utc)
+    price_fn = price_fn or current_price
+    fresh = dt.timedelta(hours=fresh_window_hours)
+    cutoff = now - dt.timedelta(days=max_age_days)
+
+    price_cache: dict[str, float | None] = {}
+
+    def cached(symbol: str | None) -> float | None:
+        if not symbol:
+            return None
+        if symbol not in price_cache:
+            price_cache[symbol] = price_fn(symbol)
+        return price_cache[symbol]
+
+    checks: list[tuple[str, dt.timedelta]] = [(BASELINE_HORIZON, dt.timedelta(0))]
+    checks += [(h, parse_horizon(h)) for h in horizons if parse_horizon(h) is not None]
+
+    written = 0
+    with db.session() as session:
+        events = (
+            session.scalars(
+                select(Event)
+                .options(joinedload(Event.snapshots), joinedload(Event.company))
+                .where(Event.t0 >= cutoff)
+            )
+            .unique()
+            .all()
+        )
+        for event in events:
+            ticker = event.company.ticker if event.company else None
+            if not ticker:
+                continue
+            t0 = event.t0
+            if t0.tzinfo is None:
+                t0 = t0.replace(tzinfo=dt.timezone.utc)
+            captured = {s.horizon for s in event.snapshots}
+
+            for horizon, delta in checks:
+                if horizon in captured:
+                    continue
+                target = t0 + delta
+                if target > now or (now - target) > fresh:
+                    continue  # noch nicht fällig oder zu alt (Backfill zuständig)
+                price = cached(ticker)
+                if price is None:
+                    continue
+                session.add(
+                    EventSnapshot(
+                        event_id=event.id,
+                        horizon=horizon,
+                        price=price,
+                        benchmark_price=cached(benchmark),
+                        captured_at=now,
+                    )
+                )
+                captured.add(horizon)
+                written += 1
+        session.commit()
+    return written
 
 
 def persist_event_outcome(

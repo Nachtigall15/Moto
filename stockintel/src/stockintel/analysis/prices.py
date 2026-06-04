@@ -129,6 +129,31 @@ def fetch_history(
     return points
 
 
+def current_price(ticker: str) -> float | None:
+    """Aktuellster verfügbarer Schlusskurs (Live-ish) via yfinance.
+
+    Für Forward-Tracking: misst den Kurs zum Zeitpunkt des Abrufs. Liefert
+    ``None`` ohne yfinance/Netz oder bei leerer Antwort (nie eine Exception).
+    """
+    try:
+        import yfinance as yf
+    except ImportError:
+        return None
+    try:
+        hist = yf.Ticker(str(ticker)).history(period="1d")
+    except Exception as exc:  # noqa: BLE001 - yfinance/Netzwerk robust kapseln
+        logger.warning("Live-Kurs für %s fehlgeschlagen: %s", ticker, exc)
+        return None
+    try:
+        closes = hist["Close"]
+    except (KeyError, TypeError):
+        return None
+    if len(closes) == 0:
+        return None
+    val = float(closes.iloc[-1])
+    return val if val == val else None  # NaN-Check
+
+
 def returns_at_horizons(
     history: list[PricePoint],
     t0: dt.datetime,
