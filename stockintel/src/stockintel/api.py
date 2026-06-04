@@ -281,6 +281,34 @@ def create_app() -> FastAPI:
             ],
         }
 
+    @app.get("/debug/collect")
+    async def debug_collect():
+        """Diagnose: führt einen Sammel-Durchlauf synchron aus und meldet pro
+        Collector Trefferzahl bzw. den genauen Fehler. Hilft, leere Dashboards
+        (Netzwerk-/Key-/Collector-Probleme) ohne Container-Logs einzugrenzen."""
+        from stockintel.collectors import build_collectors
+        from stockintel.ingestion import ingest
+
+        results: list[dict] = []
+        collectors = build_collectors(settings)
+        if not collectors:
+            return {"error": "no active collectors", "collectors": []}
+
+        for collector in collectors:
+            entry: dict = {"source": collector.source_key}
+            try:
+                fetched = list(collector.fetch())
+                entry["fetched"] = len(fetched)
+                try:
+                    entry["ingested_new"] = ingest(db, collector)
+                except Exception as e:  # noqa: BLE001
+                    entry["ingest_error"] = f"{type(e).__name__}: {e}"
+            except Exception as e:  # noqa: BLE001
+                entry["fetch_error"] = f"{type(e).__name__}: {e}"
+            results.append(entry)
+
+        return {"collectors": results}
+
     @app.get("/companies", response_model=list[CompanyInfo])
     async def list_companies(limit: int = Query(50, ge=1, le=1000)):
         """Listet alle Companies mit Signal-Zähler."""
