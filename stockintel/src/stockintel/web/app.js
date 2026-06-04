@@ -74,11 +74,14 @@ async function loadCharts() {
             indexAxis: "y",
         });
 
-        // Signals per Company (Bar)
+        // Signals per Company (Top 5 Bar)
+        const topCompanies = companies
+            .sort((a, b) => b.signal_count - a.signal_count)
+            .slice(0, 5);
         updateChart("_chartCompanies", "companies-canvas", {
             type: "bar",
-            labels: companies.map(c => c.ticker),
-            data: companies.map(c => c.signal_count),
+            labels: topCompanies.map(c => c.ticker),
+            data: topCompanies.map(c => c.signal_count),
             color: "#58a6ff",
         });
 
@@ -302,12 +305,14 @@ async function loadCompanies() {
             body.innerHTML = `<tr><td colspan="4" class="loading">Keine Companies.</td></tr>`;
             return;
         }
-        body.innerHTML = companies.map((c, i) => `
-            <tr data-company-index="${i}" data-company='${JSON.stringify(c)}'>
+        // Sortiere nach Signal-Count (absteigend)
+        const sorted = [...companies].sort((a, b) => b.signal_count - a.signal_count);
+        body.innerHTML = sorted.map((c, i) => `
+            <tr data-company-index="${i}" data-company='${JSON.stringify(c)}' style="cursor: pointer;">
                 <td class="ticker">${escapeHtml(c.ticker)}</td>
                 <td>${escapeHtml(c.name)}</td>
                 <td>${escapeHtml(c.sector || "–")}</td>
-                <td>${c.signal_count}</td>
+                <td><span style="font-weight: bold; color: #58a6ff;">${c.signal_count}</span></td>
             </tr>
         `).join("");
         attachCompanyListeners();
@@ -680,6 +685,20 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("refresh-btn").addEventListener("click", loadAll);
     document.getElementById("score-btn").addEventListener("click", triggerScore);
     document.getElementById("autorefresh-btn").addEventListener("click", toggleAutoRefresh);
+
+    // Stat cards click handlers for navigation
+    document.getElementById("stat-items-card").addEventListener("click", () => {
+        document.getElementById("stats-grid").scrollIntoView({ behavior: "smooth" });
+    });
+    document.getElementById("stat-signals-card").addEventListener("click", () => {
+        document.getElementById("signals-section").scrollIntoView({ behavior: "smooth" });
+    });
+    document.getElementById("stat-companies-card").addEventListener("click", () => {
+        document.getElementById("companies-section").scrollIntoView({ behavior: "smooth" });
+    });
+    document.getElementById("stat-recommendations-card").addEventListener("click", () => {
+        document.getElementById("recommendations-section").scrollIntoView({ behavior: "smooth" });
+    });
 
     // Company search functionality
     let searchDebounce;

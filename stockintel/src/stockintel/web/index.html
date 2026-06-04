@@ -22,20 +22,20 @@
 
     <main>
         <!-- Stats Overview -->
-        <section class="stats-grid" id="stats-grid">
-            <div class="stat-card">
+        <section class="stats-grid" id="stats-grid" style="cursor: pointer;">
+            <div class="stat-card" id="stat-items-card" style="cursor: pointer;">
                 <div class="stat-value" id="stat-items">–</div>
                 <div class="stat-label">Items</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" id="stat-signals-card" style="cursor: pointer;">
                 <div class="stat-value" id="stat-signals">–</div>
                 <div class="stat-label">Signals</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" id="stat-companies-card" style="cursor: pointer;">
                 <div class="stat-value" id="stat-companies">–</div>
                 <div class="stat-label">Companies</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card" id="stat-recommendations-card" style="cursor: pointer;">
                 <div class="stat-value" id="stat-recommendations">–</div>
                 <div class="stat-label">Recommendations</div>
             </div>
@@ -93,7 +93,7 @@
         </section>
 
         <!-- Recommendations -->
-        <section class="panel">
+        <section class="panel" id="recommendations-section">
             <div class="panel-header">
                 <h2>🎯 Recommendations</h2>
                 <button class="action-btn" id="score-btn">Neu berechnen</button>
@@ -116,7 +116,7 @@
         </section>
 
         <!-- Top Signals -->
-        <section class="panel">
+        <section class="panel" id="signals-section">
             <div class="panel-header">
                 <h2>📡 Top Signals</h2>
                 <div class="filters">
@@ -143,24 +143,32 @@
         </section>
 
         <!-- Companies -->
-        <section class="panel">
+        <section class="panel" id="companies-section">
             <div class="panel-header">
                 <h2>🏢 Companies</h2>
+                <div style="color: #8b949e; font-size: 0.9rem;">Top 5 Signals</div>
             </div>
-            <div class="table-wrap">
-                <table id="companies-table">
-                    <thead>
-                        <tr>
-                            <th>Ticker</th>
-                            <th>Name</th>
-                            <th>Sektor</th>
-                            <th>Signals</th>
-                        </tr>
-                    </thead>
-                    <tbody id="companies-body">
-                        <tr><td colspan="4" class="loading">Lade…</td></tr>
-                    </tbody>
-                </table>
+            <div class="chart-panel" style="margin-bottom: 2rem;">
+                <canvas id="companies-canvas"></canvas>
+            </div>
+
+            <div style="border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 1rem;">
+                <h3 style="margin-top: 0;">Alle Companies</h3>
+                <div class="table-wrap">
+                    <table id="companies-table">
+                        <thead>
+                            <tr>
+                                <th style="cursor: pointer;">Ticker</th>
+                                <th>Name</th>
+                                <th>Sektor</th>
+                                <th style="cursor: pointer;">Signals</th>
+                            </tr>
+                        </thead>
+                        <tbody id="companies-body">
+                            <tr><td colspan="4" class="loading">Lade…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </section>
 
