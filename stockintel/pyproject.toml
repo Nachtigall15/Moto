@@ -1,0 +1,53 @@
+[project]
+name = "stockintel"
+version = "0.0.1"
+description = "Markt-Intelligence-Engine (eigenständig, unabhängig von der Motorrad-App)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+# Phase 0 haelt die Laufzeit-Abhaengigkeiten bewusst minimal (nur DB + Config),
+# damit das Geruest ohne Netzwerk lauffaehig ist. Weitere Abhaengigkeiten je
+# Phase werden als optionale Extras hinzugefuegt.
+dependencies = [
+    "SQLAlchemy>=2.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+# Phase 1: Daten-Collectors
+collectors = [
+    "httpx>=0.27",
+    "feedparser>=6.0",
+    "praw>=7.7",
+    "youtube-transcript-api>=0.6",
+    "yfinance>=0.2",
+]
+# Phase 2: KI-Analyse
+analysis = [
+    "anthropic>=0.40",
+]
+# Phase 5: API & Scheduling
+api = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "apscheduler>=3.10",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+stockintel = "stockintel.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

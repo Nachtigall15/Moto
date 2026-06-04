@@ -1,0 +1,41 @@
+# StockIntel — Beispiel-Konfiguration. Kopieren nach config/settings.yaml.
+# Geheimnisse (API-Keys) gehoeren in .env, nicht hierher.
+
+database:
+  # Standard ist SQLite lokal. Spaeter optional Postgres-URL.
+  url: "sqlite:///data/stockintel.db"
+
+# Beobachtete Aktien (Watchlist). Die Engine ueberwacht diese Liste UND
+# entdeckt neue Profiteure aus Trends.
+watchlist:
+  - { ticker: "NVDA", name: "NVIDIA",     sector: "Semiconductors" }
+  - { ticker: "MRVL", name: "Marvell",    sector: "Semiconductors" }
+  - { ticker: "TSLA", name: "Tesla",      sector: "Automotive" }
+
+# Event-Study: Horizonte fuer die Kursreaktions-Messung.
+event_study:
+  index_benchmark: "SPY"        # fuer Abnormal-Return-Berechnung
+  horizons:                     # Offsets ab Ereignis-Zeitpunkt t0
+    - "1h"
+    - "4h"
+    - "1d"
+    - "3d"
+    - "1w"
+    - "1m"
+  # Schwelle, ab der eine Rueckkehr als "Hickup" (Strohfeuer) gilt (Anteil
+  # der anfaenglichen Bewegung, der wieder abgegeben wird).
+  hickup_reversal_ratio: 0.6
+
+# KI-Modelle (Phase 2). Triage guenstig, Tiefenanalyse stark.
+models:
+  triage: "claude-haiku-4-5-20251001"
+  deep: "claude-sonnet-4-6"
+
+# Quellen aktivieren/deaktivieren (Phase 1).
+collectors:
+  edgar:      { enabled: true }
+  rss:        { enabled: true }
+  finnhub:    { enabled: false }   # benoetigt FINNHUB_API_KEY
+  reddit:     { enabled: false }   # benoetigt Reddit-Credentials
+  stocktwits: { enabled: true }
+  youtube:    { enabled: false }

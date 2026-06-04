@@ -1,0 +1,22 @@
+# StockIntel — eigenständige .gitignore (greift nur in diesem Unterprojekt)
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# Secrets & lokale Konfiguration
+.env
+config/settings.yaml
+
+# Lokale Datenbank / Daten
+*.db
+*.sqlite
+*.sqlite3
+data/
