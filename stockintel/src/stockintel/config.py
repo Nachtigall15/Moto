@@ -62,11 +62,21 @@ def load_settings(config_path: Path | None = None) -> Settings:
     _load_dotenv(ROOT / ".env")
 
     path = config_path or (ROOT / "config" / "settings.yaml")
+    import sys
+    print(f"[CONFIG] ROOT={ROOT}", file=sys.stderr)
+    print(f"[CONFIG] Looking for config at: {path}", file=sys.stderr)
+    print(f"[CONFIG] Config exists: {path.exists()}", file=sys.stderr)
+
     raw: dict[str, Any] = {}
     if path.exists():
         loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
         if isinstance(loaded, dict):
             raw = loaded
+            print(f"[CONFIG] Loaded config with {len(raw)} sections", file=sys.stderr)
+        else:
+            print(f"[CONFIG] Config file is not a dict: {type(loaded)}", file=sys.stderr)
+    else:
+        print(f"[CONFIG] Config file NOT FOUND", file=sys.stderr)
 
     db_url = (
         os.environ.get("STOCKINTEL_DB_URL")
