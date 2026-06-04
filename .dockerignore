@@ -7,6 +7,8 @@
 **/*.sqlite
 stockintel/data/
 data/
+# Secrets niemals ins Image backen (Keys kommen über Env-Variablen):
+**/.env
 .git
 .github
 *.md

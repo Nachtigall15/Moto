@@ -1,0 +1,71 @@
+# StockIntel — aktive Konfiguration (wird deployt).
+# Geheimnisse (API-Keys) gehoeren in .env bzw. Railway-Variablen, NICHT hierher.
+
+database:
+  # Standard ist SQLite lokal. Spaeter optional Postgres-URL.
+  url: "sqlite:///data/stockintel.db"
+
+# Beobachtete Aktien (Watchlist). Die Engine ueberwacht diese Liste UND
+# entdeckt neue Profiteure aus Trends.
+watchlist:
+  - { ticker: "NVDA", name: "NVIDIA",     sector: "Semiconductors" }
+  - { ticker: "MRVL", name: "Marvell",    sector: "Semiconductors" }
+  - { ticker: "TSLA", name: "Tesla",      sector: "Automotive" }
+
+# Event-Study: Horizonte fuer die Kursreaktions-Messung.
+event_study:
+  index_benchmark: "SPY"        # fuer Abnormal-Return-Berechnung
+  horizons:                     # Offsets ab Ereignis-Zeitpunkt t0
+    - "1h"
+    - "4h"
+    - "1d"
+    - "3d"
+    - "1w"
+    - "1m"
+  # Schwelle, ab der eine Rueckkehr als "Hickup" (Strohfeuer) gilt (Anteil
+  # der anfaenglichen Bewegung, der wieder abgegeben wird).
+  hickup_reversal_ratio: 0.6
+
+# IPO -> Investoren. 13F-Filer (institutionelle Manager), deren Positionen mit
+# erkannten IPO-Events abgeglichen werden. CIK = SEC Central Index Key.
+ipo:
+  managers: []
+  # Beispiel:
+  #   - { cik: "1067983", name: "Berkshire Hathaway" }
+
+# KI-Modelle (Phase 2). Triage guenstig, Tiefenanalyse stark.
+models:
+  triage: "claude-haiku-4-5-20251001"
+  deep: "claude-sonnet-4-6"
+
+# Quellen aktivieren/deaktivieren (Phase 1: edgar + rss implementiert).
+collectors:
+  edgar:
+    enabled: true
+    # SEC verlangt einen aussagekraeftigen User-Agent mit Kontakt.
+    # Alternativ ueber Umgebungsvariable STOCKINTEL_SEC_UA setzen.
+    user_agent: "StockIntel research ftrapp@gmx.net"
+    limit: 20              # juengste Filings je Unternehmen
+  rss:
+    enabled: true
+    # Leer lassen = eingebaute Standard-Feeds (CNBC, WSJ, Nasdaq).
+    feeds: []
+  stocktwits:
+    enabled: true                  # schluessellos; nutzt die Watchlist-Ticker
+  reddit:
+    enabled: false                 # braucht PRAW-Credentials; bei Bedarf in .env setzen und aktivieren
+    subreddits: ["wallstreetbets", "stocks", "investing", "technology"]
+    limit: 25                      # neueste Beitraege je Subreddit
+  finnhub:
+    enabled: true                  # Key liegt in .env (FINNHUB_API_KEY)
+    lookback_days: 7               # Zeitfenster der Unternehmens-News je Ticker
+    # limit: 50                    # optional: Obergrenze Items je Ticker
+  youtube:
+    enabled: true                  # schluessellos: Channel-RSS + Transkripte
+    channels:
+      - "UCaF3G5YV1Y6VTfDhL37dJ0A"  # MarketWatch
+      - "UC5MUzjgmZw8dBRhLFm8Bk3g"  # CNBC
+      - "UCq7i-KJ7M16e8FmTCl6mFWA"  # Bloomberg TV
+    limit: 10                       # neueste Videos je Channel
+    languages: ["en"]              # bevorzugte Transkriptsprachen
+    transcripts: true              # Transkripte laden

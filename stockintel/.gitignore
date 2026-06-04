@@ -11,9 +11,10 @@ dist/
 .pytest_cache/
 .ruff_cache/
 
-# Secrets & lokale Konfiguration
+# Secrets (API-Keys etc.). Die nicht-geheime config/settings.yaml wird
+# bewusst eingecheckt, damit das Deployment (Railway/Docker) die Watchlist
+# und Collector-Konfiguration kennt. Secrets gehören ausschließlich in .env.
 .env
-config/settings.yaml
 
 # Lokale Datenbank / Daten
 *.db
