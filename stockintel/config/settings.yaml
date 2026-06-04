@@ -66,6 +66,6 @@ collectors:
       - "UCaF3G5YV1Y6VTfDhL37dJ0A"  # MarketWatch
       - "UC5MUzjgmZw8dBRhLFm8Bk3g"  # CNBC
       - "UCq7i-KJ7M16e8FmTCl6mFWA"  # Bloomberg TV
-    limit: 10                       # neueste Videos je Channel
+    limit: 8                        # neueste Videos je Channel
     languages: ["en"]              # bevorzugte Transkriptsprachen
-    transcripts: true              # Transkripte laden
+    transcripts: false             # erst aus (Transkript-Requests sind langsam); bei Bedarf auf true

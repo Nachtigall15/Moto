@@ -8,11 +8,15 @@ from __future__ import annotations
 
 import calendar
 import datetime as dt
+import logging
 from typing import Iterable
 
 import feedparser
+import httpx
 
 from stockintel.collectors.base import BaseCollector, CollectedItem
+
+logger = logging.getLogger(__name__)
 
 # Frei verfügbare, schlüssellose Finanz-/Markt-Feeds als Standard.
 DEFAULT_FEEDS: list[str] = [
@@ -56,8 +60,21 @@ class RssCollector(BaseCollector):
     def __init__(self, config: dict | None = None) -> None:
         super().__init__(config)
         self.feeds: list[str] = self.config.get("feeds") or DEFAULT_FEEDS
+        # Timeout je Feed-Request. feedparser.parse(url) selbst kennt KEIN
+        # Timeout — ein hängender Feed würde sonst den ganzen Sammel-Durchlauf
+        # blockieren. Daher laden wir den Feed via httpx (mit Timeout) und
+        # parsen anschließend nur den String.
+        self.timeout: float = float(self.config.get("timeout", 15.0))
 
     def fetch(self) -> Iterable[CollectedItem]:
-        for url in self.feeds:
-            parsed = feedparser.parse(url)
-            yield from parse_entries(parsed)
+        headers = {"User-Agent": "StockIntel/0.0.1 (+rss)"}
+        with httpx.Client(headers=headers, timeout=self.timeout, follow_redirects=True) as client:
+            for url in self.feeds:
+                try:
+                    resp = client.get(url)
+                    resp.raise_for_status()
+                except Exception as exc:  # noqa: BLE001 - pro Feed robust bleiben
+                    logger.warning("RSS-Feed nicht abrufbar (%s): %s", url, exc)
+                    continue
+                parsed = feedparser.parse(resp.content)
+                yield from parse_entries(parsed)
