@@ -322,7 +322,7 @@ async function loadCompanies() {
     try {
         const companies = await fetchJSON("/companies?limit=100");
         if (!companies.length) {
-            body.innerHTML = `<tr><td colspan="4" class="loading">Keine Companies.</td></tr>`;
+            body.innerHTML = `<tr><td colspan="5" class="loading">Keine Companies.</td></tr>`;
             return;
         }
         // Sortiere nach Signal-Count (absteigend), Watchlist zuerst
@@ -341,12 +341,36 @@ async function loadCompanies() {
                 <td>${escapeHtml(c.name)}</td>
                 <td>${escapeHtml(c.sector || "–")}</td>
                 <td><span style="font-weight: bold; color: #58a6ff;">${c.signal_count}</span></td>
+                <td><button class="delete-company-btn" data-ticker="${escapeHtml(c.ticker)}" title="Diese Firma komplett löschen" style="background: #f85149; color: #fff; border: none; padding: 0.35rem 0.6rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">🗑️</button></td>
             </tr>
         `}).join("");
         attachCompanyListeners();
+        attachCompanyDeleteListeners();
     } catch (e) {
-        body.innerHTML = `<tr><td colspan="4" class="loading">Fehler: ${escapeHtml(e.message)}</td></tr>`;
+        body.innerHTML = `<tr><td colspan="5" class="loading">Fehler: ${escapeHtml(e.message)}</td></tr>`;
     }
+}
+
+function attachCompanyDeleteListeners() {
+    document.querySelectorAll("#companies-body .delete-company-btn").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+            e.stopPropagation();  // nicht das Detail-Modal öffnen
+            const ticker = btn.dataset.ticker;
+            if (!confirm(`"${ticker}" wirklich vollständig löschen?\n(inkl. aller Signale und Empfehlungen)`)) {
+                return;
+            }
+            btn.disabled = true;
+            btn.textContent = "…";
+            try {
+                await fetchJSON(`/company/${encodeURIComponent(ticker)}`, { method: "DELETE" });
+                await loadAll();
+            } catch (err) {
+                alert("Löschen fehlgeschlagen: " + err.message);
+                btn.disabled = false;
+                btn.textContent = "🗑️";
+            }
+        });
+    });
 }
 
 function attachCompanyListeners() {
@@ -915,6 +939,25 @@ async function triggerScore() {
     }
 }
 
+async function triggerAnalyze() {
+    const btn = document.getElementById("analyze-btn");
+    if (!btn) return;
+    const orig = btn.textContent;
+    btn.textContent = "KI bewertet…";
+    btn.disabled = true;
+    try {
+        const res = await fetchJSON("/analyze?limit=25", { method: "POST" });
+        const s = (res && res.stats) || {};
+        alert(`KI-Bewertung fertig:\n• ${s.analyzed ?? 0} bewertet\n• ${s.errors ?? 0} Fehler\n• ${s.pending ?? 0} in dieser Runde geladen`);
+        await Promise.all([loadSignals(), loadStats(), loadRecommendations()]);
+    } catch (e) {
+        alert("KI-Bewertung fehlgeschlagen: " + e.message + "\n(Braucht ANTHROPIC_API_KEY in der Umgebung.)");
+    } finally {
+        btn.textContent = orig;
+        btn.disabled = false;
+    }
+}
+
 async function triggerCleanup() {
     const btn = document.getElementById("cleanup-btn");
     if (!btn) return;
@@ -947,6 +990,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("autorefresh-btn").addEventListener("click", toggleAutoRefresh);
     const cleanupBtn = document.getElementById("cleanup-btn");
     if (cleanupBtn) cleanupBtn.addEventListener("click", triggerCleanup);
+    const analyzeBtn = document.getElementById("analyze-btn");
+    if (analyzeBtn) analyzeBtn.addEventListener("click", triggerAnalyze);
 
     // Stat cards click handlers for navigation
     document.getElementById("stat-items-card").addEventListener("click", () => {

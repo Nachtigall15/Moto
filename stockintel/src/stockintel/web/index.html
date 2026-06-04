@@ -126,6 +126,7 @@
             <div class="panel-header">
                 <h2>📡 Top Signals</h2>
                 <div class="filters">
+                    <button class="action-btn" id="analyze-btn" title="Offene Nachrichten von der KI bewerten lassen (Relevanz, Richtung, Begründung)">🤖 KI-Bewerten</button>
                     <input type="text" id="ticker-filter" placeholder="Ticker (z.B. NVDA)" />
                     <label><input type="checkbox" id="analyzed-only" /> Nur KI-bewertet</label>
                 </div>
@@ -171,10 +172,11 @@
                                 <th>Name</th>
                                 <th>Sektor</th>
                                 <th style="cursor: pointer;">Signals</th>
+                                <th>Aktion</th>
                             </tr>
                         </thead>
                         <tbody id="companies-body">
-                            <tr><td colspan="4" class="loading">Lade…</td></tr>
+                            <tr><td colspan="5" class="loading">Lade…</td></tr>
                         </tbody>
                     </table>
                 </div>

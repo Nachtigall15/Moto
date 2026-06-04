@@ -552,13 +552,55 @@ def create_app() -> FastAPI:
             logger.warning(f"Post-Cleanup-Schritte fehlgeschlagen: {e}")
         return {"status": "ok", "report": report}
 
+    @app.delete("/company/{ticker}")
+    async def delete_company(ticker: str):
+        """Löscht eine Company **vollständig** inkl. aller Signale, Events,
+        Empfehlungen und Theme-Verknüpfungen. Für manuelles Aufräumen einzelner
+        (Dubletten-)Einträge direkt aus den Listen."""
+        with db.session() as session:
+            company = session.scalar(
+                select(Company).where(Company.ticker == ticker.upper())
+            )
+            if not company:
+                raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
+
+            # Events brauchen das Löschen ihrer Kind-Datensätze (Snapshots/Outcome).
+            event_ids = list(session.scalars(
+                select(Event.id).where(Event.company_id == company.id)
+            ))
+            if event_ids:
+                for snap in session.scalars(
+                    select(EventSnapshot).where(EventSnapshot.event_id.in_(event_ids))
+                ):
+                    session.delete(snap)
+                for outcome in session.scalars(
+                    select(EventOutcome).where(EventOutcome.event_id.in_(event_ids))
+                ):
+                    session.delete(outcome)
+
+            # Direkte company_id-Abhängigkeiten entfernen.
+            from stockintel.db.models import ThemeBeneficiary
+
+            for model in (Signal, Event, Recommendation, ThemeBeneficiary):
+                for row in session.scalars(select(model).where(model.company_id == company.id)):
+                    session.delete(row)
+
+            session.delete(company)
+            session.commit()
+            return {"status": "ok", "ticker": ticker.upper(), "deleted": True}
+
     @app.get("/signals/detailed", response_model=list[SignalDetailInfo])
     async def list_signals_detailed(
         limit: int = Query(100, ge=1, le=1000),
         ticker: str | None = None,
         source_key: str | None = None,
+        analyzed_only: bool = False,
     ):
-        """Listet Signals mit vollständiger Information: Quelle, Timestamp, URL."""
+        """Listet Signals mit vollständiger Information: Quelle, Timestamp, URL.
+
+        ``analyzed_only=true`` blendet die regelbasierten Platzhalter aus und
+        zeigt nur KI-bewertete Signals (nach Relevanz absteigend)."""
+        from stockintel.analysis.entity import RULE_BASED_MODEL
         from stockintel.db.models import RawItem
 
         with db.session() as session:
@@ -573,10 +615,15 @@ def create_app() -> FastAPI:
                 stmt = stmt.where(Company.ticker == ticker.upper())
             if source_key:
                 stmt = stmt.where(Source.key == source_key)
+            if analyzed_only:
+                # Nur KI-bewertete Signals; die relevantesten zuerst.
+                stmt = stmt.where(Signal.model != RULE_BASED_MODEL).order_by(
+                    desc(Signal.relevance), desc(Signal.created_at)
+                )
+            else:
+                stmt = stmt.order_by(desc(Signal.created_at))
 
-            rows = session.execute(
-                stmt.order_by(desc(Signal.created_at)).limit(limit)
-            ).all()
+            rows = session.execute(stmt.limit(limit)).all()
 
             return [
                 SignalDetailInfo(

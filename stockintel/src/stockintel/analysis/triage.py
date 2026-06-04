@@ -29,12 +29,12 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 
 from stockintel.analysis.entity import RULE_BASED_MODEL
 from stockintel.config import Settings
 from stockintel.db.database import Database
-from stockintel.db.models import Company, Direction, Horizon, Impact, RawItem, Signal
+from stockintel.db.models import Company, Direction, Horizon, Impact, RawItem, Signal, Source
 
 DEFAULT_TRIAGE_MODEL = "claude-haiku-4-5-20251001"
 TOOL_NAME = "record_evaluation"
@@ -222,14 +222,28 @@ def analyze_signals(db: Database, settings: Settings, limit: int = 20) -> dict[s
     models_cfg = settings.section("models")
     model = models_cfg.get("triage") or DEFAULT_TRIAGE_MODEL
 
+    # Quellen-Priorität: substanzielle Quellen (Filings, Unternehmens-News)
+    # zuerst bewerten, Social-Geplauder (StockTwits/Reddit) zuletzt — so liefert
+    # das begrenzte Token-Budget zuerst die aussagekräftigen Bewertungen.
+    source_priority = case(
+        (Source.key == "edgar", 1),
+        (Source.key == "finnhub", 2),
+        (Source.key == "rss", 3),
+        (Source.key == "youtube", 4),
+        (Source.key == "reddit", 5),
+        (Source.key == "stocktwits", 6),
+        else_=9,
+    )
+
     # Arbeit vorab laden, damit keine DB-Session über die Netzwerk-Aufrufe offen bleibt.
     with db.session() as session:
         rows = session.execute(
             select(Signal.id, RawItem.title, RawItem.body, Company.ticker, Company.name)
             .join(RawItem, Signal.raw_item_id == RawItem.id)
             .join(Company, Signal.company_id == Company.id)
+            .join(Source, RawItem.source_id == Source.id)
             .where(Signal.model == RULE_BASED_MODEL)
-            .order_by(Signal.id)
+            .order_by(source_priority, Signal.id)
             .limit(limit)
         ).all()
 
