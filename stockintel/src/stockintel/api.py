@@ -268,8 +268,18 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     async def health():
-        """Health Check."""
-        return {"status": "ok", "version": "0.0.1"}
+        """Health Check inkl. Diagnose: zeigt, ob die config/watchlist geladen ist."""
+        return {
+            "status": "ok",
+            "version": "0.0.1",
+            "build": "config-fix-1",
+            "watchlist_configured": len(settings.watchlist),
+            "collectors_enabled": [
+                name
+                for name, cfg in settings.section("collectors").items()
+                if isinstance(cfg, dict) and cfg.get("enabled")
+            ],
+        }
 
     @app.get("/companies", response_model=list[CompanyInfo])
     async def list_companies(limit: int = Query(50, ge=1, le=1000)):
