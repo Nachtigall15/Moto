@@ -111,6 +111,35 @@ Tabelle gespeichert mit Strength (0.0–1.0, default 0.7) und Rationale.
 Eigene Themes hinzufügen: `src/stockintel/analysis/themes.py` → `THEME_PATTERNS`
 liste erweitern mit Keywords, betroffene Sektoren, Beschreibung.
 
+### Event-Study, Hickups & Forward-Tracking (Phase 4)
+
+Aus bewerteten Signals werden **Events** verdichtet, deren Kursreaktion über
+feste Horizonte (`1h … 1m`) gemessen wird — historisch via **yfinance** und live
+per Forward-Tracking. Daraus entstehen abnormale Renditen (gegen den Benchmark),
+**Hickup**-Erkennung (Strohfeuer: Spike + Rückkehr) und **Basisraten je
+Ereignistyp**.
+
+```bash
+pip install -e .[collectors]          # yfinance (einmalig, für Kursdaten)
+
+stockintel event-study                # Signals -> Events -> Snapshots -> Outcomes
+stockintel events --ticker NVDA       # Events + Final/Abnormal-Return + Hickup
+stockintel track                      # fällige Horizonte live erfassen (Forward)
+stockintel reaction-profiles          # Ø Reaktion + Hickup-Quote je Ereignistyp
+```
+
+Ohne Marktdaten (kein Netz/yfinance) entstehen weiterhin Events, nur keine
+Snapshots/Outcomes — die Engine bleibt lauffähig. Horizonte, Benchmark und die
+Hickup-Schwelle (`hickup_reversal_ratio`) stehen unter `event_study` in
+`settings.yaml`.
+
+### IPO → Investoren (13F, Phase 3b)
+
+`stockintel find-ipo` scannt EDGAR-S-1-Filings für IPO-Events **und** gleicht die
+Positionen verfolgter institutioneller Manager (13F-HR) gegen sie ab. Die Manager
+werden unter `ipo.managers` (CIK + Name) in `settings.yaml` gepflegt; Treffer
+erscheinen in `stockintel ipos`.
+
 ### REST-API & Web-Dashboard (Phase 5 + 6)
 
 Die Engine bringt eine FastAPI-Schnittstelle und ein Browser-Dashboard mit:
@@ -177,14 +206,18 @@ Stats, Companies, Signals, Recommendations sowie Trigger für `analyze`/`score`.
 Background-Scheduler (APScheduler) für tägliche Läufe. Alert-System (`alerts.py`)
 mit Log/Slack/Email-Handlern.
 
-**Phase 4 — Event-Study + Scoring.** `analysis/eventstudy.py` klassifiziert
-Events (Earnings, FDA, M&A, …) und erkennt Hickups (Spike + Rückkehr).
+**Phase 4 — Event-Study + Scoring.** `analysis/eventstudy.py` verdichtet Signals
+zu Events, lädt Kursreaktionen (historisch via **yfinance**, live per
+**Forward-Tracking**), rechnet abnormale Renditen gegen den Benchmark, erkennt
+Hickups (Spike + Rückkehr) und aggregiert **Basisraten je Ereignistyp**
+(`ReactionProfile`). CLI: `event-study`, `events`, `track`, `reaction-profiles`.
 `analysis/scoring.py` aggregiert Signals zu **Buy/Hold/Sell**-Empfehlungen
 (`stockintel score` / `recommendations`).
 
 **Phase 3 — Linking.** `analysis/themes.py` erkennt Hypes (AI, EV, Cloud, …) und
 verknüpft Profiteure nach Sektor. `analysis/ipo.py` scannt EDGAR-S-1-Filings für
-IPO-Events. CLI: `link-themes`, `themes`, `find-ipo`, `ipos`.
+IPO-Events und verknüpft institutionelle Halter aus **13F-Filings**
+(`analysis/thirteenf.py`). CLI: `link-themes`, `themes`, `find-ipo`, `ipos`.
 
 **Phase 2 — Entity-Resolution + KI-Triage.** Eine **regelbasierte** Verknüpfung
 (`analysis/entity.py`) ordnet jeden neuen `RawItem` per Ticker-/Namens-Match
@@ -195,11 +228,11 @@ Claude-Modell (strukturiert via Tool-Use, mit Prompt-Caching): Relevanz,
 Richtung, Kurswirkung, Horizont, Konfidenz, Begründung. Anzeige über
 `stockintel signals`.
 
-**Phase 1 — Daten-Collectors.** Aktiv: **EDGAR**, **RSS**, **StockTwits**
-(alle schlüssellos), **Finnhub** (Unternehmens-News, Free-Tier-Key) sowie
-**Reddit** (braucht API-Credentials). Eingesammelte Informationen werden
-dedupliziert als `RawItem` gespeichert. `collect` kann per `--loop` wiederkehrend
-sammeln. YouTube folgt (siehe Roadmap).
+**Phase 1 — Daten-Collectors.** Aktiv: **EDGAR**, **RSS**, **StockTwits**,
+**YouTube** (Channel-RSS + Transkripte, alle schlüssellos), **Finnhub**
+(Unternehmens-News, Free-Tier-Key) sowie **Reddit** (braucht API-Credentials).
+Eingesammelte Informationen werden dedupliziert als `RawItem` gespeichert.
+`collect` kann per `--loop` wiederkehrend sammeln.
 
 Frühere Stände:
 - **Phase 0 — Gerüst.** Verzeichnisstruktur, Konfiguration, vollständiges
@@ -220,8 +253,8 @@ stockintel/
 │   ├── alerts.py           Alert-Handler: Log/Slack/Email (Phase 5)
 │   ├── web/                Web-Dashboard: HTML/CSS/JS (Phase 6)
 │   ├── db/                 Datenbank: models.py, database.py
-│   ├── collectors/         Quellen-Adapter (Phase 1)
-│   ├── analysis/           Entity, Triage, Themes, IPO, Eventstudy, Scoring
+│   ├── collectors/         Quellen-Adapter inkl. YouTube (Phase 1)
+│   ├── analysis/           Entity, Triage, Themes, IPO/13F, Eventstudy, Prices, Scoring
 │   ├── linking/            Hype->Profiteure, IPO->Investoren (Phase 3)
 │   ├── eventstudy/         Historische Kursreaktionen / Hickups (Phase 4)
 │   ├── scoring/            Buy/Hold/Sell (Phase 4)

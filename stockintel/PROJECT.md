@@ -95,13 +95,18 @@ Baseline(t0-) | t0 | +1h | +4h | +1d | +3d | +1w | +1m
 
 ## Roadmap
 
-- **Phase 0** – Geruest: Verzeichnis, Python-Setup, DB-Schema, Config *(dieser Stand)*
-- **Phase 1** – Collectors (EDGAR + RSS + Finnhub + YouTube + Reddit) -> DB
-- **Phase 2** – Entity-Resolution + KI-Bewertung -> erste echte Signale
-- **Phase 3** – Linking: Hype->Profiteure & IPO->Investoren
-- **Phase 4** – Event-Study + Scoring -> Buy/Hold/Sell + erster Tagesreport
-- **Phase 5** – FastAPI + Alerts
-- **Phase 6** – Web-Dashboard, danach Flutter-App
+- **Phase 0** – Geruest: Verzeichnis, Python-Setup, DB-Schema, Config ✅
+- **Phase 1** – Collectors (EDGAR + RSS + Finnhub + YouTube + Reddit + StockTwits) -> DB ✅
+- **Phase 2** – Entity-Resolution + KI-Bewertung -> erste echte Signale ✅
+- **Phase 3** – Linking: Hype->Profiteure & IPO->Investoren (13F) ✅
+- **Phase 4** – Event-Study (yfinance + Forward-Tracking, Hickups, Reaction-Profiles)
+  + Scoring -> Buy/Hold/Sell ✅
+- **Phase 5** – FastAPI + Alerts + Scheduler ✅
+- **Phase 6** – Web-Dashboard ✅, danach Flutter-App
+
+**Offen / als Nächstes:** KI-Tiefenanalyse (starkes Modell) als zweite Stufe nach
+der Triage; Reaction-Profiles in Konfidenz/Scoring einfliessen lassen; Tagesreport
+(`delivery/`).
 
 ## Tech-Stack
 
