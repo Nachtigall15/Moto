@@ -26,5 +26,8 @@ EXPOSE 8000
 COPY stockintel/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
+# Force rebuild 2 (cache bust) - 2026-06-04 15:34:00 UTC
+RUN echo "Building with config diagnostics"
+
 # Entrypoint: waits for DB, initializes schema, starts API (für Railway deployment)
 ENTRYPOINT ["/app/entrypoint.sh"]
