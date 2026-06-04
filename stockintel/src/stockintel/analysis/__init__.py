@@ -36,8 +36,13 @@ from stockintel.analysis.ipo import (
     link_ipo_investors,
 )
 from stockintel.analysis.eventstudy import (
+    backfill_event_snapshots,
+    build_events_from_signals,
     classify_event_type,
     classify_hickup,
+    compute_event_outcome,
+    persist_event_outcome,
+    run_event_study,
     signal_to_event,
 )
 from stockintel.analysis.scoring import (
@@ -50,10 +55,13 @@ __all__ = [
     "CompanyMatcher",
     "Match",
     "analyze_signals",
+    "backfill_event_snapshots",
+    "build_events_from_signals",
     "build_triage_tool",
     "build_user_content",
     "classify_event_type",
     "classify_hickup",
+    "compute_event_outcome",
     "extract_tool_input",
     "extract_themes_from_text",
     "extract_ipo_from_s1",
@@ -65,6 +73,8 @@ __all__ = [
     "link_ipo_investors",
     "matcher_from_company",
     "parse_triage_response",
+    "persist_event_outcome",
+    "run_event_study",
     "score_company",
     "score_relevance",
     "signal_to_event",

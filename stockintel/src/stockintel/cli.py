@@ -6,6 +6,8 @@ Verfügbare Befehle:
   * ``stockintel link``              – RawItems regelbasiert mit Companies verknüpfen
   * ``stockintel analyze``           – offene Signals mit dem KI-Triage-Modell bewerten
   * ``stockintel score``             – Buy/Hold/Sell Recommendations generieren
+  * ``stockintel event-study``       – Events + Kursreaktionen (yfinance) berechnen
+  * ``stockintel events``            – erkannte Events + Kursreaktionen anzeigen
   * ``stockintel find-ipo``          – EDGAR S-1 Filings scannen, IPO-Events anlegen
   * ``stockintel link-themes``       – Themes erkennen, Beneficiaries verlinken
   * ``stockintel items``             – Items anzeigen (Filter: ``--ticker``, ``--source``)
@@ -227,6 +229,59 @@ def cmd_recommendations(args: argparse.Namespace) -> int:
             )
             if rationale:
                 print(f"         → {rationale[:70]}")
+    return 0
+
+
+def cmd_event_study(args: argparse.Namespace) -> int:
+    from stockintel.analysis.eventstudy import run_event_study
+
+    settings = load_settings()
+    db = get_database(settings)
+    print(f"Event-Study läuft (max {args.limit} Events, yfinance-Kursdaten)…")
+    stats = run_event_study(db, settings, limit=args.limit)
+    print(
+        f"Events neu: {stats['events_created']}, "
+        f"Snapshots geschrieben: {stats['snapshots_written']}, "
+        f"Outcomes: {stats['outcomes_computed']} (davon Hickups: {stats['hickups']})"
+    )
+    if stats["snapshots_written"] == 0 and stats["events_created"] >= 0:
+        print("Hinweis: Ohne Marktdaten (yfinance/Netzwerk) entstehen keine Snapshots/Outcomes.")
+    return 0
+
+
+def cmd_events(args: argparse.Namespace) -> int:
+    from sqlalchemy import desc, select
+    from sqlalchemy.orm import joinedload
+
+    from stockintel.db.models import Company, Event
+
+    settings = load_settings()
+    db = get_database(settings)
+    with db.session() as session:
+        stmt = (
+            select(Event, Company.ticker)
+            .join(Company, Event.company_id == Company.id)
+            .options(joinedload(Event.outcome))
+            .order_by(desc(Event.t0))
+            .limit(args.limit)
+        )
+        if args.ticker:
+            stmt = stmt.where(Company.ticker == args.ticker.upper())
+        rows = session.execute(stmt).all()
+        if not rows:
+            print("Keine Events. Erst 'stockintel event-study' ausführen.")
+            return 0
+        print(f"{'Ticker':<8} {'Typ':<16} {'t0':<12} {'Final':>8} {'Abn.':>8} {'Hickup':<7} Summary")
+        for event, ticker in rows:
+            when = event.t0.date().isoformat() if event.t0 else "----------"
+            oc = event.outcome
+            final = f"{oc.final_return*100:+.1f}%" if oc and oc.final_return is not None else "  –"
+            abn = f"{oc.abnormal_return*100:+.1f}%" if oc and oc.abnormal_return is not None else "  –"
+            hickup = "ja" if oc and oc.is_hickup else ("nein" if oc else "–")
+            print(
+                f"{ticker:<8} {event.event_type.value:<16} {when:<12} "
+                f"{final:>8} {abn:>8} {hickup:<7} {(event.summary or '')[:40]}"
+            )
     return 0
 
 
@@ -464,6 +519,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Nur KI-bewertete Signals (regelbasierte ausblenden)",
     )
     p_signals.set_defaults(func=cmd_signals)
+
+    p_event_study = sub.add_parser(
+        "event-study",
+        help="Signals -> Events -> Kurs-Snapshots (yfinance) -> Outcomes/Hickups",
+    )
+    p_event_study.add_argument(
+        "--limit", type=int, default=100,
+        help="Maximale Anzahl Events pro Lauf (Standard 100)",
+    )
+    p_event_study.set_defaults(func=cmd_event_study)
+
+    p_events = sub.add_parser("events", help="Erkannte Events + Kursreaktionen anzeigen")
+    p_events.add_argument("--limit", type=int, default=20, help="Anzahl (Standard 20)")
+    p_events.add_argument("--ticker", type=str, default=None, help="Nur eine Aktie (z.B. NVDA)")
+    p_events.set_defaults(func=cmd_events)
 
     p_find_ipo = sub.add_parser(
         "find-ipo",
