@@ -718,15 +718,18 @@ document.addEventListener("DOMContentLoaded", () => {
                 const result = await fetchJSON(`/search/companies?query=${encodeURIComponent(query)}`);
                 if (result.results && result.results.length > 0) {
                     resultsDiv.innerHTML = result.results.map(company => `
-                        <div class="search-result-item" style="padding: 0.8rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s;"
-                             onmouseover="this.style.background='rgba(88, 166, 255, 0.1)'"
+                        <div class="search-result-item" style="padding: 1.2rem; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; display: flex; justify-content: space-between; align-items: center;"
+                             onmouseover="this.style.background='rgba(88, 166, 255, 0.15)'"
                              onmouseout="this.style.background='transparent'"
                              data-ticker="${escapeHtml(company.ticker)}"
                              data-name="${escapeHtml(company.name)}"
                              data-sector="${escapeHtml(company.sector || '')}">
-                            <div style="font-weight: bold; color: #58a6ff;">${escapeHtml(company.ticker)}</div>
-                            <div style="color: #8b949e; font-size: 0.9rem;">${escapeHtml(company.name)}</div>
-                            ${company.sector ? `<div style="color: #8b949e; font-size: 0.85rem;">📊 ${escapeHtml(company.sector)}</div>` : ''}
+                            <div style="flex: 1;">
+                                <div style="font-weight: bold; color: #58a6ff; font-size: 1.1rem;">${escapeHtml(company.ticker)}</div>
+                                <div style="color: #c9d1d9; font-size: 0.95rem; margin-top: 0.2rem;">${escapeHtml(company.name)}</div>
+                                ${company.sector ? `<div style="color: #8b949e; font-size: 0.85rem; margin-top: 0.3rem;">📊 ${escapeHtml(company.sector)}</div>` : ''}
+                            </div>
+                            <div style="background: rgba(88, 166, 255, 0.2); padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.8rem; margin-left: 1rem; white-space: nowrap;">➕ Hinzufügen</div>
                         </div>
                     `).join("");
                     resultsDiv.style.display = "block";
@@ -755,11 +758,11 @@ document.addEventListener("DOMContentLoaded", () => {
                         });
                     });
                 } else {
-                    resultsDiv.innerHTML = `<div style="padding: 0.8rem; color: #8b949e;">Keine Ergebnisse gefunden</div>`;
+                    resultsDiv.innerHTML = `<div style="padding: 1.5rem; text-align: center; color: #8b949e;">😕 Keine Ergebnisse gefunden</div>`;
                     resultsDiv.style.display = "block";
                 }
             } catch (e) {
-                resultsDiv.innerHTML = `<div style="padding: 0.8rem; color: #f85149;">Fehler: ${escapeHtml(e.message)}</div>`;
+                resultsDiv.innerHTML = `<div style="padding: 1.5rem; text-align: center; color: #f85149;">⚠️ Fehler: ${escapeHtml(e.message)}</div>`;
                 resultsDiv.style.display = "block";
             }
         }, 300);

@@ -371,39 +371,90 @@ def create_app() -> FastAPI:
                 for row in rows
             ]
 
+    # Bekannte Companies mit Sektor-Informationen
+    _COMPANY_DATABASE = {
+        "AAPL": {"name": "Apple Inc.", "sector": "Technology"},
+        "MSFT": {"name": "Microsoft Corporation", "sector": "Technology"},
+        "GOOGL": {"name": "Alphabet Inc.", "sector": "Technology"},
+        "GOOG": {"name": "Alphabet Inc.", "sector": "Technology"},
+        "AMZN": {"name": "Amazon.com Inc.", "sector": "Consumer Cyclical"},
+        "NVDA": {"name": "NVIDIA Corporation", "sector": "Semiconductors"},
+        "META": {"name": "Meta Platforms Inc.", "sector": "Technology"},
+        "TSLA": {"name": "Tesla Inc.", "sector": "Automotive"},
+        "BRK.B": {"name": "Berkshire Hathaway Inc.", "sector": "Financial"},
+        "JNJ": {"name": "Johnson & Johnson", "sector": "Healthcare"},
+        "V": {"name": "Visa Inc.", "sector": "Financial"},
+        "WMT": {"name": "Walmart Inc.", "sector": "Consumer Defensive"},
+        "JPM": {"name": "JPMorgan Chase & Co.", "sector": "Financial"},
+        "PG": {"name": "Procter & Gamble Co.", "sector": "Consumer Defensive"},
+        "NFLX": {"name": "Netflix Inc.", "sector": "Communication Services"},
+        "MRVL": {"name": "Marvell Technology Inc.", "sector": "Semiconductors"},
+        "AMD": {"name": "Advanced Micro Devices Inc.", "sector": "Semiconductors"},
+        "INTC": {"name": "Intel Corporation", "sector": "Semiconductors"},
+        "QCOM": {"name": "Qualcomm Inc.", "sector": "Semiconductors"},
+        "ASML": {"name": "ASML Holding N.V.", "sector": "Semiconductors"},
+        "TSM": {"name": "Taiwan Semiconductor Manufacturing Company", "sector": "Semiconductors"},
+        "COST": {"name": "Costco Wholesale Corporation", "sector": "Consumer Defensive"},
+        "BA": {"name": "The Boeing Company", "sector": "Industrials"},
+        "GE": {"name": "General Electric Company", "sector": "Industrials"},
+        "IBM": {"name": "International Business Machines Corporation", "sector": "Technology"},
+        "ORCL": {"name": "Oracle Corporation", "sector": "Technology"},
+        "CSCO": {"name": "Cisco Systems Inc.", "sector": "Technology"},
+        "ADBE": {"name": "Adobe Inc.", "sector": "Technology"},
+        "CRM": {"name": "Salesforce Inc.", "sector": "Technology"},
+        "NOW": {"name": "ServiceNow Inc.", "sector": "Technology"},
+        "UBER": {"name": "Uber Technologies Inc.", "sector": "Transportation"},
+        "LYFT": {"name": "Lyft Inc.", "sector": "Transportation"},
+        "SPOT": {"name": "Spotify Technology S.A.", "sector": "Communication Services"},
+        "DASH": {"name": "DoorDash Inc.", "sector": "Consumer Cyclical"},
+        "SNOW": {"name": "Snowflake Inc.", "sector": "Technology"},
+        "CRWD": {"name": "CrowdStrike Holdings Inc.", "sector": "Technology"},
+        "MSTR": {"name": "MicroStrategy Incorporated", "sector": "Technology"},
+    }
+
     @app.get("/search/companies")
     async def search_companies(query: str = Query(...)):
-        """Sucht nach Companies via yfinance oder Fallback."""
+        """Sucht nach Companies in bekannter Datenbank."""
         if not query or len(query.strip()) < 1:
             return {"results": [], "error": "Query zu kurz"}
 
-        query_upper = query.upper()
+        query_upper = query.upper().strip()
 
-        # Versuche mit yfinance
-        try:
-            import yfinance as yf
-            ticker = yf.Ticker(query_upper)
-            info = ticker.info
-
-            result = {
-                "ticker": query_upper,
-                "name": info.get("longName", info.get("shortName", query_upper)),
-                "sector": info.get("sector"),
+        # Exakte Treffer
+        if query_upper in _COMPANY_DATABASE:
+            data = _COMPANY_DATABASE[query_upper]
+            return {
+                "results": [{
+                    "ticker": query_upper,
+                    "name": data["name"],
+                    "sector": data["sector"],
+                }],
+                "error": None
             }
-            return {"results": [result], "error": None}
-        except Exception:
-            pass
 
-        # Fallback: Akzeptiere 1-5 Zeichen als Ticker-Symbole
+        # Fuzzy Match - suche nach Ticker, der mit Query beginnt oder name contains query
+        results = []
+        for ticker, data in _COMPANY_DATABASE.items():
+            if ticker.startswith(query_upper) or query_upper in data["name"].upper():
+                results.append({
+                    "ticker": ticker,
+                    "name": data["name"],
+                    "sector": data["sector"],
+                })
+
+        if results:
+            # Sortiere: Exakte Ticker-Treffer zuerst, dann Nametreffer
+            results.sort(key=lambda x: (x["ticker"] != query_upper, not x["ticker"].startswith(query_upper)))
+            return {"results": results[:15], "error": None}  # Max 15 Ergebnisse
+
+        # Fallback: Akzeptiere als Custom Ticker wenn 1-5 Zeichen
         if 1 <= len(query_upper) <= 5 and query_upper.isalpha():
             return {
-                "results": [
-                    {
-                        "ticker": query_upper,
-                        "name": query,
-                        "sector": None,
-                    }
-                ],
+                "results": [{
+                    "ticker": query_upper,
+                    "name": query,
+                    "sector": None,
+                }],
                 "error": None
             }
 
