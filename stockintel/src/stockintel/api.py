@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -116,12 +116,15 @@ def schedule_background_tasks(db: Database) -> None:
         scheduler.start()
 
     # Collection: alle 7 Minuten frische Daten sammeln (Finnhub, RSS, etc.)
+    # next_run_time=now sorgt für einen sofortigen ersten Lauf beim Start,
+    # damit das Dashboard nicht 7 Minuten lang leer ist.
     scheduler.add_job(
         func=lambda: _background_collect(db, settings),
         trigger="interval",
         minutes=7,
         id="collect_frequent",
         replace_existing=True,
+        next_run_time=datetime.now(),
     )
 
     # Analyze: alle 30 Minuten Signale analysieren
@@ -133,13 +136,15 @@ def schedule_background_tasks(db: Database) -> None:
         replace_existing=True,
     )
 
-    # Score: alle 60 Minuten neue Empfehlungen
+    # Score: alle 60 Minuten neue Empfehlungen. Erster Lauf nach 2 Minuten,
+    # damit der initiale Collect/Link fertig ist und Empfehlungen früh erscheinen.
     scheduler.add_job(
         func=lambda: _background_score(db),
         trigger="interval",
         hours=1,
         id="score_hourly",
         replace_existing=True,
+        next_run_time=datetime.now() + timedelta(minutes=2),
     )
 
     # Forward-Tracking: alle 30 Minuten fällige Kurs-Snapshots erfassen.
