@@ -1,7 +1,7 @@
 """Collector-Registry — baut die aktiven Adapter aus der Konfiguration.
 
-Phase 1 implementiert RSS, EDGAR, StockTwits, Reddit und Finnhub. Weitere
-Quellen (YouTube) werden hier ergänzt, sobald ihre Adapter existieren.
+Implementiert: RSS, EDGAR, StockTwits, Reddit, Finnhub und YouTube. Neue
+Quellen werden hier ergänzt, sobald ihre Adapter existieren.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from stockintel.collectors.finnhub import FinnhubCollector
 from stockintel.collectors.reddit import RedditCollector
 from stockintel.collectors.rss import RssCollector
 from stockintel.collectors.stocktwits import StockTwitsCollector
+from stockintel.collectors.youtube import YouTubeCollector
 from stockintel.config import Settings
 
 
@@ -46,5 +47,9 @@ def build_collectors(settings: Settings) -> list[BaseCollector]:
         params = dict(fh_cfg)
         params["tickers"] = watchlist_tickers   # Finnhub-News je Watchlist-Ticker
         collectors.append(FinnhubCollector(params))
+
+    yt_cfg = cfg.get("youtube", {})
+    if isinstance(yt_cfg, dict) and yt_cfg.get("enabled"):
+        collectors.append(YouTubeCollector(yt_cfg))
 
     return collectors

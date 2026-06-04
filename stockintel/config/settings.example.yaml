@@ -63,4 +63,10 @@ collectors:
     enabled: false                 # auf true setzen, sobald FINNHUB_API_KEY in .env steht
     lookback_days: 7               # Zeitfenster der Unternehmens-News je Ticker
     # limit: 50                    # optional: Obergrenze Items je Ticker
-  youtube:    { enabled: false }   # Phase 1+
+  youtube:
+    enabled: false                 # schluessellos: Channel-RSS + Transkripte
+    channels: []                   # YouTube-Channel-IDs (UC…), z.B. CEO/Analysten-Kanaele
+    # video_ids: []                # optional: einzelne Video-IDs zusaetzlich
+    limit: 5                       # neueste Videos je Channel
+    languages: ["en"]              # bevorzugte Transkriptsprachen
+    transcripts: true              # Transkripte laden (false = nur Titel/Metadaten)
