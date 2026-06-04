@@ -33,9 +33,10 @@ stockintel items --limit 20                # zuletzt gespeicherte Items anzeigen
 
 ## Projektstand
 
-**Phase 1 — Daten-Collectors (EDGAR + RSS).** Eingesammelte Informationen
-werden dedupliziert als `RawItem` gespeichert. Weitere Quellen (Finnhub,
-Reddit, StockTwits, YouTube) und die KI-Bewertung folgen (siehe Roadmap).
+**Phase 1 — Daten-Collectors.** Aktiv: **EDGAR**, **RSS**, **StockTwits**
+(alle schlüssellos) sowie **Reddit** (braucht API-Credentials). Eingesammelte
+Informationen werden dedupliziert als `RawItem` gespeichert. Finnhub, YouTube
+und die KI-Bewertung folgen (siehe Roadmap).
 
 Frühere Stände:
 - **Phase 0 — Gerüst.** Verzeichnisstruktur, Konfiguration, vollständiges

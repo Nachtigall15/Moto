@@ -43,7 +43,11 @@ collectors:
     enabled: true
     # Leer lassen = eingebaute Standard-Feeds (CNBC, WSJ, Nasdaq).
     feeds: []
+  stocktwits:
+    enabled: true                  # schluessellos; nutzt die Watchlist-Ticker
+  reddit:
+    enabled: false                 # auf true setzen, sobald Credentials in .env stehen
+    subreddits: ["wallstreetbets", "stocks", "investing"]
+    limit: 25                      # neueste Beitraege je Subreddit
   finnhub:    { enabled: false }   # Phase 1+, benoetigt FINNHUB_API_KEY
-  reddit:     { enabled: false }   # Phase 1+, benoetigt Reddit-Credentials
-  stocktwits: { enabled: false }   # Phase 1+
   youtube:    { enabled: false }   # Phase 1+

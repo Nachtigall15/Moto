@@ -1,10 +1,14 @@
 """Tests für Phase-1-Collectors und Ingestion (ohne Netzwerk)."""
 
+import types
+
 import feedparser
 
 from stockintel.collectors.base import BaseCollector, CollectedItem
 from stockintel.collectors.edgar import parse_company_tickers, parse_submissions
+from stockintel.collectors.reddit import submission_to_item
 from stockintel.collectors.rss import parse_entries
+from stockintel.collectors.stocktwits import parse_stocktwits
 from stockintel.db.database import Database
 from stockintel.ingestion import ingest
 
@@ -56,6 +60,41 @@ def test_parse_submissions_builds_urls():
     assert items[0].external_id == "0001045810-26-000001"
     assert "edgar/data/1045810/000104581026000001/nvda-8k.htm" in items[0].url
     assert items[0].title.startswith("NVDA 8-K")
+
+
+SAMPLE_STOCKTWITS = {
+    "messages": [
+        {
+            "id": 123,
+            "body": "Bin bullish auf $NVDA",
+            "created_at": "2026-06-03T10:00:00Z",
+            "user": {"username": "trader1"},
+        },
+        {"id": None, "body": "ungültig ohne id"},  # wird übersprungen
+    ]
+}
+
+
+def test_parse_stocktwits():
+    items = list(parse_stocktwits("NVDA", SAMPLE_STOCKTWITS))
+    assert len(items) == 1                       # Eintrag ohne id übersprungen
+    assert items[0].external_id == "st_123"
+    assert items[0].url == "https://stocktwits.com/trader1/message/123"
+    assert items[0].published_at is not None
+
+
+def test_reddit_submission_to_item():
+    sub = types.SimpleNamespace(
+        id="abc123",
+        title="DD: warum NVDA steigt",
+        selftext="Langer Text …",
+        permalink="/r/stocks/comments/abc123/dd/",
+        created_utc=1_780_000_000,
+    )
+    item = submission_to_item(sub)
+    assert item.external_id == "t3_abc123"
+    assert item.url == "https://www.reddit.com/r/stocks/comments/abc123/dd/"
+    assert item.published_at is not None
 
 
 class _FakeCollector(BaseCollector):
