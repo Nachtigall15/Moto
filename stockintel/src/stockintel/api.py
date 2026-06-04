@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import desc, func, select
 
-from stockintel.analysis.prices import current_price
+from stockintel.analysis.prices import current_price, fetch_history
 from stockintel.analysis.scoring import generate_recommendations
 from stockintel.analysis.triage import analyze_signals
 from stockintel.config import load_settings
@@ -138,6 +138,20 @@ class CompanyDetailInfo(BaseModel):
     current_price: float | None
     signal_count: int
     signals_by_source: dict[str, list[SignalDetailInfo]]
+
+
+class PricePointInfo(BaseModel):
+    """Ein Kurspunkt mit Zeitstempel."""
+    ts: str
+    close: float
+
+
+class PriceHistoryInfo(BaseModel):
+    """Historische Kursdaten für einen Ticker über einen Zeitraum."""
+    ticker: str
+    period: str
+    points: list[PricePointInfo]
+    current_price: float | None
 
 
 def schedule_background_tasks(db: Database) -> None:
@@ -1005,6 +1019,58 @@ def create_app() -> FastAPI:
                 signal_count=signal_count,
                 signals_by_source=signals_by_source,
             )
+
+    @app.get("/company/{ticker}/price-history", response_model=PriceHistoryInfo)
+    async def get_price_history(ticker: str, period: str = Query("1m")):
+        """Fetches historical price data for a ticker over the specified period.
+
+        Supported periods: 1d, 1w, 1m, 3m, 6m, 1y, 3y, 5y, max
+        """
+        from datetime import date
+
+        ticker = ticker.upper()
+
+        # Map period strings to lookback days
+        period_days = {
+            "1d": 1,
+            "1w": 7,
+            "1m": 30,
+            "3m": 90,
+            "6m": 180,
+            "1y": 365,
+            "3y": 3 * 365,
+            "5y": 5 * 365,
+            "max": 20 * 365,  # ~20 years of history
+        }
+
+        if period not in period_days:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid period '{period}'. Supported: {', '.join(period_days.keys())}"
+            )
+
+        lookback_days = period_days[period]
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=lookback_days)
+
+        # Fetch price history
+        price_points = fetch_history(ticker, start_date, end_date, interval="1d")
+
+        # Get current price
+        current_stock_price = current_price(ticker)
+
+        # Convert to response format
+        points = [
+            PricePointInfo(ts=p.ts.isoformat(), close=p.close)
+            for p in price_points
+        ]
+
+        return PriceHistoryInfo(
+            ticker=ticker,
+            period=period,
+            points=points,
+            current_price=current_stock_price,
+        )
 
     @app.get("/ticker/{ticker}")
     async def get_ticker_detail(ticker: str):

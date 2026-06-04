@@ -157,22 +157,29 @@ function updateChart(instanceName, canvasId, config) {
         }));
     } else {
         // Single dataset case
-        datasets = [
-            config.type === "doughnut"
-                ? {
-                    data: config.data,
-                    backgroundColor: config.colors,
-                    borderColor: "#161b22",
-                    borderWidth: 2,
-                  }
-                : {
-                    label: config.label || "Count",
-                    data: config.data,
-                    backgroundColor: config.color,
-                    borderColor: "#58a6ff",
-                    borderWidth: 1,
-                  },
-        ];
+        const baseDataset = config.type === "doughnut"
+            ? {
+                data: config.data,
+                backgroundColor: config.colors,
+                borderColor: "#161b22",
+                borderWidth: 2,
+              }
+            : {
+                label: config.label || "Count",
+                data: config.data,
+                backgroundColor: config.color || "#58a6ff",
+                borderColor: config.borderColor || "#58a6ff",
+                borderWidth: config.borderWidth || 1,
+              };
+
+        // Add line chart specific properties
+        if (config.type === "line") {
+            baseDataset.tension = config.tension || 0.3;
+            baseDataset.fill = config.fill !== undefined ? config.fill : false;
+            baseDataset.backgroundColor = config.backgroundColor || "rgba(88, 166, 255, 0.1)";
+        }
+
+        datasets = [baseDataset];
     }
 
     // Ganzzahlige Ticks (keine 0,5er-Schritte bei kleinen Zählwerten).
@@ -361,6 +368,25 @@ function attachCompanyListeners() {
                     </div>
                 `;
 
+                // Add price chart section with period selector
+                signalsHtml += `
+                    <div style="margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 1rem;">
+                        <h4 style="margin: 0 0 1rem 0;">📈 Kursverlauf</h4>
+                        <div style="margin-bottom: 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                            <button class="period-btn" data-period="1d" style="padding: 0.4rem 0.8rem; border: 1px solid #30363d; background: #0d1117; color: #c9d1d9; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">1T</button>
+                            <button class="period-btn" data-period="1w" style="padding: 0.4rem 0.8rem; border: 1px solid #30363d; background: #0d1117; color: #c9d1d9; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">1W</button>
+                            <button class="period-btn" data-period="1m" style="padding: 0.4rem 0.8rem; border: 1px solid #30363d; background: #0d1117; color: #c9d1d9; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">1M</button>
+                            <button class="period-btn" data-period="3m" style="padding: 0.4rem 0.8rem; border: 1px solid #30363d; background: #0d1117; color: #c9d1d9; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">3M</button>
+                            <button class="period-btn" data-period="6m" style="padding: 0.4rem 0.8rem; border: 1px solid #30363d; background: #0d1117; color: #c9d1d9; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">6M</button>
+                            <button class="period-btn" data-period="1y" style="padding: 0.4rem 0.8rem; border: 1px solid #30363d; background: #0d1117; color: #c9d1d9; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">1J</button>
+                            <button class="period-btn" data-period="3y" style="padding: 0.4rem 0.8rem; border: 1px solid #30363d; background: #0d1117; color: #c9d1d9; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">3J</button>
+                            <button class="period-btn" data-period="5y" style="padding: 0.4rem 0.8rem; border: 1px solid #30363d; background: #0d1117; color: #c9d1d9; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">5J</button>
+                            <button class="period-btn" data-period="max" style="padding: 0.4rem 0.8rem; border: 1px solid #30363d; background: #0d1117; color: #c9d1d9; border-radius: 4px; cursor: pointer; font-size: 0.85rem;">Max</button>
+                        </div>
+                        <canvas id="price-history-canvas" style="max-height: 300px; margin: 1rem 0;"></canvas>
+                    </div>
+                `;
+
                 if (detail.signal_count > 0) {
                     signalsHtml += '<div style="margin-top: 1.5rem; border-top: 1px solid var(--border); padding-top: 1rem;">';
                     signalsHtml += `<h4 style="margin: 0 0 1rem 0;">Nachrichten und Signale (${detail.signal_count})</h4>`;
@@ -405,11 +431,65 @@ function attachCompanyListeners() {
                     ${signalsHtml}
                 `;
                 showModal(`Company: ${detail.ticker}`, html);
+
+                // Load price history chart after modal is shown
+                loadPriceHistory(detail.ticker, "1m");
+
+                // Attach period button listeners
+                document.querySelectorAll(".period-btn").forEach(btn => {
+                    btn.addEventListener("click", async () => {
+                        const period = btn.dataset.period;
+                        document.querySelectorAll(".period-btn").forEach(b => {
+                            b.style.background = "#0d1117";
+                            b.style.color = "#c9d1d9";
+                        });
+                        btn.style.background = "#58a6ff";
+                        btn.style.color = "#0d1117";
+                        loadPriceHistory(detail.ticker, period);
+                    });
+                });
+
+                // Set default button as active
+                document.querySelector('[data-period="1m"]').style.background = "#58a6ff";
+                document.querySelector('[data-period="1m"]').style.color = "#0d1117";
             } catch (e) {
                 showModal(`Company: ${company.ticker}`, `<p style="color: #f85149;">Fehler beim Laden: ${escapeHtml(e.message)}</p>`);
             }
         });
     });
+}
+
+async function loadPriceHistory(ticker, period) {
+    try {
+        const priceData = await fetchJSON(`/company/${encodeURIComponent(ticker)}/price-history?period=${encodeURIComponent(period)}`);
+
+        if (!priceData.points || priceData.points.length === 0) {
+            const canvas = document.getElementById("price-history-canvas");
+            if (canvas && canvas.parentElement) {
+                canvas.parentElement.innerHTML = '<div style="padding: 1rem; text-align: center; color: #8b949e;">Keine Kursdaten verfügbar.</div>';
+            }
+            return;
+        }
+
+        // Render price history chart
+        const labels = priceData.points.map(p => new Date(p.ts).toLocaleDateString('de-DE', { month: '2-digit', day: '2-digit' }));
+        const data = priceData.points.map(p => p.close);
+
+        updateChart("_priceHistoryChart", "price-history-canvas", {
+            type: "line",
+            labels: labels,
+            data: data,
+            borderColor: "#58a6ff",
+            backgroundColor: "rgba(88, 166, 255, 0.1)",
+            tension: 0.3,
+            fill: true,
+        });
+    } catch (e) {
+        const canvas = document.getElementById("price-history-canvas");
+        if (canvas && canvas.parentElement) {
+            canvas.parentElement.innerHTML = `<div style="padding: 1rem; text-align: center; color: #f85149;">Fehler beim Laden: ${escapeHtml(e.message)}</div>`;
+        }
+    }
 }
 
 async function loadEvents() {
