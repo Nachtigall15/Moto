@@ -2,19 +2,20 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Systemabhängigkeiten (git wird von manchen pip-Paketen erwartet)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
+    git curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the stockintel directory
+# Nur das stockintel-Projekt ins Image kopieren
 COPY stockintel/ .
 
-# Install the package
-RUN pip install --no-cache-dir -e .
+# Paket inkl. API-Server (FastAPI/uvicorn) UND Collectors installieren.
+# WICHTIG: Ohne die Extras [api,collectors] fehlen FastAPI/uvicorn und die
+# Datenquellen – dann startet der Server nicht.
+RUN pip install --no-cache-dir -e ".[api,collectors]"
 
-# Expose port
 EXPOSE 8000
 
-# Initialize database and start server
-CMD sh -c "stockintel init-db && stockintel api"
+# Datenbank anlegen, dann den Web-Server starten (bindet an 0.0.0.0:8000).
+CMD ["sh", "-c", "stockintel init-db && python -m stockintel.api"]

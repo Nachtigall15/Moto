@@ -1,13 +1,10 @@
-version: '3.8'
-
 services:
   stockintel:
     build: .
+    container_name: stockintel
     ports:
       - "8000:8000"
-    environment:
-      - DATABASE_URL=sqlite:///./stockintel.db
     volumes:
+      # Datenbank bleibt auf deinem Mac erhalten (im Ordner ./data)
       - ./data:/app/data
-      - ./stockintel.db:/app/stockintel.db
-    command: sh -c "stockintel init-db && stockintel api"
+    restart: unless-stopped

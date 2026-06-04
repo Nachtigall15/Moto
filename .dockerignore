@@ -1,0 +1,14 @@
+# Build-Kontext schlank halten: lokale venv, Caches, DBs und Daten NICHT
+# ins Docker-Image kopieren.
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.db
+**/*.sqlite
+stockintel/data/
+data/
+.git
+.github
+*.md
+node_modules
+.DS_Store
