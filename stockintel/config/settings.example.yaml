@@ -31,11 +31,19 @@ models:
   triage: "claude-haiku-4-5-20251001"
   deep: "claude-sonnet-4-6"
 
-# Quellen aktivieren/deaktivieren (Phase 1).
+# Quellen aktivieren/deaktivieren (Phase 1: edgar + rss implementiert).
 collectors:
-  edgar:      { enabled: true }
-  rss:        { enabled: true }
-  finnhub:    { enabled: false }   # benoetigt FINNHUB_API_KEY
-  reddit:     { enabled: false }   # benoetigt Reddit-Credentials
-  stocktwits: { enabled: true }
-  youtube:    { enabled: false }
+  edgar:
+    enabled: true
+    # SEC verlangt einen aussagekraeftigen User-Agent mit Kontakt.
+    # Alternativ ueber Umgebungsvariable STOCKINTEL_SEC_UA setzen.
+    user_agent: "StockIntel research deinname deine@email.de"
+    limit: 20              # juengste Filings je Unternehmen
+  rss:
+    enabled: true
+    # Leer lassen = eingebaute Standard-Feeds (CNBC, WSJ, Nasdaq).
+    feeds: []
+  finnhub:    { enabled: false }   # Phase 1+, benoetigt FINNHUB_API_KEY
+  reddit:     { enabled: false }   # Phase 1+, benoetigt Reddit-Credentials
+  stocktwits: { enabled: false }   # Phase 1+
+  youtube:    { enabled: false }   # Phase 1+

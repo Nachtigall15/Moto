@@ -30,6 +30,8 @@ class BaseCollector(abc.ABC):
 
     #: Eindeutiger Schlüssel der Quelle, z.B. "edgar" oder "reddit".
     source_key: str = "base"
+    #: Menschenlesbarer Name der Quelle.
+    name: str = "Base"
     #: Art der Quelle: rss | api | social | filing.
     kind: str = "api"
 

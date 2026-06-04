@@ -14,18 +14,32 @@ cd stockintel
 python -m venv .venv && source .venv/bin/activate
 pip install -e .[dev]
 
+pip install -e .[collectors]               # für die Daten-Collectors (Phase 1)
+
 cp .env.example .env                       # API-Keys eintragen
 cp config/settings.example.yaml config/settings.yaml
 
 stockintel init-db                         # Datenbank-Schema anlegen
 stockintel info                            # Status anzeigen
+stockintel collect                         # aktive Quellen abrufen (EDGAR + RSS)
+stockintel items --limit 20                # zuletzt gespeicherte Items anzeigen
 ```
+
+> **Netzwerk-Hinweis:** `collect` ruft externe Hosts ab (`sec.gov`,
+> `data.sec.gov`, RSS-Feeds). In einer Sandbox mit Host-Allowlist müssen diese
+> Hosts freigegeben sein, sonst meldet der Collector „Host not in allowlist".
+> Die SEC verlangt zudem einen Kontakt-`User-Agent` (in `settings.yaml` oder
+> via `STOCKINTEL_SEC_UA`).
 
 ## Projektstand
 
-**Phase 0 — Gerüst.** Verzeichnisstruktur, Konfiguration, vollständiges
-Datenbankschema (inkl. Event-Study) und Modul-Skelette stehen. Die
-Daten-Collectors und KI-Analyse folgen in Phase 1/2 (siehe Roadmap).
+**Phase 1 — Daten-Collectors (EDGAR + RSS).** Eingesammelte Informationen
+werden dedupliziert als `RawItem` gespeichert. Weitere Quellen (Finnhub,
+Reddit, StockTwits, YouTube) und die KI-Bewertung folgen (siehe Roadmap).
+
+Frühere Stände:
+- **Phase 0 — Gerüst.** Verzeichnisstruktur, Konfiguration, vollständiges
+  Datenbankschema (inkl. Event-Study) und Modul-Skelette.
 
 ## Struktur
 
