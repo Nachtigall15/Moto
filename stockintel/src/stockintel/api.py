@@ -36,11 +36,12 @@ scheduler: BackgroundScheduler | None = None
 
 
 class CompanyInfo(BaseModel):
-    """Company mit Signal-Zähler."""
+    """Company mit Signal-Zähler und Watchlist-Status."""
     ticker: str
     name: str
     sector: str | None
     signal_count: int
+    on_watchlist: bool = False
 
 
 class SignalInfo(BaseModel):
@@ -344,7 +345,7 @@ def create_app() -> FastAPI:
 
     @app.get("/companies", response_model=list[CompanyInfo])
     async def list_companies(limit: int = Query(50, ge=1, le=1000)):
-        """Listet alle Companies mit Signal-Zähler."""
+        """Listet alle Companies mit Signal-Zähler und Watchlist-Status."""
         from sqlalchemy import func
 
         with db.session() as session:
@@ -353,6 +354,7 @@ def create_app() -> FastAPI:
                     Company.ticker,
                     Company.name,
                     Company.sector,
+                    Company.on_watchlist,
                     func.count(Signal.id).label("signal_count"),
                 )
                 .outerjoin(Signal, Signal.company_id == Company.id)
@@ -367,6 +369,7 @@ def create_app() -> FastAPI:
                     name=row.name,
                     sector=row.sector,
                     signal_count=row.signal_count or 0,
+                    on_watchlist=row.on_watchlist,
                 )
                 for row in rows
             ]

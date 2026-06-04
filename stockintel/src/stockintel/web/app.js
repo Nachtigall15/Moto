@@ -74,8 +74,9 @@ async function loadCharts() {
             indexAxis: "y",
         });
 
-        // Signals per Company (Top 5 Bar)
-        const topCompanies = companies
+        // Signals per Company (Top 5 from Watchlist)
+        const watchlistCompanies = companies.filter(c => c.on_watchlist);
+        const topCompanies = watchlistCompanies
             .sort((a, b) => b.signal_count - a.signal_count)
             .slice(0, 5);
         updateChart("_chartCompanies", "companies-canvas", {
@@ -305,16 +306,24 @@ async function loadCompanies() {
             body.innerHTML = `<tr><td colspan="4" class="loading">Keine Companies.</td></tr>`;
             return;
         }
-        // Sortiere nach Signal-Count (absteigend)
-        const sorted = [...companies].sort((a, b) => b.signal_count - a.signal_count);
-        body.innerHTML = sorted.map((c, i) => `
-            <tr data-company-index="${i}" data-company='${JSON.stringify(c)}' style="cursor: pointer;">
-                <td class="ticker">${escapeHtml(c.ticker)}</td>
+        // Sortiere nach Signal-Count (absteigend), Watchlist zuerst
+        const sorted = [...companies].sort((a, b) => {
+            if (a.on_watchlist !== b.on_watchlist) {
+                return b.on_watchlist - a.on_watchlist;  // Watchlist first
+            }
+            return b.signal_count - a.signal_count;
+        });
+        body.innerHTML = sorted.map((c, i) => {
+            const watchlistBadge = c.on_watchlist ? `<span style="display: inline-block; background: #3fb950; color: #0d1117; padding: 0.2rem 0.5rem; border-radius: 3px; font-size: 0.75rem; margin-right: 0.5rem; font-weight: bold;">⭐ WATCHLIST</span>` : '';
+            const rowBg = c.on_watchlist ? 'background: rgba(63, 185, 80, 0.08);' : '';
+            return `
+            <tr data-company-index="${i}" data-company='${JSON.stringify(c)}' style="cursor: pointer; ${rowBg}">
+                <td class="ticker">${watchlistBadge}${escapeHtml(c.ticker)}</td>
                 <td>${escapeHtml(c.name)}</td>
                 <td>${escapeHtml(c.sector || "–")}</td>
                 <td><span style="font-weight: bold; color: #58a6ff;">${c.signal_count}</span></td>
             </tr>
-        `).join("");
+        `}).join("");
         attachCompanyListeners();
     } catch (e) {
         body.innerHTML = `<tr><td colspan="4" class="loading">Fehler: ${escapeHtml(e.message)}</td></tr>`;
@@ -584,6 +593,9 @@ function attachWatchlistRemoveListeners() {
                 try {
                     await fetchJSON(`/watchlist/${encodeURIComponent(ticker)}`, { method: "DELETE" });
                     await loadWatchlist();
+                    // Aktualisiere Companies und Chart nach Watchlist-Änderung
+                    await loadCompanies();
+                    await loadCharts();
                 } catch (e) {
                     alert("Fehler beim Entfernen: " + e.message);
                 }
@@ -748,6 +760,9 @@ document.addEventListener("DOMContentLoaded", () => {
                                 document.getElementById("search-company-input").value = "";
                                 resultsDiv.style.display = "none";
                                 await loadWatchlist();
+                                // Aktualisiere Companies und Chart nach Watchlist-Änderung
+                                await loadCompanies();
+                                await loadCharts();
 
                                 // Automatisch nach News für diese Company suchen
                                 document.getElementById("ticker-filter").value = ticker;
