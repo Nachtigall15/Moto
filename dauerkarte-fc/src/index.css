@@ -1,0 +1,378 @@
+:root {
+  --fc-red: #e30613;
+  --fc-red-dark: #a80410;
+  --color-bg: #121212;
+  --color-surface: #1c1c1e;
+  --color-surface-alt: #242426;
+  --color-border: #333335;
+  --color-text: #f2f2f2;
+  --color-text-muted: #a0a0a3;
+
+  --color-eigen: #e30613;
+  --color-sitznachbar: #c9910b;
+  --color-freundeskreis: #2e7d32;
+  --color-boerse: #1565c0;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.app-header {
+  padding: 1.25rem 1rem 0.75rem;
+  text-align: center;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-header h1 {
+  margin: 0;
+  color: var(--fc-red);
+  font-size: 1.5rem;
+  letter-spacing: 0.02em;
+}
+
+.app-header__subtitle {
+  margin: 0.25rem 0 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  background: var(--color-bg);
+  z-index: 10;
+}
+
+.tab-button {
+  flex: 1;
+  padding: 0.85rem 0.5rem;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+}
+
+.tab-button--active {
+  color: var(--color-text);
+  border-bottom-color: var(--fc-red);
+}
+
+.app-main {
+  flex: 1;
+  padding: 1rem;
+}
+
+.tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.toolbar {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  padding: 0.7rem 1rem;
+  border-radius: 0.6rem;
+  border: 1px solid transparent;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.btn--primary {
+  background: var(--fc-red);
+  color: white;
+}
+
+.btn--primary:active {
+  background: var(--fc-red-dark);
+}
+
+.btn--ghost {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.hint {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.hint--warning {
+  color: var(--color-sitznachbar);
+}
+
+.match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.match-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.85rem;
+  padding: 1rem;
+  transition: opacity 0.2s;
+}
+
+.match-card--done {
+  opacity: 0.6;
+}
+
+.match-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.match-card__title h3 {
+  margin: 0.15rem 0;
+  font-size: 1.05rem;
+}
+
+.match-card__matchday {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+
+.match-card__date {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: white;
+  white-space: nowrap;
+}
+
+.badge--eigen {
+  background: var(--color-eigen);
+}
+.badge--sitznachbar {
+  background: var(--color-sitznachbar);
+  color: #201a00;
+}
+.badge--freundeskreis {
+  background: var(--color-freundeskreis);
+}
+.badge--boerse {
+  background: var(--color-boerse);
+}
+
+.match-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.field select,
+.field input {
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  padding: 0.65rem 0.6rem;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  min-height: 44px;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.95rem;
+  min-height: 44px;
+}
+
+.checkbox-field input {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.stat-tile {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.85rem;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.stat-tile__label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.stat-tile__value {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.stat-tile__value--positive {
+  color: var(--color-freundeskreis);
+}
+
+.stat-tile__value--warning {
+  color: var(--color-sitznachbar);
+}
+
+.stat-tile__sub {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.section h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+}
+
+.breakdown-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+}
+
+.dot {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  margin-right: 0.4rem;
+}
+
+.dot--eigen {
+  background: var(--color-eigen);
+}
+.dot--sitznachbar {
+  background: var(--color-sitznachbar);
+}
+.dot--freundeskreis {
+  background: var(--color-freundeskreis);
+}
+.dot--boerse {
+  background: var(--color-boerse);
+}
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 0.6rem;
+}
+
+.season-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.season-table th,
+.season-table td {
+  padding: 0.5rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.season-table th {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  background: var(--color-surface);
+  position: sticky;
+  top: 0;
+}
+
+.amount--open {
+  color: var(--color-sitznachbar);
+  font-weight: 600;
+}
+
+.amount--received {
+  color: var(--color-freundeskreis);
+  font-weight: 600;
+}
+
+.backup-controls {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
