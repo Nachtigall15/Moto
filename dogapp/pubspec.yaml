@@ -1,0 +1,27 @@
+name: dogapp
+description: >-
+  Hunde-App – Fütterung, Schlaf, Training, Gewichtskontrolle mit
+  Fotodokumentation, Terminkalender und Heimtierausweis.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  provider: ^6.1.2
+  shared_preferences: ^2.3.2
+  image_picker: ^1.1.2
+  image: ^4.2.0
+  fl_chart: ^0.69.0
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

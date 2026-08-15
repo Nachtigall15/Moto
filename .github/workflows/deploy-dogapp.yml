@@ -1,0 +1,72 @@
+name: Deploy Hunde-App (GitHub Pages)
+
+on:
+  push:
+    branches:
+      - claude/dog-management-app-ylwpb0
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      # Beide Apps teilen sich eine GitHub-Pages-Seite: die Moto-App
+      # liegt unter /Moto/, die Hunde-App unter /Moto/dog/. Deshalb
+      # wird hier beides gebaut – sonst würde ein Deploy die jeweils
+      # andere App von der Seite werfen.
+      - name: Moto-App bauen (Wurzel)
+        run: |
+          flutter pub get
+          flutter build web --release --no-tree-shake-icons \
+            --base-href "/${{ github.event.repository.name }}/" \
+            --dart-define=GRAPHHOPPER_API_KEY=${{ secrets.GRAPHHOPPER_API_KEY }} \
+            --dart-define=TOMTOM_API_KEY=${{ secrets.TOMTOM_API_KEY }}
+
+      # Firebase-Werte sind keine Geheimnisse (sie identifizieren nur
+      # das Projekt), liegen aber trotzdem in den Repo-Secrets, damit
+      # sie an einer Stelle gepflegt werden. Fehlen sie, startet die
+      # App im lokalen Modus – der Build bleibt grün.
+      - name: Hunde-App bauen (/dog/)
+        working-directory: dogapp
+        run: |
+          flutter pub get
+          flutter build web --release \
+            --base-href "/${{ github.event.repository.name }}/dog/" \
+            --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }} \
+            --dart-define=FIREBASE_AUTH_DOMAIN=${{ secrets.FIREBASE_AUTH_DOMAIN }} \
+            --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} \
+            --dart-define=FIREBASE_STORAGE_BUCKET=${{ secrets.FIREBASE_STORAGE_BUCKET }} \
+            --dart-define=FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }} \
+            --dart-define=FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }}
+
+      - name: Hunde-App unter /dog/ einhängen
+        run: cp -r dogapp/build/web build/web/dog
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
