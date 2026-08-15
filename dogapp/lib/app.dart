@@ -2,12 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'core/theme.dart';
+import 'features/calendar/calendar_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/feeding/feeding_screen.dart';
+import 'features/health/medication_screen.dart';
+import 'features/health/vaccination_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/sleep/sleep_screen.dart';
+import 'features/training/training_screen.dart';
+import 'features/treats/treats_screen.dart';
 import 'features/weight/weight_screen.dart';
 import 'state/app_state.dart';
+
+/// Positionen in der unteren Navigationsleiste. Als Konstanten, damit
+/// Sprünge aus der Übersicht heraus nicht an Zahlen hängen.
+class Tabs {
+  Tabs._();
+
+  static const uebersicht = 0;
+  static const alltag = 1;
+  static const gesundheit = 2;
+  static const kalender = 3;
+  static const training = 4;
+}
 
 class DogApp extends StatelessWidget {
   const DogApp({super.key, required this.state});
@@ -23,32 +40,55 @@ class DogApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: buildLightTheme(),
         darkTheme: buildDarkTheme(),
-        home: const _HomeShell(),
+        home: const HomeShell(),
       ),
     );
   }
 }
 
-class _HomeShell extends StatefulWidget {
-  const _HomeShell();
+class HomeShell extends StatefulWidget {
+  const HomeShell({super.key});
 
   @override
-  State<_HomeShell> createState() => _HomeShellState();
+  State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<_HomeShell> {
-  int _index = 0;
+class _HomeShellState extends State<HomeShell> {
+  int _index = Tabs.uebersicht;
 
-  void _open(int index) => setState(() => _index = index);
+  /// Innerhalb einer Gruppe soll beim Sprung aus der Übersicht auch
+  /// der richtige Unter-Reiter aufgehen (z. B. „Gewicht").
+  int? _unterreiter;
+
+  void _open(int index, {int? unterreiter}) => setState(() {
+        _index = index;
+        _unterreiter = unterreiter;
+      });
 
   @override
   Widget build(BuildContext context) {
     final tabs = [
-      DashboardScreen(onOpenTab: _open),
-      const FeedingScreen(),
-      const SleepScreen(),
-      const WeightScreen(),
-      const ProfileScreen(),
+      DashboardScreen(onOpen: _open),
+      _GroupPage(
+        titel: 'Alltag',
+        startIndex: _index == Tabs.alltag ? _unterreiter : null,
+        reiter: const [
+          ('Fütterung', FeedingScreen()),
+          ('Schlaf', SleepScreen()),
+          ('Leckerli', TreatsScreen()),
+        ],
+      ),
+      _GroupPage(
+        titel: 'Gesundheit',
+        startIndex: _index == Tabs.gesundheit ? _unterreiter : null,
+        reiter: const [
+          ('Gewicht', WeightScreen()),
+          ('Medikamente', MedicationScreen()),
+          ('Impfungen', VaccinationScreen()),
+        ],
+      ),
+      const CalendarScreen(),
+      const TrainingScreen(),
     ];
 
     return Scaffold(
@@ -65,25 +105,92 @@ class _HomeShellState extends State<_HomeShell> {
           NavigationDestination(
             icon: Icon(Icons.restaurant_outlined),
             selectedIcon: Icon(Icons.restaurant),
-            label: 'Fütterung',
+            label: 'Alltag',
           ),
           NavigationDestination(
-            icon: Icon(Icons.bedtime_outlined),
-            selectedIcon: Icon(Icons.bedtime),
-            label: 'Schlaf',
+            icon: Icon(Icons.favorite_outline),
+            selectedIcon: Icon(Icons.favorite),
+            label: 'Gesundheit',
           ),
           NavigationDestination(
-            icon: Icon(Icons.monitor_weight_outlined),
-            selectedIcon: Icon(Icons.monitor_weight),
-            label: 'Gewicht',
+            icon: Icon(Icons.event_outlined),
+            selectedIcon: Icon(Icons.event),
+            label: 'Kalender',
           ),
           NavigationDestination(
-            icon: Icon(Icons.badge_outlined),
-            selectedIcon: Icon(Icons.badge),
-            label: 'Ausweis',
+            icon: Icon(Icons.school_outlined),
+            selectedIcon: Icon(Icons.school),
+            label: 'Training',
           ),
         ],
       ),
     );
   }
+}
+
+/// Fasst verwandte Screens unter einer Überschrift mit Reitern
+/// zusammen. Ohne diese Bündelung stünden acht Einträge in der unteren
+/// Leiste – auf einem Handy unbedienbar.
+class _GroupPage extends StatefulWidget {
+  const _GroupPage({
+    required this.titel,
+    required this.reiter,
+    this.startIndex,
+  });
+
+  final String titel;
+  final List<(String, Widget)> reiter;
+  final int? startIndex;
+
+  @override
+  State<_GroupPage> createState() => _GroupPageState();
+}
+
+class _GroupPageState extends State<_GroupPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _controller = TabController(
+    length: widget.reiter.length,
+    vsync: this,
+    initialIndex: widget.startIndex ?? 0,
+  );
+
+  @override
+  void didUpdateWidget(_GroupPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final ziel = widget.startIndex;
+    if (ziel != null && ziel != oldWidget.startIndex) {
+      _controller.index = ziel;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.titel),
+        bottom: TabBar(
+          controller: _controller,
+          tabs: [for (final r in widget.reiter) Tab(text: r.$1)],
+        ),
+      ),
+      body: TabBarView(
+        controller: _controller,
+        children: [for (final r in widget.reiter) r.$2],
+      ),
+    );
+  }
+}
+
+/// Der Heimtierausweis hängt nicht in der Navigationsleiste – er wird
+/// selten geöffnet und dann gezielt.
+void openProfile(BuildContext context) {
+  Navigator.of(context).push(
+    MaterialPageRoute<void>(builder: (_) => const ProfileScreen()),
+  );
 }

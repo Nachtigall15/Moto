@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../app.dart';
 import '../../core/format.dart';
 import '../../models/feeding_entry.dart';
 import '../../state/app_state.dart';
@@ -8,13 +9,13 @@ import '../common/dog_photo.dart';
 import '../common/ui.dart';
 
 /// Startseite: der Blick, den jemand braucht, der gerade zur Tür
-/// reinkommt – hat er schon gefressen, schläft er, wann war das
-/// letzte Wiegen.
+/// reinkommt – hat er gefressen, schläft er, sind Medikamente fällig,
+/// steht ein Termin an.
 class DashboardScreen extends StatelessWidget {
-  const DashboardScreen({super.key, required this.onOpenTab});
+  const DashboardScreen({super.key, required this.onOpen});
 
-  /// Sprung in einen der Haupt-Tabs (Index wie in der Navigationsleiste).
-  final ValueChanged<int> onOpenTab;
+  /// Sprung in einen Haupt-Tab, optional direkt auf einen Unter-Reiter.
+  final void Function(int index, {int? unterreiter}) onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +30,10 @@ class DashboardScreen extends StatelessWidget {
     final schlaf = state.laufenderSchlaf;
     final gewicht = state.letztesGewicht;
     final totals = state.totalsOn(today);
+    final offeneGaben = state.offeneGabenHeute();
+    final naechsterTermin = state.naechsterTermin;
+    final verpasst = state.verpassteTermine;
+    final faelligeImpfungen = state.faelligeImpfungen;
 
     return Scaffold(
       appBar: AppBar(
@@ -36,7 +41,7 @@ class DashboardScreen extends StatelessWidget {
         actions: [
           IconButton(
             tooltip: 'Heimtierausweis',
-            onPressed: () => onOpenTab(4),
+            onPressed: () => openProfile(context),
             icon: const Icon(Icons.badge_outlined),
           ),
         ],
@@ -46,6 +51,17 @@ class DashboardScreen extends StatelessWidget {
         children: [
           _Greeting(state: state),
           const SizedBox(height: 16),
+          if (offeneGaben > 0 ||
+              verpasst.isNotEmpty ||
+              faelligeImpfungen.isNotEmpty) ...[
+            _Hinweise(
+              offeneGaben: offeneGaben,
+              verpasste: verpasst.length,
+              impfungen: faelligeImpfungen.length,
+              onOpen: onOpen,
+            ),
+            const SizedBox(height: 16),
+          ],
           SectionCard(
             title: 'Heute',
             icon: Icons.today_outlined,
@@ -61,7 +77,8 @@ class DashboardScreen extends StatelessWidget {
                             ? 'noch nichts'
                             : totals.entries
                                 .map((e) =>
-                                    '${nfAmount.format(e.value)} ${e.key.label}')
+                                    '${nfAmount.format(e.value)} '
+                                    '${e.key.label}')
                                 .join(' · '),
                         icon: Icons.restaurant_outlined,
                       ),
@@ -79,7 +96,8 @@ class DashboardScreen extends StatelessWidget {
                             ? 'seit ${dfTime.format(schlaf.start)} Uhr'
                             : null,
                         icon: Icons.bedtime_outlined,
-                        color: schlaf != null ? theme.colorScheme.secondary : null,
+                        color:
+                            schlaf != null ? theme.colorScheme.secondary : null,
                       ),
                     ),
                   ],
@@ -89,7 +107,7 @@ class DashboardScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: () => onOpenTab(1),
+                        onPressed: () => onOpen(Tabs.alltag, unterreiter: 0),
                         icon: const Icon(Icons.add),
                         label: const Text('Fütterung'),
                       ),
@@ -100,12 +118,8 @@ class DashboardScreen extends StatelessWidget {
                         onPressed: () => schlaf == null
                             ? state.startSleep()
                             : state.stopSleep(),
-                        icon: Icon(
-                          schlaf == null ? Icons.bedtime : Icons.stop,
-                        ),
-                        label: Text(
-                          schlaf == null ? 'Schläft' : 'Wach',
-                        ),
+                        icon: Icon(schlaf == null ? Icons.bedtime : Icons.stop),
+                        label: Text(schlaf == null ? 'Schläft' : 'Wach'),
                       ),
                     ),
                   ],
@@ -115,10 +129,56 @@ class DashboardScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           SectionCard(
+            title: 'Nächster Termin',
+            icon: Icons.event_outlined,
+            trailing: TextButton(
+              onPressed: () => onOpen(Tabs.kalender),
+              child: const Text('Kalender'),
+            ),
+            child: naechsterTermin == null
+                ? const EmptyHint(text: 'Kein Termin eingetragen.')
+                : Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor:
+                            theme.colorScheme.primary.withValues(alpha: 0.14),
+                        child: Icon(
+                          naechsterTermin.kategorie.icon,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              naechsterTermin.titel.isEmpty
+                                  ? naechsterTermin.kategorie.label
+                                  : naechsterTermin.titel,
+                              style: theme.textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              '${dfWeekday.format(naechsterTermin.zeitpunkt)}'
+                              ' · ${naechsterTermin.zeitLabel}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+          const SizedBox(height: 16),
+          SectionCard(
             title: 'Zuletzt gefüttert',
             icon: Icons.restaurant_outlined,
             trailing: TextButton(
-              onPressed: () => onOpenTab(1),
+              onPressed: () => onOpen(Tabs.alltag, unterreiter: 0),
               child: const Text('Alle'),
             ),
             child: letzteFuetterung == null
@@ -130,7 +190,7 @@ class DashboardScreen extends StatelessWidget {
             title: 'Gewicht',
             icon: Icons.monitor_weight_outlined,
             trailing: TextButton(
-              onPressed: () => onOpenTab(3),
+              onPressed: () => onOpen(Tabs.gesundheit, unterreiter: 0),
               child: const Text('Verlauf'),
             ),
             child: gewicht == null
@@ -168,6 +228,91 @@ class DashboardScreen extends StatelessWidget {
           _SyncHint(state: state),
         ],
       ),
+    );
+  }
+}
+
+/// Die Zeile, die man morgens wirklich lesen muss: offene
+/// Medikamentengaben, verpasste Termine, fällige Impfungen.
+class _Hinweise extends StatelessWidget {
+  const _Hinweise({
+    required this.offeneGaben,
+    required this.verpasste,
+    required this.impfungen,
+    required this.onOpen,
+  });
+
+  final int offeneGaben;
+  final int verpasste;
+  final int impfungen;
+  final void Function(int index, {int? unterreiter}) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      color: theme.colorScheme.secondary.withValues(alpha: 0.12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+        child: Column(
+          children: [
+            if (offeneGaben > 0)
+              _Zeile(
+                icon: Icons.medication_outlined,
+                text: offeneGaben == 1
+                    ? 'Eine Medikamentengabe steht heute noch aus.'
+                    : '$offeneGaben Medikamentengaben stehen heute noch aus.',
+                aktion: 'Ansehen',
+                onTap: () => onOpen(Tabs.gesundheit, unterreiter: 1),
+              ),
+            if (verpasste > 0)
+              _Zeile(
+                icon: Icons.event_busy_outlined,
+                text: verpasste == 1
+                    ? 'Ein Termin ist vorbei und noch nicht abgehakt.'
+                    : '$verpasste Termine sind vorbei und noch offen.',
+                aktion: 'Kalender',
+                onTap: () => onOpen(Tabs.kalender),
+              ),
+            if (impfungen > 0)
+              _Zeile(
+                icon: Icons.vaccines_outlined,
+                text: impfungen == 1
+                    ? 'Eine Impfung wird fällig.'
+                    : '$impfungen Impfungen werden fällig.',
+                aktion: 'Ansehen',
+                onTap: () => onOpen(Tabs.gesundheit, unterreiter: 2),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Zeile extends StatelessWidget {
+  const _Zeile({
+    required this.icon,
+    required this.text,
+    required this.aktion,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String text;
+  final String aktion;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: Theme.of(context).colorScheme.secondary),
+        const SizedBox(width: 10),
+        Expanded(child: Text(text)),
+        TextButton(onPressed: onTap, child: Text(aktion)),
+      ],
     );
   }
 }
@@ -285,8 +430,8 @@ class _SyncHint extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest
-            .withValues(alpha: 0.5),
+        color:
+            theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: theme.colorScheme.outlineVariant),
       ),

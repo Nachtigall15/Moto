@@ -48,7 +48,6 @@ class _SleepScreenState extends State<SleepScreen> {
     final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Schlaf')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => running == null
             ? state.startSleep()

@@ -25,7 +25,6 @@ class FeedingScreen extends StatelessWidget {
     final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Fütterung')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openEditor(context),
         icon: const Icon(Icons.add),

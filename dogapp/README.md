@@ -13,12 +13,30 @@ GitHub-Pages-Seite:
 | Moto       | `/Moto/`      |
 | Hunde-App  | `/Moto/dog/`  |
 
+## Aufbau der Oberfläche
+
+Unten fünf Bereiche, die verwandte Themen bündeln – acht einzelne
+Einträge wären auf einem Handy unbedienbar:
+
+| Bereich    | Inhalt                                      |
+| ---------- | ------------------------------------------- |
+| Übersicht  | Tagesstand, Hinweise, Schnellaktionen        |
+| Alltag     | Fütterung · Schlaf · Leckerli                |
+| Gesundheit | Gewicht · Medikamente · Impfungen            |
+| Kalender   | Termine aller Art                            |
+| Training   | Heute · Übungen · Pläne                      |
+
+Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
+Übersicht – er wird selten geöffnet und dann gezielt.
+
 ## Stand
 
-**Stufe 1 (fertig)**
+**Alle drei Stufen sind umgesetzt.**
 
 - **Übersicht** – Tagesstand auf einen Blick: Mahlzeiten, Schlaf,
-  letztes Gewicht, Schnellaktionen.
+  nächster Termin, letztes Gewicht, Schnellaktionen. Oben stehen die
+  Hinweise, die man morgens wirklich lesen muss: offene
+  Medikamentengaben, nicht abgehakte Termine, fällige Impfungen.
 - **Fütterung** – was, wann, wie viel, welche Mahlzeit, Notiz. Bereits
   benutzte Futtersorten werden beim Eintippen vorgeschlagen. Mengen
   werden pro Einheit summiert (Gramm und Stück nie vermischt).
@@ -32,13 +50,43 @@ GitHub-Pages-Seite:
 - **Heimtierausweis** – Stammdaten, Kennzeichnung (Chipnummer,
   Implantationsdatum und -stelle, Tätowierung), Ausweisdaten, Halter
   und Tierarzt inklusive Notfallnummer und Sprechzeiten.
+- **Kalender** – Termine nach Art (Tierarzt, Impfung, Medikament,
+  Hundeschule, Pflege, Sonstiges), gruppiert in Heute / Diese Woche /
+  Später. Vergangene, nicht abgehakte Termine stehen oben, damit sie
+  nicht durchrutschen.
+- **Medikamente** – Gabezeiten pro Medikament, Tagesplan zum Abhaken
+  mit Uhrzeit der tatsächlichen Gabe. Zeitraum (ab/bis) und Pausieren
+  für Wurmkur und Kuren. Der Haken hat eine feste Kennung aus
+  Medikament, Tag und Uhrzeit – zwei Personen können dieselbe Gabe
+  nicht doppelt eintragen.
+- **Impfungen** – Datum, Impfstoff, Chargennummer, Tierarzt und
+  Gültigkeit. Der Status rechnet nur mit der jeweils jüngsten Impfung
+  je Bezeichnung; acht Wochen vor Ablauf gibt es eine Warnung und
+  daneben einen Knopf, der direkt den Tierarzttermin anlegt.
+- **Training** – Übungskatalog mit Trainingsstand (offen / in Arbeit /
+  sitzt), Tagesliste zum Abhaken und Trainingspläne, die bestimmen,
+  was unter „Heute" steht. Der Startkatalog (Name, Sitz, Platz, Bleib,
+  Aus, Verbieten, Auf den Platz, Rückruf, Leinenführigkeit, Straße
+  überqueren, Pfote geben, Suchen …) orientiert sich in Aufbau und
+  Reihenfolge an der Arbeit von Anton Fichtlmeier: erst Ruhe,
+  Aufmerksamkeit und Körpersprache, dann Signale, dann Ablenkung. Die
+  Merksätze sind eigene Kurzfassungen und ersetzen weder Buch noch
+  Hundeschule.
+- **Leckerli** – getrennt nach „darf er", „in Maßen" und „darf er
+  nicht", dazu wie gern er es mag. Die Startliste bringt die bekannten
+  Giftigkeiten (Schokolade, Weintrauben, Zwiebeln, Xylit …) gleich mit
+  – der eigentliche Grund für so eine Liste, wenn mehrere Personen mit
+  dem Hund arbeiten.
 
-**Als Nächstes**
+Beide Startlisten (Übungen, Leckerli) werden nur auf Knopfdruck
+angelegt. Eine App soll nicht ungefragt Daten erzeugen, die hinterher
+jemand einzeln wieder löscht.
 
-- Stufe 2: Kalender/Termine (Tierarzt, Hundetrainerin), Medikamente,
-  Impfungen mit Erinnerungen.
-- Stufe 3: Training nach Fichtlmeyer mit Trainingsplänen und
-  Checkboxen, Leckerli-Übersicht (darf er / mag er).
+**Offen**
+
+- Cloud-Anbindung (siehe unten) – bis dahin sieht jedes Gerät nur seine
+  eigenen Einträge.
+- Push-Erinnerungen für Termine und Medikamente.
 
 ## Entwickeln
 

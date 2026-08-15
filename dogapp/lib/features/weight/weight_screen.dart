@@ -23,7 +23,6 @@ class WeightScreen extends StatelessWidget {
     final diff = state.gewichtsDifferenz;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Gewicht & Fotos')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openEditor(context),
         icon: const Icon(Icons.add),
