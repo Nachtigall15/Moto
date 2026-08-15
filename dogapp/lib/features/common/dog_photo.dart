@@ -91,29 +91,38 @@ class _DogPhotoState extends State<DogPhoto> {
   }
 }
 
-/// Foto formatfüllend anschauen (Tippen auf ein Vorschaubild).
+/// Foto groß anschauen (Tippen auf ein Vorschaubild).
 void showPhotoDialog(BuildContext context, String fotoRef, String caption) {
   showDialog<void>(
     context: context,
-    builder: (_) => Dialog(
-      insetPadding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(
-            child: DogPhoto(
+    builder: (dialogContext) {
+      // Die Kantenlänge muss sich am Gerät orientieren – ein fester
+      // Wert läuft auf schmalen Handys aus dem Bild.
+      final groesse = MediaQuery.of(dialogContext).size;
+      final kante = [
+        groesse.width - 64,
+        groesse.height - 200,
+        480.0,
+      ].reduce((a, b) => a < b ? a : b);
+
+      return Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            DogPhoto(
               fotoRef: fotoRef,
-              size: 480,
+              size: kante < 120 ? 120 : kante,
               radius: 12,
               fit: BoxFit.contain,
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(caption, textAlign: TextAlign.center),
-          ),
-        ],
-      ),
-    ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(caption, textAlign: TextAlign.center),
+            ),
+          ],
+        ),
+      );
+    },
   );
 }
