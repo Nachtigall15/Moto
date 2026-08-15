@@ -88,6 +88,22 @@ jemand einzeln wieder löscht.
   eigenen Einträge.
 - Push-Erinnerungen für Termine und Medikamente.
 
+## Deployment
+
+Der Workflow `.github/workflows/deploy-dogapp.yml` baut bei jedem Push
+auf den Entwicklungsbranch beide Apps und veröffentlicht sie auf
+GitHub Pages.
+
+Damit der `deploy`-Schritt durchläuft, muss der Branch in der
+Pages-Umgebung freigegeben sein – sonst wird der Job abgewiesen, bevor
+er startet (Fehlschlag nach einer Sekunde, ohne Log):
+
+**Settings → Environments → `github-pages` → Deployment branches and
+tags** → den Entwicklungsbranch hinzufügen.
+
+Zusätzlich muss unter **Settings → Pages** als Quelle „GitHub Actions"
+eingestellt sein.
+
 ## Entwickeln
 
 ```bash
