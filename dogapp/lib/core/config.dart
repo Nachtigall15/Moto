@@ -5,9 +5,12 @@
 class AppConfig {
   AppConfig._();
 
-  /// Alle Daten liegen unter `haushalte/<code>/…`. Welcher Haushalt
-  /// gilt, entscheidet das Codewort, das beim ersten Start abgefragt
-  /// wird (siehe `data/haushalt.dart`).
+  /// Alle Daten liegen unter `haushalte/<id>/…`. Ein fester Wert
+  /// genügt: Wer die Daten sehen darf, entscheiden die Konten und die
+  /// Regeln in `firestore.rules`, nicht der Pfad. Die Ebene bleibt
+  /// trotzdem im Datenmodell, damit später ein zweiter Hund oder
+  /// Haushalt danebenpasst, ohne alles umzubauen.
+  static const String haushalt = 'bheki';
 
   /// Fotos werden vor dem Speichern auf diese Kantenlänge verkleinert.
   /// Reicht für den Entwicklungsverlauf locker.

@@ -8,7 +8,7 @@ import 'features/dashboard/dashboard_screen.dart';
 import 'features/feeding/feeding_screen.dart';
 import 'features/health/medication_screen.dart';
 import 'features/health/vaccination_screen.dart';
-import 'features/household/household_screen.dart';
+import 'features/auth/login_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/sleep/sleep_screen.dart';
 import 'features/training/training_screen.dart';
@@ -78,9 +78,12 @@ class _Root extends StatelessWidget {
       Startphase.laden => const Scaffold(
           body: Center(child: CircularProgressIndicator()),
         ),
-      Startphase.haushaltFehlt => HouseholdScreen(
-          onSubmit: bootstrap.setzeHaushalt,
-          onSkip: bootstrap.nurLokal,
+      Startphase.anmeldung => LoginScreen(
+          onSubmit: bootstrap.anmelden,
+          onReset: bootstrap.passwortZuruecksetzen,
+          fehler: bootstrap.fehler,
+          hinweis: bootstrap.hinweis,
+          busy: bootstrap.busy,
         ),
       Startphase.bereit => ChangeNotifierProvider<AppState>.value(
           value: bootstrap.state!,

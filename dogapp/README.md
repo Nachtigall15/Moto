@@ -133,8 +133,9 @@ selbst in die Listen.
    Projekt anlegen (hier: `bheki-dog`).
 2. **Firestore Database** anlegen (Standort `eur3` oder
    `europe-west3`). **Storage wird nicht gebraucht** – siehe unten.
-3. Unter **Authentication → Sign-in method** die **anonyme Anmeldung**
-   einschalten.
+3. Unter **Authentication → Sign-in method** die Anmeldung per
+   **E-Mail/Passwort** einschalten und unter **Users** für jede Person
+   ein Konto anlegen.
 4. Konfiguration erzeugen – im Ordner `dogapp/`, beschränkt auf Web:
 
    ```bash
@@ -154,23 +155,36 @@ Die Werte lassen sich auch ohne FlutterFire besorgen: In der Konsole
 unter **Projekteinstellungen → Meine Apps → Konfiguration** stehen
 dieselben sechs Angaben zum Kopieren.
 
-### Haushalts-Codewort
+### Anmeldung
 
-Statt Benutzerkonten gibt es ein gemeinsames Codewort. Beim ersten
-Start fragt die App danach; alle Geräte mit demselben Wort sehen
-denselben Stand. Die Daten liegen unter `haushalte/<code>/…`.
+Jede Person meldet sich mit E-Mail und Passwort an. Die App bietet
+bewusst **keine Registrierung** – sonst könnte sich jede beliebige
+Person ein Konto anlegen und käme an die Daten. Konten legt der Halter
+in der Konsole an (Authentication → Users → *Add user*).
 
-Die Eingabe wird normalisiert (klein, Leerzeichen zu Bindestrichen,
-Umlaute umgeschrieben), damit „Bheki Zuhause" und „bheki-zuhause"
-nicht in zwei getrennten Datenbeständen landen.
+Zwei Schritte gehören zusammen:
 
-Das ist bewusst bequem statt streng: Wer Adresse und Codewort kennt,
-kann die Einträge sehen und ändern. Für den Wechsel auf echte Konten
-genügt es, in `firestore.rules` die Bedingung auf zugelassene
-Benutzer-IDs umzustellen und in der App eine Anmeldung vorzuschalten.
+1. Konto in der Konsole anlegen.
+2. Die Adresse in `firestore.rules` in die Liste `zugelassen()`
+   eintragen und die Regeln veröffentlichen.
 
-Vertippt? Auf der Übersicht unten rechts **Wechseln** – die Daten
-bleiben unter dem alten Codewort erhalten.
+Fehlt der zweite Schritt, kann sich die Person anmelden, sieht aber
+nur Fehlermeldungen. Eine Adresse aus der Liste zu streichen entzieht
+den Zugriff sofort, auch auf Geräten, die noch angemeldet sind.
+
+Die Anmeldung überdauert Neustarts – niemand muss sich täglich neu
+anmelden. Auf der Übersicht steht unten, wer angemeldet ist, mit einem
+**Abmelden**-Knopf. „Passwort vergessen" verschickt eine Mail mit
+Rücksetz-Link.
+
+Anonyme Anmeldung wäre bequemer gewesen, hat aber einen Haken:
+Firebase räumt anonyme Konten nach längerer Inaktivität auf. Echte
+Konten bleiben.
+
+Alle Daten liegen unter `haushalte/<id>/…` mit fester Kennung
+(`AppConfig.haushalt`). Wer sie sehen darf, entscheiden die Konten und
+die Regeln, nicht der Pfad – die Ebene bleibt nur erhalten, damit
+später ein zweiter Hund danebenpasst.
 
 ## Fotos und Kosten
 

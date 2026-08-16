@@ -426,7 +426,7 @@ class _SyncHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bootstrap = context.read<BootstrapController>();
+    final bootstrap = context.watch<BootstrapController>();
     final shared = state.isShared;
 
     return Container(
@@ -448,8 +448,8 @@ class _SyncHint extends StatelessWidget {
           Expanded(
             child: Text(
               shared
-                  ? '${state.backendLabel} – alle Geräte mit diesem '
-                      'Codewort sehen denselben Stand.'
+                  ? 'Angemeldet als ${bootstrap.angemeldetAls ?? "?"} – '
+                      'alle angemeldeten Personen sehen denselben Stand.'
                   : 'Daten liegen nur auf diesem Gerät. Sobald die '
                       'Cloud-Anbindung eingerichtet ist, sehen alle '
                       'denselben Stand.',
@@ -460,29 +460,27 @@ class _SyncHint extends StatelessWidget {
           ),
           if (shared)
             TextButton(
-              onPressed: () => _haushaltWechseln(context, bootstrap),
-              child: const Text('Wechseln'),
+              onPressed: () => _abmelden(context, bootstrap),
+              child: const Text('Abmelden'),
             ),
         ],
       ),
     );
   }
 
-  /// Beim Wechsel gehen keine Daten verloren – sie bleiben unter dem
-  /// alten Codewort liegen. Trotzdem nachfragen, weil die Oberfläche
-  /// danach leer aussieht und das ohne Vorwarnung erschreckt.
-  Future<void> _haushaltWechseln(
+  /// Nachfragen, weil das Abmelden auf dem Handy schnell versehentlich
+  /// passiert und die Person danach vor dem Anmeldebildschirm steht.
+  Future<void> _abmelden(
     BuildContext context,
     BootstrapController bootstrap,
   ) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Codewort wechseln?'),
+        title: const Text('Abmelden?'),
         content: const Text(
-          'Dieses Gerät wird von den bisherigen Daten getrennt und '
-          'fragt neu nach einem Codewort. Die Einträge selbst bleiben '
-          'erhalten – mit demselben Codewort sind sie wieder da.',
+          'Die Einträge bleiben natürlich erhalten. Zum Weiterarbeiten '
+          'musst du dich auf diesem Gerät neu anmelden.',
         ),
         actions: [
           TextButton(
@@ -491,11 +489,11 @@ class _SyncHint extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Wechseln'),
+            child: const Text('Abmelden'),
           ),
         ],
       ),
     );
-    if (ok ?? false) await bootstrap.wechsleHaushalt();
+    if (ok ?? false) await bootstrap.abmelden();
   }
 }

@@ -2,25 +2,36 @@ rules_version = '2';
 
 // Zugriffsregeln für die Hunde-App.
 //
-// Die App meldet sich anonym an; die Zuordnung passiert über den
-// Haushalts-Code im Pfad. Diese Regeln verlangen deshalb nur eine
-// gültige Anmeldung – wer Adresse und Codewort kennt, kommt an die
-// Daten des Haushalts. Das ist die bewusst gewählte Abwägung: kein
-// Login für die Personen, die täglich mit dem Hund arbeiten.
+// Zugelassen sind ausschließlich die hier aufgeführten Adressen. Eine
+// bloße Anmeldung genügt bewusst nicht: Bei E-Mail-Anmeldung kann sich
+// sonst jede beliebige Person selbst ein Konto anlegen und käme damit
+// an die Daten.
 //
-// Zwei Dinge leisten die Regeln trotzdem:
-//   * Ohne Anmeldung geht gar nichts – Zufallszugriffe von außen
-//     laufen ins Leere.
-//   * Geschrieben werden darf ausschließlich unterhalb von
-//     `haushalte/…`; niemand kann anderswo Daten ablegen.
+// NEUE PERSON AUFNEHMEN:
+//   1. Firebase-Konsole → Authentication → Users → "Add user"
+//      (E-Mail und Startpasswort vergeben).
+//   2. Die Adresse unten in die Liste eintragen.
+//   3. Firestore → Regeln → einfügen → "Veröffentlichen".
 //
-// Wer es strenger braucht (etwa nach einem Trainerwechsel), stellt auf
-// E-Mail-Konten um und ersetzt die Bedingung durch eine Prüfung auf
-// zugelassene Benutzer-IDs.
+// Beide Schritte sind nötig. Fehlt der zweite, kann sich die Person
+// zwar anmelden, sieht aber nur Fehlermeldungen.
+//
+// PERSON AUSSCHLIESSEN: Adresse aus der Liste streichen und neu
+// veröffentlichen – der Zugriff ist sofort weg, auch auf Geräten, die
+// noch angemeldet sind.
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function zugelassen() {
+      return request.auth != null
+          && request.auth.token.email in [
+               'ftrapp@gmx.net'
+               // , 'hundetrainerin@beispiel.de'
+             ];
+    }
+
     match /haushalte/{haushalt}/{rest=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if zugelassen();
     }
   }
 }
