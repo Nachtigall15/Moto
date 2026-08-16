@@ -1,15 +1,22 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 
 import 'dog_repository.dart';
 
-/// Speichert alles in Firestore, Fotos in Firebase Storage.
+/// Speichert alles in Firestore – auch die Fotos.
 ///
 /// Alle Daten eines Haushalts liegen unter `haushalte/<code>/…`. Wer
 /// denselben Code eingibt, sieht denselben Stand – das ist die ganze
 /// Zuordnung, absichtlich ohne Benutzerkonten.
+///
+/// Fotos liegen als Daten in einer eigenen Sammlung statt in Cloud
+/// Storage. Storage verlangt bei neuen Projekten den kostenpflichtigen
+/// Tarif; für Bilder von rund 100 kB ist die Datenbank völlig
+/// ausreichend, und die App bleibt damit im kostenlosen Kontingent.
+/// Weil die Sammlung nicht abonniert wird, belasten die Fotos auch
+/// keine der laufenden Abfragen.
 ///
 /// Die Lesezugriffe sind Snapshot-Streams: Trägt jemand auf einem
 /// anderen Gerät eine Fütterung ein, schiebt der Server die Änderung
@@ -32,8 +39,8 @@ class FirebaseRepository implements DogRepository {
   CollectionReference<Map<String, dynamic>> _col(String name) =>
       _wurzel.collection(name);
 
-  Reference _photoRef(String id) =>
-      FirebaseStorage.instance.ref('haushalte/$haushalt/fotos/$id.jpg');
+  DocumentReference<Map<String, dynamic>> _foto(String id) =>
+      _wurzel.collection('fotos').doc(id);
 
   @override
   bool get isShared => true;
@@ -87,10 +94,10 @@ class FirebaseRepository implements DogRepository {
 
   @override
   Future<String> putPhoto(String id, Uint8List bytes) async {
-    await _photoRef(id).putData(
-      bytes,
-      SettableMetadata(contentType: 'image/jpeg'),
-    );
+    await _foto(id).set({
+      'daten': base64Encode(bytes),
+      'gespeichert': DateTime.now().toIso8601String(),
+    });
     return 'cloud:$id';
   }
 
@@ -98,11 +105,12 @@ class FirebaseRepository implements DogRepository {
   Future<Uint8List?> getPhoto(String ref) async {
     if (!ref.startsWith('cloud:')) return null;
     try {
-      // Großzügig bemessen: Die App verkleinert Fotos vor dem
-      // Speichern auf ~100 kB.
-      return await _photoRef(ref.substring(6)).getData(8 * 1024 * 1024);
+      final snap = await _foto(ref.substring(6)).get();
+      final daten = snap.data()?['daten'] as String?;
+      if (daten == null || daten.isEmpty) return null;
+      return base64Decode(daten);
     } on FirebaseException {
-      // Foto gelöscht oder (noch) nicht hochgeladen – die Oberfläche
+      // Foto gelöscht oder noch nicht angekommen – die Oberfläche
       // zeigt dann den Platzhalter.
       return null;
     }
@@ -112,7 +120,7 @@ class FirebaseRepository implements DogRepository {
   Future<void> deletePhoto(String ref) async {
     if (!ref.startsWith('cloud:')) return;
     try {
-      await _photoRef(ref.substring(6)).delete();
+      await _foto(ref.substring(6)).delete();
     } on FirebaseException {
       // Schon weg – kein Grund, den Löschvorgang scheitern zu lassen.
     }

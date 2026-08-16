@@ -22,7 +22,7 @@ Einträge wären auf einem Handy unbedienbar:
 | ---------- | ------------------------------------------- |
 | Übersicht  | Tagesstand, Hinweise, Schnellaktionen        |
 | Alltag     | Fütterung · Schlaf · Leckerli                |
-| Gesundheit | Gewicht · Medikamente · Impfungen            |
+| Gesundheit | Entwicklung · Medikamente · Impfungen        |
 | Kalender   | Termine aller Art                            |
 | Training   | Heute · Übungen · Pläne                      |
 
@@ -132,7 +132,7 @@ selbst in die Listen.
 1. In der [Firebase-Konsole](https://console.firebase.google.com) das
    Projekt anlegen (hier: `bheki-dog`).
 2. **Firestore Database** anlegen (Standort `eur3` oder
-   `europe-west3`) und **Storage** aktivieren.
+   `europe-west3`). **Storage wird nicht gebraucht** – siehe unten.
 3. Unter **Authentication → Sign-in method** die **anonyme Anmeldung**
    einschalten.
 4. Konfiguration erzeugen – im Ordner `dogapp/`, beschränkt auf Web:
@@ -147,14 +147,12 @@ selbst in die Listen.
    die Werte sind keine Geheimnisse, sie benennen nur das Projekt.
    Sobald sie da ist, startet die App von selbst im Cloud-Modus.
 
-5. Die Regeln aus `firestore.rules` und `storage.rules` in der Konsole
-   hinterlegen (Firestore → Regeln, Storage → Regeln).
+5. Die Regeln aus `firestore.rules` in der Konsole hinterlegen
+   (Firestore → Regeln).
 
-Ohne die FlutterFire-Datei geht es auch über `--dart-define`
-(`FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`,
-`FIREBASE_STORAGE_BUCKET`, `FIREBASE_MESSAGING_SENDER_ID`,
-`FIREBASE_APP_ID`) – der Deploy-Workflow reicht sie aus den
-Repo-Secrets durch.
+Die Werte lassen sich auch ohne FlutterFire besorgen: In der Konsole
+unter **Projekteinstellungen → Meine Apps → Konfiguration** stehen
+dieselben sechs Angaben zum Kopieren.
 
 ### Haushalts-Codewort
 
@@ -174,10 +172,22 @@ Benutzer-IDs umzustellen und in der App eine Anmeldung vorzuschalten.
 Vertippt? Auf der Übersicht unten rechts **Wechseln** – die Daten
 bleiben unter dem alten Codewort erhalten.
 
-## Fotos
+## Fotos und Kosten
 
-Fotos werden vor dem Speichern auf 900 px Kantenlänge verkleinert und
-als JPEG abgelegt (`lib/core/photo.dart`). Ohne diesen Schritt wäre der
-lokale Browser-Speicher nach wenigen Handyfotos voll. Im lokalen Modus
-gilt trotzdem die Browser-Grenze von etwa 5 MB – ausreichend für den
-Anfang, aber der eigentliche Ort für Fotos ist Firebase Storage.
+Fotos werden vor dem Speichern auf 800 px Kantenlänge verkleinert und
+als JPEG abgelegt (`lib/core/photo.dart`); übliche Handyfotos landen
+danach bei rund 100 kB. Eine Notbremse komprimiert stärker, falls ein
+Bild die Grenze von 600 kB doch reißen sollte.
+
+Sie liegen **in der Datenbank**, nicht in Cloud Storage. Storage
+verlangt bei neuen Projekten den kostenpflichtigen Blaze-Tarif, also
+eine hinterlegte Kreditkarte. Für Bilder dieser Größe ist ein
+Firestore-Dokument (1 MiB Grenze) völlig ausreichend – so bleibt die
+App im kostenlosen Spark-Tarif, ganz ohne Zahlungsdaten.
+
+Der Verbrauch für einen Hund und zwei, drei Personen liegt bei etwa
+einem Prozent der kostenlosen Kontingente. Die Fotos stehen in einer
+eigenen Sammlung, die nicht abonniert wird – sie belasten also auch
+keine der laufenden Abfragen.
+
+Im lokalen Modus gilt weiterhin die Browser-Grenze von etwa 5 MB.

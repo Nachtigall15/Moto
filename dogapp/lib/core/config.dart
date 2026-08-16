@@ -10,8 +10,18 @@ class AppConfig {
   /// wird (siehe `data/haushalt.dart`).
 
   /// Fotos werden vor dem Speichern auf diese Kantenlänge verkleinert.
-  /// Reicht für die Verlaufsansicht locker und hält Speicher und
-  /// Übertragung klein.
-  static const int photoMaxEdge = 900;
-  static const int photoJpegQuality = 78;
+  /// Reicht für den Entwicklungsverlauf locker.
+  static const int photoMaxEdge = 800;
+  static const int photoJpegQuality = 72;
+
+  /// Obergrenze für ein gespeichertes Foto.
+  ///
+  /// Fotos liegen als Daten direkt im Datenbankeintrag, damit die App
+  /// ohne Cloud Storage auskommt – und damit ohne kostenpflichtigen
+  /// Tarif. Ein Firestore-Dokument darf 1 MiB groß sein; die
+  /// Base64-Kodierung bläht die Daten um ein Drittel auf. 600 kB roh
+  /// lassen also reichlich Luft. Übliche Handyfotos landen nach dem
+  /// Verkleinern bei rund einem Zehntel davon – die Grenze ist eine
+  /// Notbremse, kein Regelfall.
+  static const int photoMaxBytes = 600 * 1024;
 }
