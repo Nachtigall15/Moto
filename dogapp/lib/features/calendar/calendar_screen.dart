@@ -35,6 +35,10 @@ class CalendarScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Kalender')),
       floatingActionButton: FloatingActionButton.extended(
+        // Eindeutige Kennung: Alle Reiter liegen gleichzeitig im
+        // Baum, ohne sie stolpert die Übergangsanimation über
+        // mehrere gleich benannte Knöpfe.
+        heroTag: 'fab-termin',
         onPressed: () => openAppointmentEditor(context),
         icon: const Icon(Icons.add),
         label: const Text('Termin'),

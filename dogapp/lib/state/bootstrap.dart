@@ -30,7 +30,16 @@ enum Startphase {
 /// Hundetagebuch, das nicht aufgeht, ist schlimmer als eines, das
 /// vorübergehend nur auf einem Gerät schreibt.
 class BootstrapController extends ChangeNotifier {
-  Startphase _phase = Startphase.laden;
+  BootstrapController() : _phase = Startphase.laden;
+
+  /// Fertig gestarteter Zustand ohne Firebase – für Tests, die die
+  /// Oberfläche prüfen wollen, ohne ein Netz zu brauchen.
+  @visibleForTesting
+  BootstrapController.bereit(AppState state)
+      : _state = state,
+        _phase = Startphase.bereit;
+
+  Startphase _phase;
   Startphase get phase => _phase;
 
   AppState? _state;
@@ -157,8 +166,17 @@ class BootstrapController extends ChangeNotifier {
       final options = DefaultFirebaseOptions.currentPlatform;
       if (options.apiKey.isEmpty || options.projectId.isEmpty) return false;
 
-      await Firebase.initializeApp(options: options);
+      // Mit Zeitlimit: Kann der Browser die Firebase-Skripte nicht
+      // laden – kein Netz, blockierende Erweiterung, Firewall –, dann
+      // wartet initializeApp sonst endlos, und die App bleibt für
+      // immer in der Ladeanzeige stehen. Lieber lokal weiterarbeiten.
+      await Firebase.initializeApp(options: options)
+          .timeout(const Duration(seconds: 12));
       return true;
+    } on TimeoutException {
+      _fehler = 'Die Verbindung zu Firebase kam nicht zustande. Die App '
+          'arbeitet so lange nur auf diesem Gerät.';
+      return false;
     } catch (e) {
       _fehler = '$e';
       return false;

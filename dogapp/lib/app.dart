@@ -38,28 +38,47 @@ class DogApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider.value(
       value: bootstrap,
-      child: MaterialApp(
-        title: 'Hunde-App',
-        debugShowCheckedModeBanner: false,
-        theme: buildLightTheme(),
-        darkTheme: buildDarkTheme(),
-        // Ohne feste Sprache kämen Datums- und Uhrzeit-Dialoge auf
-        // Englisch und mit AM/PM.
-        locale: const Locale('de', 'DE'),
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: const [Locale('de', 'DE')],
-        // Zusätzlich zur Sprache: 24-Stunden-Anzeige unabhängig davon,
-        // wie das Gerät eingestellt ist.
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-          child: child!,
-        ),
-        home: const _Root(),
+      // Der Anwendungszustand muss OBERHALB von MaterialApp liegen.
+      // Eingabefenster und Dialoge hängen am Navigator der MaterialApp
+      // und sind Geschwister der Startseite, nicht deren Kinder – ein
+      // Zustand, der erst darunter bereitgestellt wird, ist für sie
+      // unsichtbar, und jedes Eingabefenster stürzt beim Öffnen ab.
+      child: Consumer<BootstrapController>(
+        builder: (context, bootstrap, _) {
+          final state = bootstrap.state;
+          final app = _buildApp();
+          if (state == null) return app;
+          return ChangeNotifierProvider<AppState>.value(
+            value: state,
+            child: app,
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildApp() {
+    return MaterialApp(
+      title: 'Hunde-App',
+      debugShowCheckedModeBanner: false,
+      theme: buildLightTheme(),
+      darkTheme: buildDarkTheme(),
+      // Ohne feste Sprache kämen Datums- und Uhrzeit-Dialoge auf
+      // Englisch und mit AM/PM.
+      locale: const Locale('de', 'DE'),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('de', 'DE')],
+      // Zusätzlich zur Sprache: 24-Stunden-Anzeige unabhängig davon,
+      // wie das Gerät eingestellt ist.
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
+      home: const _Root(),
     );
   }
 }
@@ -85,10 +104,9 @@ class _Root extends StatelessWidget {
           hinweis: bootstrap.hinweis,
           busy: bootstrap.busy,
         ),
-      Startphase.bereit => ChangeNotifierProvider<AppState>.value(
-          value: bootstrap.state!,
-          child: const HomeShell(),
-        ),
+      // Der Zustand hängt schon über der MaterialApp – hier bleibt
+      // nur noch die Auswahl der Ansicht.
+      Startphase.bereit => const HomeShell(),
     };
   }
 }
@@ -139,7 +157,12 @@ class _HomeShellState extends State<HomeShell> {
     ];
 
     return Scaffold(
-      body: IndexedStack(index: _index, children: tabs),
+      body: Column(
+        children: [
+          const _FehlerLeiste(),
+          Expanded(child: IndexedStack(index: _index, children: tabs)),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: _open,
@@ -170,6 +193,61 @@ class _HomeShellState extends State<HomeShell> {
             label: 'Training',
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Meldet Probleme beim Speichern oder Laden über allen Reitern.
+///
+/// Ein fehlgeschlagener Schreibvorgang ist der unangenehmste Fehler,
+/// den diese App haben kann: Man tippt auf Speichern, das Fenster
+/// schließt sich, und Tage später fehlt der Eintrag. Deshalb steht die
+/// Meldung ganz oben und bleibt, bis jemand sie wegtippt.
+class _FehlerLeiste extends StatelessWidget {
+  const _FehlerLeiste();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final fehler = context.watch<AppState>().datenFehler;
+    if (fehler == null) return const SizedBox.shrink();
+
+    return Material(
+      color: theme.colorScheme.errorContainer,
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.warning_amber_outlined,
+                size: 20,
+                color: theme.colorScheme.onErrorContainer,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  fehler,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onErrorContainer,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Ausblenden',
+                onPressed: context.read<AppState>().verwerfeFehler,
+                icon: Icon(
+                  Icons.close,
+                  size: 18,
+                  color: theme.colorScheme.onErrorContainer,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

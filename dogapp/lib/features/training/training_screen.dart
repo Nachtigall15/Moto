@@ -148,6 +148,7 @@ class _UebungenTab extends StatelessWidget {
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'fab-uebung',
         onPressed: () => _openExerciseEditor(context),
         icon: const Icon(Icons.add),
         label: const Text('Übung'),
@@ -397,6 +398,7 @@ class _PlaeneTab extends StatelessWidget {
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'fab-plan',
         onPressed: state.exercises.isEmpty
             ? null
             : () => _openPlanEditor(context),

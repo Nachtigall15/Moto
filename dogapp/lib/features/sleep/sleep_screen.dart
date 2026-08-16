@@ -49,6 +49,10 @@ class _SleepScreenState extends State<SleepScreen> {
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
+        // Eindeutige Kennung: Alle Reiter liegen gleichzeitig im
+        // Baum, ohne sie stolpert die Übergangsanimation über
+        // mehrere gleich benannte Knöpfe.
+        heroTag: 'fab-schlaf',
         onPressed: () =>
             running == null ? state.startSleep() : state.stopSleep(),
         backgroundColor:

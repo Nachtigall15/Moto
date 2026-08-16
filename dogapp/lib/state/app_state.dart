@@ -106,12 +106,57 @@ class AppState extends ChangeNotifier {
           sortierFeld: b.sortierFeld,
           limit: limitVon(b),
         )
-        .listen(_handler[b]!);
+        .listen(_handler[b]!, onError: _meldeFehler);
     notifyListeners();
   }
 
   bool _ready = false;
   bool get ready => _ready;
+
+  /// Letzter Fehler beim Lesen oder Schreiben – null, solange alles
+  /// glattgeht.
+  ///
+  /// Ohne diese Anzeige scheitern Schreibvorgänge lautlos: Man tippt
+  /// auf Speichern, das Fenster schließt sich, und nichts ist da. Das
+  /// ist der unangenehmste Fehler überhaupt, weil man ihn erst Tage
+  /// später bemerkt.
+  String? _datenFehler;
+  String? get datenFehler => _datenFehler;
+
+  void verwerfeFehler() {
+    if (_datenFehler == null) return;
+    _datenFehler = null;
+    notifyListeners();
+  }
+
+  void _meldeFehler(Object fehler) {
+    final text = fehler.toString();
+    _datenFehler =
+        text.contains('permission-denied') || text.contains('PERMISSION_DENIED')
+            ? 'Die Datenbank verweigert den Zugriff. In der Firebase-Konsole '
+                'müssen unter Firestore → Regeln die Regeln aus '
+                'firestore.rules veröffentlicht sein und die eigene '
+                'E-Mail-Adresse in der Freigabeliste stehen.'
+            : text.contains('unavailable') || text.contains('UNAVAILABLE')
+                ? 'Die Datenbank ist gerade nicht erreichbar. Einträge werden '
+                    'gespeichert, sobald wieder Verbindung besteht.'
+                : 'Es gab ein Problem beim Speichern oder Laden: $text';
+    notifyListeners();
+  }
+
+  /// Jede Schreiboperation läuft hierdurch, damit ein Fehlschlag
+  /// sichtbar wird statt zu verschwinden.
+  Future<void> _schreibe(Future<void> aktion) async {
+    try {
+      await aktion;
+      if (_datenFehler != null) {
+        _datenFehler = null;
+        notifyListeners();
+      }
+    } catch (e) {
+      _meldeFehler(e);
+    }
+  }
 
   bool get isShared => _repo.isShared;
   String get backendLabel => _repo.backendLabel;
@@ -150,7 +195,7 @@ class AppState extends ChangeNotifier {
   Future<void> init() async {
     await _repo.init();
 
-    _subs.add(_repo.watchDoc(_dProfile).listen((data) {
+    _subs.add(_repo.watchDoc(_dProfile).listen(onError: _meldeFehler, (data) {
       _profile = data == null ? const DogProfile() : DogProfile.fromJson(data);
       notifyListeners();
     }));
@@ -179,7 +224,8 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     };
 
-    _subs.add(_repo.watchCollection(_cMedications).listen((rows) {
+    _subs.add(_repo.watchCollection(_cMedications).listen(onError: _meldeFehler,
+        (rows) {
       _medications = rows.map(Medication.fromJson).toList()
         ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       notifyListeners();
@@ -192,13 +238,16 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     };
 
-    _subs.add(_repo.watchCollection(_cVaccinations).listen((rows) {
+    _subs.add(_repo
+        .watchCollection(_cVaccinations)
+        .listen(onError: _meldeFehler, (rows) {
       _vaccinations = rows.map(Vaccination.fromJson).toList()
         ..sort((a, b) => b.datum.compareTo(a.datum));
       notifyListeners();
     }));
 
-    _subs.add(_repo.watchCollection(_cExercises).listen((rows) {
+    _subs.add(_repo.watchCollection(_cExercises).listen(onError: _meldeFehler,
+        (rows) {
       _exercises = rows.map(TrainingExercise.fromJson).toList()
         ..sort((a, b) {
           final g = a.gruppe.index.compareTo(b.gruppe.index);
@@ -215,14 +264,16 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     };
 
-    _subs.add(_repo.watchCollection(_cPlans).listen((rows) {
+    _subs.add(
+        _repo.watchCollection(_cPlans).listen(onError: _meldeFehler, (rows) {
       _plans = rows.map(TrainingPlan.fromJson).toList()
         ..sort(
             (a, b) => a.titel.toLowerCase().compareTo(b.titel.toLowerCase()));
       notifyListeners();
     }));
 
-    _subs.add(_repo.watchCollection(_cTreats).listen((rows) {
+    _subs.add(
+        _repo.watchCollection(_cTreats).listen(onError: _meldeFehler, (rows) {
       _treats = rows.map(Treat.fromJson).toList()
         ..sort((a, b) {
           final e = a.erlaubt.index.compareTo(b.erlaubt.index);
@@ -266,15 +317,16 @@ class AppState extends ChangeNotifier {
   Future<void> saveProfile(DogProfile profile) async {
     _profile = profile;
     notifyListeners();
-    await _repo.setDoc(_dProfile, profile.toJson());
+    await _schreibe(_repo.setDoc(_dProfile, profile.toJson()));
   }
 
   // --- Fütterung ------------------------------------------------------
 
   Future<void> saveFeeding(FeedingEntry entry) =>
-      _repo.upsert(_cFeedings, entry.id, entry.toJson());
+      _schreibe(_repo.upsert(_cFeedings, entry.id, entry.toJson()));
 
-  Future<void> deleteFeeding(String id) => _repo.delete(_cFeedings, id);
+  Future<void> deleteFeeding(String id) =>
+      _schreibe(_repo.delete(_cFeedings, id));
 
   List<FeedingEntry> feedingsOn(DateTime day) => _feedings
       .where((f) =>
@@ -308,9 +360,9 @@ class AppState extends ChangeNotifier {
   // --- Schlaf ---------------------------------------------------------
 
   Future<void> saveSleep(SleepEntry entry) =>
-      _repo.upsert(_cSleeps, entry.id, entry.toJson());
+      _schreibe(_repo.upsert(_cSleeps, entry.id, entry.toJson()));
 
-  Future<void> deleteSleep(String id) => _repo.delete(_cSleeps, id);
+  Future<void> deleteSleep(String id) => _schreibe(_repo.delete(_cSleeps, id));
 
   SleepEntry? get laufenderSchlaf {
     for (final s in _sleeps) {
@@ -344,11 +396,11 @@ class AppState extends ChangeNotifier {
   // --- Gewicht & Fotos ------------------------------------------------
 
   Future<void> saveWeight(WeightEntry entry) =>
-      _repo.upsert(_cWeights, entry.id, entry.toJson());
+      _schreibe(_repo.upsert(_cWeights, entry.id, entry.toJson()));
 
   Future<void> deleteWeight(WeightEntry entry) async {
-    if (entry.hatFoto) await _repo.deletePhoto(entry.fotoRef!);
-    await _repo.delete(_cWeights, entry.id);
+    if (entry.hatFoto) await _schreibe(_repo.deletePhoto(entry.fotoRef!));
+    await _schreibe(_repo.delete(_cWeights, entry.id));
   }
 
   Future<String> storePhoto(String id, Uint8List bytes) =>
@@ -394,9 +446,10 @@ class AppState extends ChangeNotifier {
   // --- Termine --------------------------------------------------------
 
   Future<void> saveAppointment(Appointment entry) =>
-      _repo.upsert(_cAppointments, entry.id, entry.toJson());
+      _schreibe(_repo.upsert(_cAppointments, entry.id, entry.toJson()));
 
-  Future<void> deleteAppointment(String id) => _repo.delete(_cAppointments, id);
+  Future<void> deleteAppointment(String id) =>
+      _schreibe(_repo.delete(_cAppointments, id));
 
   /// Was noch aussteht: alles ab heute plus alles, was in der
   /// Vergangenheit liegt, aber niemand abgehakt hat.
@@ -433,9 +486,10 @@ class AppState extends ChangeNotifier {
   // --- Medikamente ----------------------------------------------------
 
   Future<void> saveMedication(Medication entry) =>
-      _repo.upsert(_cMedications, entry.id, entry.toJson());
+      _schreibe(_repo.upsert(_cMedications, entry.id, entry.toJson()));
 
-  Future<void> deleteMedication(String id) => _repo.delete(_cMedications, id);
+  Future<void> deleteMedication(String id) =>
+      _schreibe(_repo.delete(_cMedications, id));
 
   List<Medication> medicationsOn(DateTime day) =>
       _medications.where((m) => m.giltAm(day)).toList();
@@ -458,7 +512,7 @@ class AppState extends ChangeNotifier {
   }) async {
     final id = MedicationLog.buildId(medikamentId, tag, minute);
     if (_medLogs.containsKey(id)) {
-      await _repo.delete(_cMedLogs, id);
+      await _schreibe(_repo.delete(_cMedLogs, id));
       return;
     }
     final log = MedicationLog(
@@ -468,7 +522,7 @@ class AppState extends ChangeNotifier {
       gegebenUm: DateTime.now(),
       wer: wer,
     );
-    await _repo.upsert(_cMedLogs, id, log.toJson());
+    await _schreibe(_repo.upsert(_cMedLogs, id, log.toJson()));
   }
 
   /// Alle Gaben eines Tages, nach Uhrzeit sortiert.
@@ -526,9 +580,10 @@ class AppState extends ChangeNotifier {
   // --- Impfungen ------------------------------------------------------
 
   Future<void> saveVaccination(Vaccination entry) =>
-      _repo.upsert(_cVaccinations, entry.id, entry.toJson());
+      _schreibe(_repo.upsert(_cVaccinations, entry.id, entry.toJson()));
 
-  Future<void> deleteVaccination(String id) => _repo.delete(_cVaccinations, id);
+  Future<void> deleteVaccination(String id) =>
+      _schreibe(_repo.delete(_cVaccinations, id));
 
   /// Nur die jeweils jüngste Impfung pro Bezeichnung bestimmt den
   /// Status – eine drei Jahre alte Tollwutimpfung ist irrelevant,
@@ -560,9 +615,10 @@ class AppState extends ChangeNotifier {
   // --- Training -------------------------------------------------------
 
   Future<void> saveExercise(TrainingExercise entry) =>
-      _repo.upsert(_cExercises, entry.id, entry.toJson());
+      _schreibe(_repo.upsert(_cExercises, entry.id, entry.toJson()));
 
-  Future<void> deleteExercise(String id) => _repo.delete(_cExercises, id);
+  Future<void> deleteExercise(String id) =>
+      _schreibe(_repo.delete(_cExercises, id));
 
   /// Legt den Startkatalog an. Bewusst nur auf Knopfdruck – eine App
   /// soll nicht ungefragt Daten erzeugen, die hinterher jemand
@@ -577,7 +633,7 @@ class AppState extends ChangeNotifier {
         beschreibung: hinweis,
         reihenfolge: i,
       );
-      await _repo.upsert(_cExercises, uebung.id, uebung.toJson());
+      await _schreibe(_repo.upsert(_cExercises, uebung.id, uebung.toJson()));
     }
   }
 
@@ -601,7 +657,7 @@ class AppState extends ChangeNotifier {
   }) async {
     final id = TrainingLog.buildId(uebungId, tag);
     if (_trainingLogs.containsKey(id)) {
-      await _repo.delete(_cTrainingLogs, id);
+      await _schreibe(_repo.delete(_cTrainingLogs, id));
       return;
     }
     final log = TrainingLog(
@@ -610,7 +666,7 @@ class AppState extends ChangeNotifier {
       erledigtUm: DateTime.now(),
       wer: wer,
     );
-    await _repo.upsert(_cTrainingLogs, id, log.toJson());
+    await _schreibe(_repo.upsert(_cTrainingLogs, id, log.toJson()));
   }
 
   /// An wie vielen der letzten [tage] Tage wurde überhaupt geübt?
@@ -631,9 +687,9 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> savePlan(TrainingPlan plan) =>
-      _repo.upsert(_cPlans, plan.id, plan.toJson());
+      _schreibe(_repo.upsert(_cPlans, plan.id, plan.toJson()));
 
-  Future<void> deletePlan(String id) => _repo.delete(_cPlans, id);
+  Future<void> deletePlan(String id) => _schreibe(_repo.delete(_cPlans, id));
 
   List<TrainingPlan> get aktivePlaene => _plans.where((p) => p.aktiv).toList();
 
@@ -653,9 +709,9 @@ class AppState extends ChangeNotifier {
   // --- Leckerli -------------------------------------------------------
 
   Future<void> saveTreat(Treat entry) =>
-      _repo.upsert(_cTreats, entry.id, entry.toJson());
+      _schreibe(_repo.upsert(_cTreats, entry.id, entry.toJson()));
 
-  Future<void> deleteTreat(String id) => _repo.delete(_cTreats, id);
+  Future<void> deleteTreat(String id) => _schreibe(_repo.delete(_cTreats, id));
 
   Future<void> seedTreats() async {
     if (_treats.isNotEmpty) return;
@@ -666,7 +722,7 @@ class AppState extends ChangeNotifier {
         beliebtheit: erlaubt == Erlaubnis.nein ? 0 : 2,
         notiz: hinweis,
       );
-      await _repo.upsert(_cTreats, treat.id, treat.toJson());
+      await _schreibe(_repo.upsert(_cTreats, treat.id, treat.toJson()));
     }
   }
 }

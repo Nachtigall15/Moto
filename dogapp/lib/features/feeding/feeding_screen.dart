@@ -26,6 +26,10 @@ class FeedingScreen extends StatelessWidget {
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
+        // Eindeutige Kennung: Alle Reiter liegen gleichzeitig im
+        // Baum, ohne sie stolpert die Übergangsanimation über
+        // mehrere gleich benannte Knöpfe.
+        heroTag: 'fab-fuetterung',
         onPressed: () => _openEditor(context),
         icon: const Icon(Icons.add),
         label: const Text('Fütterung'),
