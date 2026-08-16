@@ -52,21 +52,19 @@ class VaccinationScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             SectionCard(
-              title: 'Alle Eintragungen',
+              title: 'Verlauf',
               icon: Icons.history,
-              child: Column(
-                children: [
-                  for (final v in alle)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      onTap: () => _openEditor(context, entry: v),
-                      leading: const Icon(Icons.vaccines_outlined),
-                      title: Text(
-                        v.bezeichnung,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Text(_details(v)),
+              trailing: Text(
+                alle.length == 1 ? '1 Eintrag' : '${alle.length} Einträge',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final (bezeichnung, eintraege) in state.impfungenNachArt)
+                    _Impfgruppe(bezeichnung: bezeichnung, eintraege: eintraege),
                 ],
               ),
             ),
@@ -75,13 +73,88 @@ class VaccinationScreen extends StatelessWidget {
       ),
     );
   }
+}
 
-  static String _details(Vaccination v) {
+/// Alle Auffrischungen einer Impfung untereinander.
+///
+/// Vorher stand alles in einer langen Liste durcheinander. Beim
+/// Tierarzt lautet die Frage aber „wann war die letzte Tollwut?" –
+/// dafür muss die Geschichte einer Impfung beieinanderstehen.
+class _Impfgruppe extends StatelessWidget {
+  const _Impfgruppe({required this.bezeichnung, required this.eintraege});
+
+  final String bezeichnung;
+  final List<Vaccination> eintraege;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    bezeichnung,
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                if (eintraege.length > 1)
+                  Text(
+                    '${eintraege.length}×',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          for (final v in eintraege)
+            InkWell(
+              onTap: () => _openEditor(context, entry: v),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 92,
+                      child: Text(
+                        dfDate.format(v.datum),
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        _zusatz(v).isEmpty ? '–' : _zusatz(v),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _zusatz(Vaccination v) {
     final teile = <String>[
-      'geimpft am ${dfDate.format(v.datum)}',
       if (v.gueltigBis != null) 'gültig bis ${dfDate.format(v.gueltigBis!)}',
       if (v.impfstoff.isNotEmpty) v.impfstoff,
       if (v.chargennummer.isNotEmpty) 'Charge ${v.chargennummer}',
+      if (v.tierarzt.isNotEmpty) v.tierarzt,
     ];
     return teile.join(' · ');
   }
@@ -276,8 +349,7 @@ class _VaccinationEditorState extends State<_VaccinationEditor> {
                 for (final standard in Vaccination.standards)
                   ActionChip(
                     label: Text(standard.$1),
-                    onPressed: () =>
-                        _waehleStandard(standard.$1, standard.$2),
+                    onPressed: () => _waehleStandard(standard.$1, standard.$2),
                   ),
               ],
             ),

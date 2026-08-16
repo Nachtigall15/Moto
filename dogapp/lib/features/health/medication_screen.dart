@@ -91,9 +91,8 @@ class _MedicationScreenState extends State<MedicationScreen> {
                 if (alle.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
-                    onPressed: zukunft
-                        ? null
-                        : () => _openNachtragen(context, _tag),
+                    onPressed:
+                        zukunft ? null : () => _openNachtragen(context, _tag),
                     icon: const Icon(Icons.more_time),
                     label: const Text('Gabe nachtragen'),
                   ),
@@ -138,6 +137,9 @@ class _MedicationScreenState extends State<MedicationScreen> {
                 ],
               ),
             ),
+          const SizedBox(height: 16),
+          _Verlauf(
+              doses: state.gabenVerlauf, letzteWoche: state.gabenLetzteTage()),
           const MehrLaden(bereich: Bereich.gaben),
         ],
       ),
@@ -156,6 +158,117 @@ class _MedicationScreenState extends State<MedicationScreen> {
       if (!m.aktiv) 'pausiert',
     ];
     return teile.join(' · ');
+  }
+}
+
+/// Was tatsächlich gegeben wurde, über die Tage hinweg.
+///
+/// Der Tagesplan oben beantwortet „was ist heute noch zu tun"; diese
+/// Liste beantwortet „was hat er wann bekommen" – die Frage, die beim
+/// Tierarzt gestellt wird.
+class _Verlauf extends StatelessWidget {
+  const _Verlauf({required this.doses, required this.letzteWoche});
+
+  final List<MedicationDose> doses;
+  final int letzteWoche;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final heute = startOfDay(DateTime.now());
+
+    // Nach Tagen bündeln – eine ununterbrochene Reihe von Zeilen wäre
+    // nicht lesbar.
+    final nachTag = <DateTime, List<MedicationDose>>{};
+    for (final d in doses) {
+      nachTag.putIfAbsent(startOfDay(d.tag), () => []).add(d);
+    }
+    final tage = nachTag.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    return SectionCard(
+      title: 'Verlauf',
+      icon: Icons.history,
+      trailing: doses.isEmpty
+          ? null
+          : Text(
+              '$letzteWoche in 7 Tagen',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+      child: doses.isEmpty
+          ? const EmptyHint(
+              text: 'Noch keine Gabe abgehakt.\n'
+                  'Was hier steht, ist die Antwort auf die Frage des '
+                  'Tierarztes, wann er was bekommen hat.',
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final tag in tage) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 10, 0, 4),
+                    child: Text(
+                      tag == heute
+                          ? 'Heute'
+                          : (tag == heute.subtract(const Duration(days: 1))
+                              ? 'Gestern'
+                              : dfWeekday.format(tag)),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  for (final d in nachTag[tag]!)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          SizedBox(
+                            width: 52,
+                            child: Text(
+                              d.zeitLabel,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  d.medikament.dosis.isEmpty
+                                      ? d.medikament.name
+                                      : '${d.medikament.name} · '
+                                          '${d.medikament.dosis}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                if (d.nachgetragen)
+                                  Text(
+                                    'nachgetragen',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.check_circle,
+                            size: 18,
+                            color: theme.colorScheme.primary,
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ],
+            ),
+    );
   }
 }
 
@@ -508,8 +621,7 @@ class _MedicationEditorState extends State<_MedicationEditor> {
                 for (final minute in _zeiten)
                   InputChip(
                     label: Text('${Medication.zeitLabel(minute)} Uhr'),
-                    onDeleted: () =>
-                        setState(() => _zeiten.remove(minute)),
+                    onDeleted: () => setState(() => _zeiten.remove(minute)),
                   ),
                 ActionChip(
                   avatar: const Icon(Icons.add, size: 16),

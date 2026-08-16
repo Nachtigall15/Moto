@@ -577,6 +577,42 @@ class AppState extends ChangeNotifier {
   int offeneGabenHeute() =>
       dosesOn(DateTime.now()).where((d) => !d.gegeben).length;
 
+  /// Alle tatsächlich gegebenen Gaben, neueste zuerst.
+  ///
+  /// Der Tagesplan zeigt immer nur einen Tag. Für die Frage „wann hat
+  /// er das letzte Mal etwas bekommen?" braucht es den Verlauf über
+  /// die Tage hinweg.
+  ///
+  /// Gaben zu inzwischen gelöschten Medikamenten bleiben sichtbar –
+  /// die Gabe hat stattgefunden, das lässt sich nicht dadurch
+  /// ungeschehen machen, dass jemand das Mittel aus der Liste nimmt.
+  List<MedicationDose> get gabenVerlauf {
+    final nachId = {for (final m in _medications) m.id: m};
+
+    final liste = _medLogs.values.map((log) {
+      final med = nachId[log.medikamentId] ??
+          Medication(id: log.medikamentId, name: 'Nicht mehr hinterlegt');
+      return MedicationDose(
+        medikament: med,
+        minute: log.minute,
+        tag: log.tag,
+        log: log,
+      );
+    }).toList()
+      ..sort((a, b) => b.zeitpunkt.compareTo(a.zeitpunkt));
+
+    return liste;
+  }
+
+  /// Wie viele Gaben in den letzten [tage] Tagen quittiert wurden.
+  int gabenLetzteTage({int tage = 7}) {
+    final grenze =
+        startOfDay(DateTime.now()).subtract(Duration(days: tage - 1));
+    return _medLogs.values
+        .where((log) => !startOfDay(log.tag).isBefore(grenze))
+        .length;
+  }
+
   // --- Impfungen ------------------------------------------------------
 
   Future<void> saveVaccination(Vaccination entry) =>
@@ -606,6 +642,26 @@ class AppState extends ChangeNotifier {
         return at.compareTo(bt);
       });
     return list;
+  }
+
+  /// Impfungen nach Bezeichnung gebündelt, innerhalb einer Gruppe die
+  /// jüngste zuerst. So steht die Geschichte einer Impfung beieinander
+  /// statt über eine lange Liste verstreut.
+  ///
+  /// Die Gruppen sind nach der jeweils jüngsten Impfung sortiert –
+  /// was zuletzt dran war, steht oben.
+  List<(String, List<Vaccination>)> get impfungenNachArt {
+    final gruppen = <String, List<Vaccination>>{};
+    for (final v in _vaccinations) {
+      gruppen.putIfAbsent(v.bezeichnung, () => []).add(v);
+    }
+    for (final liste in gruppen.values) {
+      liste.sort((a, b) => b.datum.compareTo(a.datum));
+    }
+
+    final ergebnis = gruppen.entries.map((e) => (e.key, e.value)).toList()
+      ..sort((a, b) => b.$2.first.datum.compareTo(a.$2.first.datum));
+    return ergebnis;
   }
 
   List<Vaccination> get faelligeImpfungen => aktuelleImpfungen

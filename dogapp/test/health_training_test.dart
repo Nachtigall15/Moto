@@ -171,6 +171,76 @@ void main() {
     });
   });
 
+  group('Übersichten', () {
+    test('Gabenverlauf steht chronologisch, neueste zuerst', () async {
+      final med = Medication(name: 'Metacam', zeiten: [8 * 60, 20 * 60]);
+      await state.saveMedication(med);
+      await settle();
+
+      final heute = DateTime.now();
+      final gestern = heute.subtract(const Duration(days: 1));
+      await state.toggleGabe(med.id, gestern, 20 * 60);
+      await state.toggleGabe(med.id, heute, 8 * 60);
+      await settle();
+
+      final verlauf = state.gabenVerlauf;
+      expect(verlauf, hasLength(2));
+      expect(verlauf.first.zeitpunkt.isAfter(verlauf.last.zeitpunkt), isTrue);
+      expect(state.gabenLetzteTage(), 2);
+      // Vor acht Tagen war nichts – der Zeitraum grenzt wirklich ein.
+      expect(state.gabenLetzteTage(tage: 1), 1);
+    });
+
+    test('Gaben zu gelöschten Medikamenten bleiben im Verlauf', () async {
+      final med = Medication(name: 'Kurzzeitmittel', zeiten: [9 * 60]);
+      await state.saveMedication(med);
+      await settle();
+      await state.toggleGabe(med.id, DateTime.now(), 9 * 60);
+      await settle();
+
+      await state.deleteMedication(med.id);
+      await settle();
+
+      // Die Gabe hat stattgefunden – sie darf nicht verschwinden,
+      // nur weil das Mittel aus der Liste genommen wurde.
+      expect(state.medications, isEmpty);
+      expect(state.gabenVerlauf, hasLength(1));
+      expect(state.gabenVerlauf.single.medikament.name,
+          'Nicht mehr hinterlegt');
+    });
+
+    test('Impfungen werden nach Art gebündelt', () async {
+      final heute = startOfDay(DateTime.now());
+
+      await state.saveVaccination(Vaccination(
+        bezeichnung: 'Tollwut',
+        datum: heute.subtract(const Duration(days: 800)),
+      ));
+      await state.saveVaccination(Vaccination(
+        bezeichnung: 'Tollwut',
+        datum: heute.subtract(const Duration(days: 90)),
+      ));
+      await state.saveVaccination(Vaccination(
+        bezeichnung: 'Leptospirose',
+        datum: heute.subtract(const Duration(days: 10)),
+      ));
+      await settle();
+
+      final gruppen = state.impfungenNachArt;
+      expect(gruppen, hasLength(2));
+
+      // Die Art mit der jüngsten Impfung steht oben – hier
+      // Leptospirose vor 10 Tagen, Tollwut liegt 90 Tage zurück.
+      expect(gruppen.first.$1, 'Leptospirose');
+
+      final tollwut = gruppen.firstWhere((g) => g.$1 == 'Tollwut').$2;
+      expect(tollwut, hasLength(2));
+      // Innerhalb einer Art ebenfalls die jüngste zuerst.
+      expect(tollwut.first.datum, heute.subtract(const Duration(days: 90)));
+      expect(tollwut.last.datum, heute.subtract(const Duration(days: 800)));
+    });
+  });
+
   group('Impfungen', () {
     test('nur die jüngste Impfung je Bezeichnung zählt', () async {
       final heute = DateTime.now();

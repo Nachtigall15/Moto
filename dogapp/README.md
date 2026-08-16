@@ -55,12 +55,17 @@ Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
   Später. Vergangene, nicht abgehakte Termine stehen oben, damit sie
   nicht durchrutschen.
 - **Medikamente** – Gabezeiten pro Medikament, Tagesplan zum Abhaken
-  mit Uhrzeit der tatsächlichen Gabe. Zeitraum (ab/bis) und Pausieren
+  mit Uhrzeit der tatsächlichen Gabe, darunter der **Verlauf** aller
+  Gaben über die Tage hinweg (nach Tag gebündelt, mit Zähler für die
+  letzten sieben Tage). Gaben zu inzwischen gelöschten Medikamenten
+  bleiben sichtbar – stattgefunden hat sie trotzdem. Zeitraum (ab/bis) und Pausieren
   für Wurmkur und Kuren. Der Haken hat eine feste Kennung aus
   Medikament, Tag und Uhrzeit – zwei Personen können dieselbe Gabe
   nicht doppelt eintragen.
 - **Impfungen** – Datum, Impfstoff, Chargennummer, Tierarzt und
-  Gültigkeit. Der Status rechnet nur mit der jeweils jüngsten Impfung
+  Gültigkeit. Oben der Status, darunter der **Verlauf nach Impfung
+  gebündelt**: alle Auffrischungen einer Art untereinander, jüngste
+  zuerst. Der Status rechnet nur mit der jeweils jüngsten Impfung
   je Bezeichnung; acht Wochen vor Ablauf gibt es eine Warnung und
   daneben einen Knopf, der direkt den Tierarzttermin anlegt.
 - **Training** – Übungskatalog mit Trainingsstand (offen / in Arbeit /
