@@ -22,10 +22,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Die Adresse muss exakt die sein, mit der sich die Person in der
+    // App anmeldet – nicht die, unter der man Firebase verwaltet. Auf
+    // der Übersicht steht unten "Angemeldet als …"; genau das gehört
+    // hier hinein.
     function zugelassen() {
       return request.auth != null
           && request.auth.token.email in [
-               'ftrapp@gmx.net'
+               'bheki@dog.de'
                // , 'hundetrainerin@beispiel.de'
              ];
     }

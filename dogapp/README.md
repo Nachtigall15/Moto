@@ -170,6 +170,11 @@ Zwei Schritte gehören zusammen:
 2. Die Adresse in `firestore.rules` in die Liste `zugelassen()`
    eintragen und die Regeln veröffentlichen.
 
+Maßgeblich ist die Adresse, mit der sich die Person **in der App**
+anmeldet – nicht die, unter der das Firebase-Projekt verwaltet wird.
+Auf der Übersicht steht unten „Angemeldet als …"; genau die gehört in
+die Liste.
+
 Fehlt der zweite Schritt, kann sich die Person anmelden, sieht aber
 nur Fehlermeldungen. Eine Adresse aus der Liste zu streichen entzieht
 den Zugriff sofort, auch auf Geräten, die noch angemeldet sind.
