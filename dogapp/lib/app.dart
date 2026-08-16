@@ -126,7 +126,7 @@ class _HomeShellState extends State<HomeShell> {
         titel: 'Gesundheit',
         startIndex: _index == Tabs.gesundheit ? _unterreiter : null,
         reiter: const [
-          ('Gewicht', WeightScreen()),
+          ('Entwicklung', WeightScreen()),
           ('Medikamente', MedicationScreen()),
           ('Impfungen', VaccinationScreen()),
         ],

@@ -280,6 +280,31 @@ class AppState extends ChangeNotifier {
     return _weights[0].gewichtKg - _weights[1].gewichtKg;
   }
 
+  /// Messungen mit Größe – die Höhe wird seltener genommen als das
+  /// Gewicht, deshalb eine eigene Reihe statt Lücken im Verlauf.
+  List<WeightEntry> get groessenMessungen =>
+      _weights.where((w) => w.hatGroesse).toList();
+
+  WeightEntry? get letzteGroesse {
+    final mit = groessenMessungen;
+    return mit.isEmpty ? null : mit.first;
+  }
+
+  /// Wachstum seit der vorletzten Messung, in Zentimetern.
+  double? get groessenDifferenz {
+    final mit = groessenMessungen;
+    if (mit.length < 2) return null;
+    return mit[0].groesseCm! - mit[1].groesseCm!;
+  }
+
+  /// Alle Fotos in zeitlicher Reihenfolge – der eigentliche
+  /// Entwicklungsverlauf zum Durchblättern.
+  List<WeightEntry> get fotoVerlauf {
+    final mit = _weights.where((w) => w.hatFoto).toList()
+      ..sort((a, b) => a.zeitpunkt.compareTo(b.zeitpunkt));
+    return mit;
+  }
+
   // --- Termine --------------------------------------------------------
 
   Future<void> saveAppointment(Appointment entry) =>

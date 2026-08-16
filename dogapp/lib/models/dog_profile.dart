@@ -11,6 +11,7 @@ class DogProfile {
     this.fellfarbe = '',
     this.besondereKennzeichen = '',
     this.zielgewichtKg,
+    this.zielgroesseCm,
     // Kennzeichnung
     this.chipNummer = '',
     this.chipDatum,
@@ -43,9 +44,13 @@ class DogProfile {
   final String fellfarbe;
   final String besondereKennzeichen;
 
-  /// Optionales Zielgewicht – wird im Gewichtsverlauf als Linie
-  /// eingezeichnet.
+  /// Optionales Zielgewicht – wird im Verlauf als Linie eingezeichnet.
   final double? zielgewichtKg;
+
+  /// Erwartete Widerristhöhe im ausgewachsenen Zustand. Bei einer
+  /// Rasse mit bekanntem Standard eine gute Orientierung, ob die
+  /// Entwicklung im Rahmen liegt.
+  final double? zielgroesseCm;
 
   final String chipNummer;
   final DateTime? chipDatum;
@@ -83,6 +88,8 @@ class DogProfile {
     String? besondereKennzeichen,
     double? zielgewichtKg,
     bool clearZielgewicht = false,
+    double? zielgroesseCm,
+    bool clearZielgroesse = false,
     String? chipNummer,
     DateTime? chipDatum,
     bool clearChipDatum = false,
@@ -115,6 +122,8 @@ class DogProfile {
       besondereKennzeichen: besondereKennzeichen ?? this.besondereKennzeichen,
       zielgewichtKg:
           clearZielgewicht ? null : (zielgewichtKg ?? this.zielgewichtKg),
+      zielgroesseCm:
+          clearZielgroesse ? null : (zielgroesseCm ?? this.zielgroesseCm),
       chipNummer: chipNummer ?? this.chipNummer,
       chipDatum: clearChipDatum ? null : (chipDatum ?? this.chipDatum),
       chipStelle: chipStelle ?? this.chipStelle,
@@ -149,6 +158,7 @@ class DogProfile {
         'fellfarbe': fellfarbe,
         'besondereKennzeichen': besondereKennzeichen,
         'zielgewichtKg': zielgewichtKg,
+        'zielgroesseCm': zielgroesseCm,
         'chipNummer': chipNummer,
         'chipDatum': chipDatum?.toIso8601String(),
         'chipStelle': chipStelle,
@@ -178,6 +188,7 @@ class DogProfile {
         fellfarbe: json['fellfarbe'] as String? ?? '',
         besondereKennzeichen: json['besondereKennzeichen'] as String? ?? '',
         zielgewichtKg: (json['zielgewichtKg'] as num?)?.toDouble(),
+        zielgroesseCm: (json['zielgroesseCm'] as num?)?.toDouble(),
         chipNummer: json['chipNummer'] as String? ?? '',
         chipDatum: _date(json['chipDatum']),
         chipStelle: json['chipStelle'] as String? ?? '',

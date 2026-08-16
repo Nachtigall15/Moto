@@ -73,6 +73,12 @@ class ProfileScreen extends StatelessWidget {
                       ? ''
                       : '${nfWeight.format(p.zielgewichtKg!)} kg'
                 ),
+                (
+                  'Zielgröße',
+                  p.zielgroesseCm == null
+                      ? ''
+                      : '${nfAmount.format(p.zielgroesseCm!)} cm'
+                ),
               ]),
             ),
             const SizedBox(height: 16),
@@ -232,6 +238,9 @@ class _ProfileEditorState extends State<_ProfileEditor> {
   Future<void> _save() async {
     final zielRaw = _ctrl('ziel', '').text.trim().replaceAll(',', '.');
     final ziel = zielRaw.isEmpty ? null : double.tryParse(zielRaw);
+    final groesseRaw = _ctrl('zielGroesse', '').text.trim().replaceAll(',', '.');
+    final zielGroesse =
+        groesseRaw.isEmpty ? null : double.tryParse(groesseRaw);
 
     final updated = _p.copyWith(
       name: _ctrl('name', '').text.trim(),
@@ -240,6 +249,8 @@ class _ProfileEditorState extends State<_ProfileEditor> {
       besondereKennzeichen: _ctrl('kennzeichen', '').text.trim(),
       zielgewichtKg: ziel,
       clearZielgewicht: ziel == null,
+      zielgroesseCm: zielGroesse,
+      clearZielgroesse: zielGroesse == null,
       chipNummer: _ctrl('chip', '').text.trim(),
       chipStelle: _ctrl('chipStelle', '').text.trim(),
       taetowierung: _ctrl('tattoo', '').text.trim(),
@@ -321,6 +332,15 @@ class _ProfileEditorState extends State<_ProfileEditor> {
                   _p.zielgewichtKg == null
                       ? ''
                       : nfWeight.format(_p.zielgewichtKg!),
+                  keyboard:
+                      const TextInputType.numberWithOptions(decimal: true),
+                ),
+                _field(
+                  'zielGroesse',
+                  'Zielgröße in cm (optional)',
+                  _p.zielgroesseCm == null
+                      ? ''
+                      : nfAmount.format(_p.zielgroesseCm!),
                   keyboard:
                       const TextInputType.numberWithOptions(decimal: true),
                 ),

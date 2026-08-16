@@ -135,6 +135,74 @@ void main() {
       expect(state.gewichtsDifferenz, closeTo(0.6, 0.0001));
     });
 
+    test('Größe ist optional und bildet eine eigene Reihe', () async {
+      final now = DateTime.now();
+
+      await state.saveWeight(WeightEntry(
+        zeitpunkt: now.subtract(const Duration(days: 30)),
+        gewichtKg: 9.2,
+        groesseCm: 38,
+      ));
+      // Zwischendurch nur gewogen, nicht gemessen.
+      await state.saveWeight(WeightEntry(
+        zeitpunkt: now.subtract(const Duration(days: 15)),
+        gewichtKg: 12.0,
+      ));
+      await state.saveWeight(WeightEntry(
+        zeitpunkt: now,
+        gewichtKg: 15.4,
+        groesseCm: 45.5,
+      ));
+
+      await settle();
+
+      expect(state.weights, hasLength(3));
+      // Die Größenreihe überspringt die Messung ohne Höhe, statt eine
+      // Lücke in den Verlauf zu reißen.
+      expect(state.groessenMessungen, hasLength(2));
+      expect(state.letzteGroesse!.groesseCm, 45.5);
+      expect(state.groessenDifferenz, closeTo(7.5, 0.0001));
+      expect(state.gewichtsDifferenz, closeTo(3.4, 0.0001));
+    });
+
+    test('ohne Größenangaben gibt es keine Wachstumsdifferenz', () async {
+      await state.saveWeight(
+        WeightEntry(zeitpunkt: DateTime.now(), gewichtKg: 10),
+      );
+      await settle();
+
+      expect(state.groessenMessungen, isEmpty);
+      expect(state.letzteGroesse, isNull);
+      expect(state.groessenDifferenz, isNull);
+    });
+
+    test('Fotoverlauf läuft vorwärts durch die Zeit', () async {
+      final now = DateTime.now();
+      final alt = WeightEntry(
+        zeitpunkt: now.subtract(const Duration(days: 60)),
+        gewichtKg: 8,
+      );
+      final neu = WeightEntry(zeitpunkt: now, gewichtKg: 16);
+
+      await state.saveWeight(
+        alt.copyWith(fotoRef: await state.storePhoto(alt.id, _bytes(1))),
+      );
+      await state.saveWeight(
+        neu.copyWith(fotoRef: await state.storePhoto(neu.id, _bytes(2))),
+      );
+      // Eine Messung ohne Foto gehört nicht in den Verlauf.
+      await state.saveWeight(WeightEntry(
+        zeitpunkt: now.subtract(const Duration(days: 30)),
+        gewichtKg: 12,
+      ));
+
+      await settle();
+
+      final verlauf = state.fotoVerlauf;
+      expect(verlauf, hasLength(2));
+      expect(verlauf.first.zeitpunkt.isBefore(verlauf.last.zeitpunkt), isTrue);
+    });
+
     test('Foto wird gespeichert, gelesen und mit dem Eintrag gelöscht',
         () async {
       final entry = WeightEntry(zeitpunkt: DateTime.now(), gewichtKg: 10);
@@ -207,3 +275,6 @@ void main() {
     });
   });
 }
+
+/// Kurze Platzhalter-Bilddaten für die Fototests.
+Uint8List _bytes(int marker) => Uint8List.fromList([marker, 2, 3, 4]);

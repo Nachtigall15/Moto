@@ -12,82 +12,171 @@ import '../../state/app_state.dart';
 import '../common/dog_photo.dart';
 import '../common/ui.dart';
 
-class WeightScreen extends StatelessWidget {
+/// Welche Reihe das Diagramm zeigt. Gewicht und Größe in ein Diagramm
+/// zu zwingen, hieße zwei völlig verschiedene Wertebereiche auf eine
+/// Achse zu legen – der Verlauf sähe dann dramatischer oder flacher
+/// aus, als er ist.
+enum _Reihe {
+  gewicht('Gewicht', 'kg'),
+  groesse('Größe', 'cm');
+
+  const _Reihe(this.label, this.einheit);
+
+  final String label;
+  final String einheit;
+}
+
+class WeightScreen extends StatefulWidget {
   const WeightScreen({super.key});
+
+  @override
+  State<WeightScreen> createState() => _WeightScreenState();
+}
+
+class _WeightScreenState extends State<WeightScreen> {
+  _Reihe _reihe = _Reihe.gewicht;
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
     final entries = state.weights;
     final letztes = state.letztesGewicht;
+    final letzteGroesse = state.letzteGroesse;
     final diff = state.gewichtsDifferenz;
+    final groessenDiff = state.groessenDifferenz;
+    final fotos = state.fotoVerlauf;
+
+    final reihenDaten = _reihe == _Reihe.gewicht
+        ? entries
+        : state.groessenMessungen;
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openEditor(context),
         icon: const Icon(Icons.add),
-        label: const Text('Wiegen'),
+        label: const Text('Messung'),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
         children: [
           SectionCard(
             title: 'Aktueller Stand',
-            icon: Icons.monitor_weight_outlined,
-            child: Row(
+            icon: Icons.straighten_outlined,
+            child: Column(
               children: [
-                Expanded(
-                  child: StatTile(
-                    label: 'Letztes Gewicht',
-                    value: letztes?.gewichtLabel ?? '–',
-                    hint: letztes == null
-                        ? null
-                        : dfDate.format(letztes.zeitpunkt),
-                    icon: Icons.monitor_weight_outlined,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: StatTile(
+                        label: 'Gewicht',
+                        value: letztes?.gewichtLabel ?? '–',
+                        hint: letztes == null
+                            ? null
+                            : dfDate.format(letztes.zeitpunkt),
+                        icon: Icons.monitor_weight_outlined,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: StatTile(
+                        label: 'Größe',
+                        value: letzteGroesse?.groesseLabel ?? '–',
+                        hint: letzteGroesse == null
+                            ? 'noch nicht gemessen'
+                            : dfDate.format(letzteGroesse.zeitpunkt),
+                        icon: Icons.height,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: StatTile(
-                    label: 'Veränderung',
-                    value: diff == null
-                        ? '–'
-                        : '${diff >= 0 ? '+' : '−'}'
-                            '${nfWeight.format(diff.abs())} kg',
-                    hint: diff == null ? 'zum Vorwert' : 'zum Vorwert',
-                    icon: diff == null
-                        ? Icons.remove
-                        : (diff >= 0
-                            ? Icons.trending_up
-                            : Icons.trending_down),
-                    color: diff == null || diff.abs() < 0.05
-                        ? null
-                        : Theme.of(context).colorScheme.secondary,
-                  ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: StatTile(
+                        label: 'Zugenommen',
+                        value: _differenzLabel(diff, 'kg'),
+                        hint: 'seit der Messung davor',
+                        icon: _trendIcon(diff),
+                        color: _trendFarbe(context, diff),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: StatTile(
+                        label: 'Gewachsen',
+                        value: _differenzLabel(groessenDiff, 'cm'),
+                        hint: 'seit der Messung davor',
+                        icon: _trendIcon(groessenDiff),
+                        color: _trendFarbe(context, groessenDiff),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
           const SizedBox(height: 16),
-          if (entries.length >= 2)
+          SectionCard(
+            title: 'Verlauf',
+            icon: Icons.show_chart,
+            child: Column(
+              children: [
+                SegmentedButton<_Reihe>(
+                  segments: [
+                    for (final r in _Reihe.values)
+                      ButtonSegment(value: r, label: Text(r.label)),
+                  ],
+                  selected: {_reihe},
+                  onSelectionChanged: (s) =>
+                      setState(() => _reihe = s.first),
+                  showSelectedIcon: false,
+                ),
+                const SizedBox(height: 16),
+                if (reihenDaten.length < 2)
+                  EmptyHint(
+                    text: _reihe == _Reihe.gewicht
+                        ? 'Ab der zweiten Messung entsteht hier eine Kurve.'
+                        : 'Trag bei einer Messung die Widerristhöhe mit '
+                            'ein –\nab dem zweiten Wert entsteht die Kurve.',
+                  )
+                else
+                  SizedBox(
+                    height: 190,
+                    child: _VerlaufChart(
+                      entries: reihenDaten,
+                      reihe: _reihe,
+                      ziel: _reihe == _Reihe.gewicht
+                          ? state.profile.zielgewichtKg
+                          : state.profile.zielgroesseCm,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (fotos.length >= 2) ...[
             SectionCard(
-              title: 'Verlauf',
-              icon: Icons.show_chart,
+              title: 'Fotoverlauf',
+              icon: Icons.photo_library_outlined,
               child: SizedBox(
-                height: 190,
-                child: _WeightChart(
-                  entries: entries,
-                  zielgewicht: state.profile.zielgewichtKg,
+                height: 132,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: fotos.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (context, i) => _FotoKachel(entry: fotos[i]),
                 ),
               ),
             ),
-          if (entries.length >= 2) const SizedBox(height: 16),
+            const SizedBox(height: 16),
+          ],
           if (entries.isEmpty)
             const Card(
               child: EmptyHint(
                 icon: Icons.monitor_weight_outlined,
                 text: 'Noch keine Messung.\n'
-                    'Beim Wiegen gleich ein Foto mitspeichern –\n'
+                    'Gewicht, Größe und ein Foto zusammen erfassen –\n'
                     'so entsteht ein Entwicklungsverlauf.',
               ),
             )
@@ -103,6 +192,65 @@ class WeightScreen extends StatelessWidget {
       ),
     );
   }
+
+  static String _differenzLabel(double? wert, String einheit) {
+    if (wert == null) return '–';
+    final vorzeichen = wert >= 0 ? '+' : '−';
+    return '$vorzeichen${nfWeight.format(wert.abs())} $einheit';
+  }
+
+  static IconData _trendIcon(double? wert) {
+    if (wert == null) return Icons.remove;
+    return wert >= 0 ? Icons.trending_up : Icons.trending_down;
+  }
+
+  static Color? _trendFarbe(BuildContext context, double? wert) {
+    if (wert == null || wert.abs() < 0.05) return null;
+    return Theme.of(context).colorScheme.secondary;
+  }
+}
+
+/// Ein Foto im Verlaufsstreifen, mit Datum und Alter darunter.
+class _FotoKachel extends StatelessWidget {
+  const _FotoKachel({required this.entry});
+
+  final WeightEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final geburtstag = context.read<AppState>().profile.geburtsdatum;
+
+    return GestureDetector(
+      onTap: () => showPhotoDialog(
+        context,
+        entry.fotoRef!,
+        '${entry.gewichtLabel}'
+        '${entry.groesseLabel == null ? '' : ' · ${entry.groesseLabel}'}'
+        ' · ${dfDate.format(entry.zeitpunkt)}',
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DogPhoto(fotoRef: entry.fotoRef!, size: 96),
+          const SizedBox(height: 4),
+          Text(
+            dfShortDay.format(entry.zeitpunkt),
+            style: theme.textTheme.bodySmall
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          Text(
+            geburtstag == null
+                ? entry.gewichtLabel
+                : formatAge(geburtstag, now: entry.zeitpunkt),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _WeightTile extends StatelessWidget {
@@ -112,6 +260,11 @@ class _WeightTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final untertitel = <String>[
+      '${dfDateTime.format(entry.zeitpunkt)} Uhr',
+      if (entry.groesseLabel != null) entry.groesseLabel!,
+    ].join(' · ');
+
     return ListTile(
       onTap: () => _openEditor(context, entry: entry),
       leading: entry.hatFoto
@@ -127,9 +280,8 @@ class _WeightTile extends StatelessWidget {
               width: 56,
               height: 56,
               decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest,
+                color:
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
@@ -142,22 +294,29 @@ class _WeightTile extends StatelessWidget {
         style: const TextStyle(fontWeight: FontWeight.w700),
       ),
       subtitle: Text(
-        '${dfDateTime.format(entry.zeitpunkt)} Uhr'
-        '${entry.notiz.isEmpty ? '' : '\n${entry.notiz}'}',
+        entry.notiz.isEmpty ? untertitel : '$untertitel\n${entry.notiz}',
       ),
       isThreeLine: entry.notiz.isNotEmpty,
     );
   }
 }
 
-/// Gewichtsverlauf über die Zeit. X ist der Tag als Zahl, damit
-/// ungleichmäßige Abstände zwischen zwei Messungen auch im Diagramm
-/// ungleichmäßig aussehen.
-class _WeightChart extends StatelessWidget {
-  const _WeightChart({required this.entries, this.zielgewicht});
+/// Verlauf über die Zeit. X ist der Tag als Zahl, damit ungleichmäßige
+/// Abstände zwischen zwei Messungen auch im Diagramm ungleichmäßig
+/// aussehen.
+class _VerlaufChart extends StatelessWidget {
+  const _VerlaufChart({
+    required this.entries,
+    required this.reihe,
+    this.ziel,
+  });
 
   final List<WeightEntry> entries;
-  final double? zielgewicht;
+  final _Reihe reihe;
+  final double? ziel;
+
+  double _wert(WeightEntry e) =>
+      reihe == _Reihe.gewicht ? e.gewichtKg : e.groesseCm!;
 
   @override
   Widget build(BuildContext context) {
@@ -167,16 +326,15 @@ class _WeightChart extends StatelessWidget {
       ..sort((a, b) => a.zeitpunkt.compareTo(b.zeitpunkt));
     final first = startOfDay(sorted.first.zeitpunkt);
 
-    double toX(DateTime d) =>
-        d.difference(first).inMinutes / (60 * 24); // Tage, mit Bruchteil
+    double toX(DateTime d) => d.difference(first).inMinutes / (60 * 24);
 
     final spots = [
-      for (final e in sorted) FlSpot(toX(e.zeitpunkt), e.gewichtKg),
+      for (final e in sorted) FlSpot(toX(e.zeitpunkt), _wert(e)),
     ];
 
     final values = [
-      ...sorted.map((e) => e.gewichtKg),
-      if (zielgewicht != null) zielgewicht!,
+      ...sorted.map(_wert),
+      if (ziel != null) ziel!,
     ];
     var minY = values.reduce((a, b) => a < b ? a : b);
     var maxY = values.reduce((a, b) => a > b ? a : b);
@@ -246,12 +404,12 @@ class _WeightChart extends StatelessWidget {
             ),
           ),
         ],
-        extraLinesData: zielgewicht == null
+        extraLinesData: ziel == null
             ? const ExtraLinesData()
             : ExtraLinesData(
                 horizontalLines: [
                   HorizontalLine(
-                    y: zielgewicht!,
+                    y: ziel!,
                     color: scheme.secondary,
                     strokeWidth: 1.5,
                     dashArray: [6, 4],
@@ -273,7 +431,7 @@ class _WeightChart extends StatelessWidget {
             getTooltipItems: (spots) => spots
                 .map(
                   (s) => LineTooltipItem(
-                    '${nfWeight.format(s.y)} kg\n'
+                    '${nfWeight.format(s.y)} ${reihe.einheit}\n'
                     '${dfDate.format(first.add(Duration(days: s.x.round())))}',
                     TextStyle(color: scheme.onSurface, fontSize: 11),
                   ),
@@ -308,6 +466,11 @@ class _WeightEditorState extends State<_WeightEditor> {
   late final TextEditingController _gewicht = TextEditingController(
     text: widget.entry == null ? '' : nfWeight.format(widget.entry!.gewichtKg),
   );
+  late final TextEditingController _groesse = TextEditingController(
+    text: widget.entry?.groesseCm == null
+        ? ''
+        : nfAmount.format(widget.entry!.groesseCm),
+  );
   late final TextEditingController _notiz =
       TextEditingController(text: widget.entry?.notiz ?? '');
 
@@ -321,8 +484,15 @@ class _WeightEditorState extends State<_WeightEditor> {
   @override
   void dispose() {
     _gewicht.dispose();
+    _groesse.dispose();
     _notiz.dispose();
     super.dispose();
+  }
+
+  static double? _zahl(String text) {
+    final bereinigt = text.trim().replaceAll(',', '.');
+    if (bereinigt.isEmpty) return null;
+    return double.tryParse(bereinigt);
   }
 
   Future<void> _pickPhoto(ImageSource source) async {
@@ -343,8 +513,8 @@ class _WeightEditorState extends State<_WeightEditor> {
   Future<void> _save() async {
     setState(() => _busy = true);
     final state = context.read<AppState>();
-    final gewicht =
-        double.tryParse(_gewicht.text.trim().replaceAll(',', '.')) ?? 0;
+    final gewicht = _zahl(_gewicht.text) ?? 0;
+    final groesse = _zahl(_groesse.text);
 
     final base = widget.entry ??
         WeightEntry(zeitpunkt: _zeitpunkt, gewichtKg: gewicht);
@@ -369,6 +539,8 @@ class _WeightEditorState extends State<_WeightEditor> {
       base.copyWith(
         zeitpunkt: _zeitpunkt,
         gewichtKg: gewicht,
+        groesseCm: groesse,
+        clearGroesse: groesse == null,
         fotoRef: ref,
         clearFoto: ref == null,
         notiz: _notiz.text.trim(),
@@ -379,8 +551,7 @@ class _WeightEditorState extends State<_WeightEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final gewichtOk =
-        (double.tryParse(_gewicht.text.trim().replaceAll(',', '.')) ?? 0) > 0;
+    final gewichtOk = (_zahl(_gewicht.text) ?? 0) > 0;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -399,16 +570,43 @@ class _WeightEditorState extends State<_WeightEditor> {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 16),
-            TextField(
-              controller: _gewicht,
-              autofocus: widget.entry == null,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                labelText: 'Gewicht',
-                suffixText: 'kg',
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _gewicht,
+                    autofocus: widget.entry == null,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      labelText: 'Gewicht',
+                      suffixText: 'kg',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _groesse,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Größe',
+                      suffixText: 'cm',
+                      helperText: 'optional',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Größe = Widerristhöhe: vom Boden bis zum höchsten Punkt '
+              'der Schulterblätter, im Stehen.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
             ),
             const SizedBox(height: 12),
             OutlinedButton.icon(
