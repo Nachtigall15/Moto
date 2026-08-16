@@ -1,33 +1,26 @@
 import 'package:firebase_core/firebase_core.dart';
 
-import 'core/config.dart';
-
-/// Firebase-Konfiguration der App.
+/// Firebase-Konfiguration der App (Projekt `bheki-dog`, Web).
 ///
-/// **Diese Datei ist ein Platzhalter und darf überschrieben werden.**
-/// Der übliche Weg ist:
+/// Diese Werte sind keine Geheimnisse – sie stehen in jeder Web-App im
+/// Quelltext und benennen nur das Projekt. Der Zugriffsschutz passiert
+/// über die Regeln in `firestore.rules` und `storage.rules`.
 ///
-///     cd dogapp
-///     flutterfire configure --project=bheki-dog --platforms=web
-///
-/// Danach steht hier die von FlutterFire erzeugte Fassung mit den
-/// echten Projektwerten, und die App startet ohne weiteres Zutun im
-/// Cloud-Modus. Bis dahin liest der Platzhalter dieselben Werte aus
-/// `--dart-define` (siehe `core/config.dart`); fehlen sie, bleibt die
-/// App im lokalen Modus.
-///
-/// Die Werte sind keine Geheimnisse – sie benennen nur das Projekt.
-/// Der Zugriffsschutz passiert über die Firestore-Regeln
-/// (`firestore.rules`).
+/// Inhaltlich dasselbe, was `flutterfire configure --platforms=web`
+/// erzeugt hätte; wer den Befehl später doch laufen lässt, darf die
+/// Datei bedenkenlos überschreiben.
 class DefaultFirebaseOptions {
   DefaultFirebaseOptions._();
 
-  static FirebaseOptions get currentPlatform => const FirebaseOptions(
-        apiKey: AppConfig.firebaseApiKey,
-        authDomain: AppConfig.firebaseAuthDomain,
-        projectId: AppConfig.firebaseProjectId,
-        storageBucket: AppConfig.firebaseStorageBucket,
-        messagingSenderId: AppConfig.firebaseMessagingSenderId,
-        appId: AppConfig.firebaseAppId,
-      );
+  static FirebaseOptions get currentPlatform => web;
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyDxs91bqlzHO7-LSd64kMc8DxA1tKtsL44',
+    authDomain: 'bheki-dog.firebaseapp.com',
+    projectId: 'bheki-dog',
+    storageBucket: 'bheki-dog.firebasestorage.app',
+    messagingSenderId: '837173292462',
+    appId: '1:837173292462:web:992f3b2bf2474994b82c3f',
+    measurementId: 'G-TE9G4N2VB9',
+  );
 }

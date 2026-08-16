@@ -37,22 +37,15 @@ jobs:
             --dart-define=GRAPHHOPPER_API_KEY=${{ secrets.GRAPHHOPPER_API_KEY }} \
             --dart-define=TOMTOM_API_KEY=${{ secrets.TOMTOM_API_KEY }}
 
-      # Firebase-Werte sind keine Geheimnisse (sie identifizieren nur
-      # das Projekt), liegen aber trotzdem in den Repo-Secrets, damit
-      # sie an einer Stelle gepflegt werden. Fehlen sie, startet die
-      # App im lokalen Modus – der Build bleibt grün.
+      # Die Firebase-Konfiguration steht in lib/firebase_options.dart –
+      # die Werte sind keine Geheimnisse, sie benennen nur das Projekt.
+      # Deshalb braucht der Build hier nichts weiter.
       - name: Hunde-App bauen (/dog/)
         working-directory: dogapp
         run: |
           flutter pub get
           flutter build web --release \
-            --base-href "/${{ github.event.repository.name }}/dog/" \
-            --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }} \
-            --dart-define=FIREBASE_AUTH_DOMAIN=${{ secrets.FIREBASE_AUTH_DOMAIN }} \
-            --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} \
-            --dart-define=FIREBASE_STORAGE_BUCKET=${{ secrets.FIREBASE_STORAGE_BUCKET }} \
-            --dart-define=FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }} \
-            --dart-define=FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }}
+            --base-href "/${{ github.event.repository.name }}/dog/"
 
       - name: Hunde-App unter /dog/ einhängen
         run: cp -r dogapp/build/web build/web/dog
