@@ -16,7 +16,17 @@ abstract class DogRepository {
   Future<void> setDoc(String id, Map<String, dynamic> data);
 
   /// Sammlung gleichartiger Einträge (Fütterungen, Schlaf, Gewicht …).
-  Stream<List<Map<String, dynamic>>> watchCollection(String name);
+  ///
+  /// [sortierFeld] und [limit] begrenzen das Ergebnis auf die
+  /// jüngsten Einträge. Ohne diese Begrenzung würde die App nach einem
+  /// Jahr bei jedem Start mehrere tausend Fütterungen laden – langsam
+  /// beim Öffnen und unnötig teuer, obwohl niemand die Fütterung vom
+  /// letzten März sucht.
+  Stream<List<Map<String, dynamic>>> watchCollection(
+    String name, {
+    String? sortierFeld,
+    int? limit,
+  });
   Future<void> upsert(String name, String id, Map<String, dynamic> data);
   Future<void> delete(String name, String id);
 

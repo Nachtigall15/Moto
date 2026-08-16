@@ -77,21 +77,52 @@ class LocalRepository implements DogRepository {
       .map((e) => Map<String, dynamic>.from(e as Map))
       .toList();
 
+  /// Merkt sich, wie eine Sammlung abonniert wurde, damit spätere
+  /// Änderungen mit demselben Ausschnitt zugestellt werden.
+  final Map<String, ({String? feld, int? limit})> _fenster = {};
+
   @override
-  Stream<List<Map<String, dynamic>>> watchCollection(String name) {
+  Stream<List<Map<String, dynamic>>> watchCollection(
+    String name, {
+    String? sortierFeld,
+    int? limit,
+  }) {
+    _fenster[name] = (feld: sortierFeld, limit: limit);
     final controller = _collectionControllers.putIfAbsent(
       name,
       () => StreamController<List<Map<String, dynamic>>>.broadcast(),
     );
-    scheduleMicrotask(() => controller.add(_entriesOf(name)));
+    scheduleMicrotask(() => controller.add(_ausschnitt(name)));
     return controller.stream;
+  }
+
+  /// Dieselbe Begrenzung wie in der Cloud-Variante, nur lokal
+  /// gerechnet: absteigend sortieren, dann abschneiden. Die Werte sind
+  /// ISO-Zeitstempel als Text – die lassen sich direkt vergleichen.
+  List<Map<String, dynamic>> _ausschnitt(String name) {
+    final alle = _entriesOf(name);
+    final fenster = _fenster[name];
+    if (fenster == null) return alle;
+
+    final feld = fenster.feld;
+    if (feld != null) {
+      alle.sort((a, b) {
+        final av = a[feld]?.toString() ?? '';
+        final bv = b[feld]?.toString() ?? '';
+        return bv.compareTo(av);
+      });
+    }
+
+    final limit = fenster.limit;
+    if (limit != null && alle.length > limit) {
+      return alle.sublist(0, limit);
+    }
+    return alle;
   }
 
   Future<void> _writeCollection(String name, Map<String, dynamic> data) async {
     await _prefs.setString(_collectionKey(name), jsonEncode(data));
-    _collectionControllers[name]?.add(
-      data.values.map((e) => Map<String, dynamic>.from(e as Map)).toList(),
-    );
+    _collectionControllers[name]?.add(_ausschnitt(name));
   }
 
   @override

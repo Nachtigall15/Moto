@@ -23,6 +23,7 @@ class FeedingScreen extends StatelessWidget {
       byDay.putIfAbsent(startOfDay(f.zeitpunkt), () => []).add(f);
     }
     final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
+    final vollstaendig = state.fuetterungenVollstaendig;
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
@@ -83,13 +84,26 @@ class FeedingScreen extends StatelessWidget {
             Card(
               child: Column(
                 children: [
-                  for (final entry in byDay[day]!
-                    ..sort((a, b) => b.zeitpunkt.compareTo(a.zeitpunkt)))
+                  for (final entry
+                      in byDay[day]!
+                        ..sort((a, b) => b.zeitpunkt.compareTo(a.zeitpunkt)))
                     _FeedingTile(entry: entry),
                 ],
               ),
             ),
           ],
+          if (!vollstaendig)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 20, 4, 0),
+              child: Text(
+                'Zeigt die jüngsten Einträge. Ältere bleiben gespeichert, '
+                'werden aber nicht mitgeladen.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ),
         ],
       ),
     );
@@ -124,8 +138,8 @@ class _FeedingTile extends StatelessWidget {
       ),
       trailing: Text(
         entry.mengeLabel,
-        style: theme.textTheme.titleSmall
-            ?.copyWith(fontWeight: FontWeight.w700),
+        style:
+            theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -189,8 +203,7 @@ class _FeedingEditorState extends State<_FeedingEditor> {
 
   Future<void> _save() async {
     final state = context.read<AppState>();
-    final menge =
-        double.tryParse(_menge.text.trim().replaceAll(',', '.')) ?? 0;
+    final menge = double.tryParse(_menge.text.trim().replaceAll(',', '.')) ?? 0;
 
     final entry = (widget.entry ??
             FeedingEntry(

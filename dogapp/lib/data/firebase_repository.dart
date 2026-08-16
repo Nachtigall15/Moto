@@ -78,10 +78,22 @@ class FirebaseRepository implements DogRepository {
   // --- Sammlungen ----------------------------------------------------
 
   @override
-  Stream<List<Map<String, dynamic>>> watchCollection(String name) =>
-      _col(name).snapshots().map(
-            (snap) => snap.docs.map((d) => d.data()).toList(),
-          );
+  Stream<List<Map<String, dynamic>>> watchCollection(
+    String name, {
+    String? sortierFeld,
+    int? limit,
+  }) {
+    Query<Map<String, dynamic>> abfrage = _col(name);
+    // Absteigend: Das Jüngste ist das, was im Alltag zählt.
+    if (sortierFeld != null) {
+      abfrage = abfrage.orderBy(sortierFeld, descending: true);
+    }
+    if (limit != null) abfrage = abfrage.limit(limit);
+
+    return abfrage.snapshots().map(
+          (snap) => snap.docs.map((d) => d.data()).toList(),
+        );
+  }
 
   @override
   Future<void> upsert(String name, String id, Map<String, dynamic> data) =>

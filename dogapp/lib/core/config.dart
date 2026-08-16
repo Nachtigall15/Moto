@@ -12,6 +12,24 @@ class AppConfig {
   /// Haushalt danebenpasst, ohne alles umzubauen.
   static const String haushalt = 'bheki';
 
+  /// Wie viele Einträge je Sammlung geladen werden.
+  ///
+  /// Die App zeigt einen Ausschnitt der jüngsten Vergangenheit, nicht
+  /// das komplette Archiv. Ohne Begrenzung lädt sie nach einem Jahr
+  /// bei jedem Start mehrere tausend Einträge – langsam und unnötig.
+  /// Die Werte sind so gewählt, dass jeweils grob ein Vierteljahr
+  /// abgedeckt ist; ältere Einträge bleiben gespeichert und tauchen
+  /// wieder auf, sobald die Grenze angehoben wird.
+  ///
+  /// Gewicht ist die Ausnahme: Messungen gibt es selten, und der
+  /// Entwicklungsverlauf lebt gerade davon, weit zurückzureichen.
+  static const int limitFuetterungen = 400;
+  static const int limitSchlaf = 400;
+  static const int limitGewicht = 400;
+  static const int limitTermine = 300;
+  static const int limitGaben = 500;
+  static const int limitTraining = 500;
+
   /// Fotos werden vor dem Speichern auf diese Kantenlänge verkleinert.
   /// Reicht für den Entwicklungsverlauf locker.
   static const int photoMaxEdge = 800;

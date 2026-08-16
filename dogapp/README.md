@@ -186,6 +186,25 @@ Alle Daten liegen unter `haushalte/<id>/…` mit fester Kennung
 die Regeln, nicht der Pfad – die Ebene bleibt nur erhalten, damit
 später ein zweiter Hund danebenpasst.
 
+## Wie viel geladen wird
+
+Die App lädt nicht das komplette Archiv, sondern ein Fenster der
+jüngsten Einträge – die Grenzen stehen in `AppConfig`
+(`limitFuetterungen`, `limitSchlaf`, …) und decken jeweils grob ein
+Vierteljahr ab. Ohne diese Begrenzung würde die App nach einem Jahr
+bei jedem Start mehrere tausend Fütterungen laden: langsam beim
+Öffnen und unnötig teuer, obwohl niemand die Fütterung vom letzten
+März sucht.
+
+Ältere Einträge bleiben gespeichert und tauchen wieder auf, sobald
+eine Grenze angehoben wird. Fütterungs- und Schlafliste sagen unten
+dazu, dass sie nur einen Ausschnitt zeigen. Gewicht ist bewusst
+großzügiger bemessen: Messungen gibt es selten, und der
+Entwicklungsverlauf lebt davon, weit zurückzureichen.
+
+Die Sortierung läuft über ein einzelnes Feld, dafür legt Firestore die
+Indizes von selbst an – es ist nichts einzurichten.
+
 ## Fotos und Kosten
 
 Fotos werden vor dem Speichern auf 800 px Kantenlänge verkleinert und

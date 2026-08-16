@@ -46,15 +46,14 @@ class _SleepScreenState extends State<SleepScreen> {
       byDay.putIfAbsent(startOfDay(s.start), () => []).add(s);
     }
     final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
+    final vollstaendig = state.schlafVollstaendig;
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => running == null
-            ? state.startSleep()
-            : state.stopSleep(),
-        backgroundColor: running == null
-            ? null
-            : Theme.of(context).colorScheme.secondary,
+        onPressed: () =>
+            running == null ? state.startSleep() : state.stopSleep(),
+        backgroundColor:
+            running == null ? null : Theme.of(context).colorScheme.secondary,
         icon: Icon(running == null ? Icons.bedtime : Icons.stop),
         label: Text(running == null ? 'Schläft jetzt' : 'Aufgewacht'),
       ),
@@ -126,8 +125,9 @@ class _SleepScreenState extends State<SleepScreen> {
             Card(
               child: Column(
                 children: [
-                  for (final entry in byDay[day]!
-                    ..sort((a, b) => b.start.compareTo(a.start)))
+                  for (final entry
+                      in byDay[day]!
+                        ..sort((a, b) => b.start.compareTo(a.start)))
                     ListTile(
                       onTap: () => _openEditor(context, entry: entry),
                       leading: Icon(
@@ -166,6 +166,18 @@ class _SleepScreenState extends State<SleepScreen> {
             icon: const Icon(Icons.edit_calendar_outlined),
             label: const Text('Schlafphase nachtragen'),
           ),
+          if (!vollstaendig)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 20, 4, 0),
+              child: Text(
+                'Zeigt die jüngsten Einträge. Ältere bleiben gespeichert, '
+                'werden aber nicht mitgeladen.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ),
         ],
       ),
     );
@@ -196,8 +208,8 @@ class _SleepEditorState extends State<_SleepEditor> {
   late final TextEditingController _notiz =
       TextEditingController(text: widget.entry?.notiz ?? '');
 
-  late DateTime _start = widget.entry?.start ??
-      DateTime.now().subtract(const Duration(hours: 1));
+  late DateTime _start =
+      widget.entry?.start ?? DateTime.now().subtract(const Duration(hours: 1));
   late DateTime? _ende = widget.entry?.ende ?? DateTime.now();
 
   @override

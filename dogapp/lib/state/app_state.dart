@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 
+import '../core/config.dart';
 import '../core/format.dart';
 import '../data/dog_repository.dart';
 import '../models/appointment.dart';
@@ -84,25 +85,37 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     }));
 
-    _subs.add(_repo.watchCollection(_cFeedings).listen((rows) {
+    _subs.add(_repo
+        .watchCollection(_cFeedings,
+            sortierFeld: 'zeitpunkt', limit: AppConfig.limitFuetterungen)
+        .listen((rows) {
       _feedings = rows.map(FeedingEntry.fromJson).toList()
         ..sort((a, b) => b.zeitpunkt.compareTo(a.zeitpunkt));
       notifyListeners();
     }));
 
-    _subs.add(_repo.watchCollection(_cSleeps).listen((rows) {
+    _subs.add(_repo
+        .watchCollection(_cSleeps,
+            sortierFeld: 'start', limit: AppConfig.limitSchlaf)
+        .listen((rows) {
       _sleeps = rows.map(SleepEntry.fromJson).toList()
         ..sort((a, b) => b.start.compareTo(a.start));
       notifyListeners();
     }));
 
-    _subs.add(_repo.watchCollection(_cWeights).listen((rows) {
+    _subs.add(_repo
+        .watchCollection(_cWeights,
+            sortierFeld: 'zeitpunkt', limit: AppConfig.limitGewicht)
+        .listen((rows) {
       _weights = rows.map(WeightEntry.fromJson).toList()
         ..sort((a, b) => b.zeitpunkt.compareTo(a.zeitpunkt));
       notifyListeners();
     }));
 
-    _subs.add(_repo.watchCollection(_cAppointments).listen((rows) {
+    _subs.add(_repo
+        .watchCollection(_cAppointments,
+            sortierFeld: 'zeitpunkt', limit: AppConfig.limitTermine)
+        .listen((rows) {
       _appointments = rows.map(Appointment.fromJson).toList()
         ..sort((a, b) => a.zeitpunkt.compareTo(b.zeitpunkt));
       notifyListeners();
@@ -110,12 +123,14 @@ class AppState extends ChangeNotifier {
 
     _subs.add(_repo.watchCollection(_cMedications).listen((rows) {
       _medications = rows.map(Medication.fromJson).toList()
-        ..sort((a, b) =>
-            a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       notifyListeners();
     }));
 
-    _subs.add(_repo.watchCollection(_cMedLogs).listen((rows) {
+    _subs.add(_repo
+        .watchCollection(_cMedLogs,
+            sortierFeld: 'tag', limit: AppConfig.limitGaben)
+        .listen((rows) {
       _medLogs = {
         for (final row in rows.map(MedicationLog.fromJson)) row.id: row,
       };
@@ -138,7 +153,10 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     }));
 
-    _subs.add(_repo.watchCollection(_cTrainingLogs).listen((rows) {
+    _subs.add(_repo
+        .watchCollection(_cTrainingLogs,
+            sortierFeld: 'tag', limit: AppConfig.limitTraining)
+        .listen((rows) {
       _trainingLogs = {
         for (final row in rows.map(TrainingLog.fromJson)) row.id: row,
       };
@@ -147,8 +165,8 @@ class AppState extends ChangeNotifier {
 
     _subs.add(_repo.watchCollection(_cPlans).listen((rows) {
       _plans = rows.map(TrainingPlan.fromJson).toList()
-        ..sort((a, b) =>
-            a.titel.toLowerCase().compareTo(b.titel.toLowerCase()));
+        ..sort(
+            (a, b) => a.titel.toLowerCase().compareTo(b.titel.toLowerCase()));
       notifyListeners();
     }));
 
@@ -205,6 +223,15 @@ class AppState extends ChangeNotifier {
     }
     return result;
   }
+
+  /// Ob die Liste den kompletten Bestand zeigt oder am Fensterrand
+  /// steht. Die Oberfläche sagt das dann dazu – sonst sucht jemand
+  /// irgendwann vergeblich nach der Fütterung vom letzten Frühjahr und
+  /// hält sie für verloren.
+  bool get fuetterungenVollstaendig =>
+      _feedings.length < AppConfig.limitFuetterungen;
+
+  bool get schlafVollstaendig => _sleeps.length < AppConfig.limitSchlaf;
 
   /// Bereits verwendete Futtersorten als Vorschläge beim Eintragen.
   List<String> get bekannteFuttersorten {
@@ -271,8 +298,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> removePhoto(String ref) => _repo.deletePhoto(ref);
 
-  WeightEntry? get letztesGewicht =>
-      _weights.isEmpty ? null : _weights.first;
+  WeightEntry? get letztesGewicht => _weights.isEmpty ? null : _weights.first;
 
   /// Veränderung zum vorletzten Wiegen – positiv heißt zugenommen.
   double? get gewichtsDifferenz {
@@ -310,8 +336,7 @@ class AppState extends ChangeNotifier {
   Future<void> saveAppointment(Appointment entry) =>
       _repo.upsert(_cAppointments, entry.id, entry.toJson());
 
-  Future<void> deleteAppointment(String id) =>
-      _repo.delete(_cAppointments, id);
+  Future<void> deleteAppointment(String id) => _repo.delete(_cAppointments, id);
 
   /// Was noch aussteht: alles ab heute plus alles, was in der
   /// Vergangenheit liegt, aber niemand abgehakt hat.
@@ -350,8 +375,7 @@ class AppState extends ChangeNotifier {
   Future<void> saveMedication(Medication entry) =>
       _repo.upsert(_cMedications, entry.id, entry.toJson());
 
-  Future<void> deleteMedication(String id) =>
-      _repo.delete(_cMedications, id);
+  Future<void> deleteMedication(String id) => _repo.delete(_cMedications, id);
 
   List<Medication> medicationsOn(DateTime day) =>
       _medications.where((m) => m.giltAm(day)).toList();
@@ -395,9 +419,8 @@ class AppState extends ChangeNotifier {
   /// gleichen Grund kommen auch pausierte Medikamente in die Liste,
   /// sofern für den Tag eine Gabe eingetragen ist.
   List<MedicationDose> dosesOn(DateTime tag) {
-    final logsAmTag = _medLogs.values
-        .where((log) => isSameDay(log.tag, tag))
-        .toList();
+    final logsAmTag =
+        _medLogs.values.where((log) => isSameDay(log.tag, tag)).toList();
 
     final kandidaten = <String, Medication>{
       for (final m in medicationsOn(tag)) m.id: m,
@@ -445,8 +468,7 @@ class AppState extends ChangeNotifier {
   Future<void> saveVaccination(Vaccination entry) =>
       _repo.upsert(_cVaccinations, entry.id, entry.toJson());
 
-  Future<void> deleteVaccination(String id) =>
-      _repo.delete(_cVaccinations, id);
+  Future<void> deleteVaccination(String id) => _repo.delete(_cVaccinations, id);
 
   /// Nur die jeweils jüngste Impfung pro Bezeichnung bestimmt den
   /// Status – eine drei Jahre alte Tollwutimpfung ist irrelevant,
@@ -553,8 +575,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> deletePlan(String id) => _repo.delete(_cPlans, id);
 
-  List<TrainingPlan> get aktivePlaene =>
-      _plans.where((p) => p.aktiv).toList();
+  List<TrainingPlan> get aktivePlaene => _plans.where((p) => p.aktiv).toList();
 
   /// Die Übungen, die heute anstehen: alles aus den aktiven Plänen.
   /// Gibt es keinen Plan, sind es die Übungen, die gerade in Arbeit
@@ -566,9 +587,7 @@ class AppState extends ChangeNotifier {
     if (ausPlaenen.isNotEmpty) {
       return _exercises.where((e) => ausPlaenen.contains(e.id)).toList();
     }
-    return _exercises
-        .where((e) => e.stand == Trainingsstand.inArbeit)
-        .toList();
+    return _exercises.where((e) => e.stand == Trainingsstand.inArbeit).toList();
   }
 
   // --- Leckerli -------------------------------------------------------
