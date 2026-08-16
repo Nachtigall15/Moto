@@ -1,9 +1,13 @@
 import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../core/config.dart';
 import '../core/format.dart';
 import '../data/dog_repository.dart';
+import '../data/sammlungen.dart';
+import '../data/sicherung.dart'
+    show Sicherungsbericht, erstelleSicherung, spieleSicherungEin;
 import '../models/appointment.dart';
 import '../models/dog_profile.dart';
 import '../models/feeding_entry.dart';
@@ -20,12 +24,12 @@ import '../models/weight_entry.dart';
 /// [schritt] ist zugleich die Startgröße und die Menge, die ein
 /// „Ältere laden" jeweils dazunimmt.
 enum Bereich {
-  fuetterung('fuetterungen', 'zeitpunkt', AppConfig.limitFuetterungen),
-  schlaf('schlaf', 'start', AppConfig.limitSchlaf),
-  gewicht('gewicht', 'zeitpunkt', AppConfig.limitGewicht),
-  termine('termine', 'zeitpunkt', AppConfig.limitTermine),
-  gaben('medikamentengaben', 'tag', AppConfig.limitGaben),
-  training('trainingseinheiten', 'tag', AppConfig.limitTraining);
+  fuetterung(Sammlungen.fuetterungen, 'zeitpunkt', AppConfig.limitFuetterungen),
+  schlaf(Sammlungen.schlaf, 'start', AppConfig.limitSchlaf),
+  gewicht(Sammlungen.gewicht, 'zeitpunkt', AppConfig.limitGewicht),
+  termine(Sammlungen.termine, 'zeitpunkt', AppConfig.limitTermine),
+  gaben(Sammlungen.gaben, 'tag', AppConfig.limitGaben),
+  training(Sammlungen.trainingseinheiten, 'tag', AppConfig.limitTraining);
 
   const Bereich(this.sammlung, this.sortierFeld, this.schritt);
 
@@ -45,18 +49,18 @@ class AppState extends ChangeNotifier {
 
   final DogRepository _repo;
 
-  static const _cFeedings = 'fuetterungen';
-  static const _cSleeps = 'schlaf';
-  static const _cWeights = 'gewicht';
-  static const _cAppointments = 'termine';
-  static const _cMedications = 'medikamente';
-  static const _cMedLogs = 'medikamentengaben';
-  static const _cVaccinations = 'impfungen';
-  static const _cExercises = 'uebungen';
-  static const _cTrainingLogs = 'trainingseinheiten';
-  static const _cPlans = 'trainingsplaene';
-  static const _cTreats = 'leckerli';
-  static const _dProfile = 'profil';
+  static const _cFeedings = Sammlungen.fuetterungen;
+  static const _cSleeps = Sammlungen.schlaf;
+  static const _cWeights = Sammlungen.gewicht;
+  static const _cAppointments = Sammlungen.termine;
+  static const _cMedications = Sammlungen.medikamente;
+  static const _cMedLogs = Sammlungen.gaben;
+  static const _cVaccinations = Sammlungen.impfungen;
+  static const _cExercises = Sammlungen.uebungen;
+  static const _cTrainingLogs = Sammlungen.trainingseinheiten;
+  static const _cPlans = Sammlungen.trainingsplaene;
+  static const _cTreats = Sammlungen.leckerli;
+  static const _dProfile = Sammlungen.profil;
 
   final List<StreamSubscription<dynamic>> _subs = [];
 
@@ -247,6 +251,15 @@ class AppState extends ChangeNotifier {
     }
     super.dispose();
   }
+
+  // --- Sicherung ------------------------------------------------------
+
+  /// Vollständige Sicherung – unabhängig davon, wie viel gerade
+  /// geladen ist.
+  Future<Uint8List> sicherungErstellen() => erstelleSicherung(_repo);
+
+  Future<Sicherungsbericht> sicherungEinspielen(Uint8List daten) =>
+      spieleSicherungEin(_repo, daten);
 
   // --- Profil ---------------------------------------------------------
 

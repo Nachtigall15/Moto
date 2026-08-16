@@ -102,6 +102,21 @@ class FirebaseRepository implements DogRepository {
   @override
   Future<void> delete(String name, String id) => _col(name).doc(id).delete();
 
+  @override
+  Future<List<Map<String, dynamic>>> alleEintraege(String sammlung) async {
+    final snap = await _col(sammlung).get();
+    return snap.docs.map((d) => d.data()).toList();
+  }
+
+  @override
+  Future<Map<String, String>> alleFotos() async {
+    final snap = await _wurzel.collection('fotos').get();
+    return {
+      for (final doc in snap.docs)
+        'cloud:${doc.id}': doc.data()['daten'] as String? ?? '',
+    };
+  }
+
   // --- Fotos ---------------------------------------------------------
 
   @override

@@ -37,6 +37,15 @@ abstract class DogRepository {
   Future<Uint8List?> getPhoto(String ref);
   Future<void> deletePhoto(String ref);
 
+  /// Alles einer Sammlung, ohne Fenster – nur für die Sicherung.
+  /// Im Alltag wäre das genau der Zugriff, den die Begrenzung
+  /// vermeiden soll; beim Export ist Vollständigkeit der Zweck.
+  Future<List<Map<String, dynamic>>> alleEintraege(String sammlung);
+
+  /// Alle Fotos als Base64, nach Referenz. Ebenfalls nur für die
+  /// Sicherung.
+  Future<Map<String, String>> alleFotos();
+
   /// Für die Statusanzeige in der Oberfläche.
   bool get isShared;
   String get backendLabel;

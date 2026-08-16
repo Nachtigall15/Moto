@@ -6,6 +6,7 @@ import '../../core/format.dart';
 import '../../models/feeding_entry.dart';
 import '../../state/app_state.dart';
 import '../../state/bootstrap.dart';
+import '../backup/backup_screen.dart';
 import '../common/dog_photo.dart';
 import '../common/ui.dart';
 
@@ -44,6 +45,13 @@ class DashboardScreen extends StatelessWidget {
             tooltip: 'Heimtierausweis',
             onPressed: () => openProfile(context),
             icon: const Icon(Icons.badge_outlined),
+          ),
+          IconButton(
+            tooltip: 'Sicherung',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const BackupScreen()),
+            ),
+            icon: const Icon(Icons.save_outlined),
           ),
         ],
       ),

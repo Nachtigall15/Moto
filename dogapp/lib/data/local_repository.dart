@@ -141,6 +141,20 @@ class LocalRepository implements DogRepository {
     await _writeCollection(name, all);
   }
 
+  @override
+  Future<List<Map<String, dynamic>>> alleEintraege(String sammlung) async =>
+      _entriesOf(sammlung);
+
+  @override
+  Future<Map<String, String>> alleFotos() async {
+    final praefix = '$namespace:p:';
+    return {
+      for (final key in _prefs.getKeys())
+        if (key.startsWith(praefix))
+          'local:${key.substring(praefix.length)}': _prefs.getString(key) ?? '',
+    };
+  }
+
   // --- Fotos ---------------------------------------------------------
 
   @override

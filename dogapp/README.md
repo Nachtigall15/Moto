@@ -82,10 +82,12 @@ Beide Startlisten (Übungen, Leckerli) werden nur auf Knopfdruck
 angelegt. Eine App soll nicht ungefragt Daten erzeugen, die hinterher
 jemand einzeln wieder löscht.
 
+- **Sicherung** – Export des kompletten Bestands als eine
+  JSON-Datei, Fotos inklusive, und Import zum Zurückspielen. Erreichbar
+  über das Disketten-Symbol in der Übersicht.
+
 **Offen**
 
-- Cloud-Anbindung (siehe unten) – bis dahin sieht jedes Gerät nur seine
-  eigenen Einträge.
 - Push-Erinnerungen für Termine und Medikamente.
 
 ## Deployment
@@ -210,6 +212,29 @@ und der Entwicklungsverlauf lebt davon, weit zurückzureichen.
 
 Die Sortierung läuft über ein einzelnes Feld, dafür legt Firestore die
 Indizes von selbst an – es ist nichts einzurichten.
+
+## Sicherung
+
+`data/sicherung.dart` schreibt den kompletten Bestand in eine einzige
+JSON-Datei: alle Sammlungen, das Profil und die Fotos als Base64.
+Bewusst lesbarer Text und bewusst eine Datei – wer in zehn Jahren
+nachsehen will, wann Bheki was gefressen hat, soll das mit einem
+Texteditor herausfinden können, auch wenn es diese App dann nicht mehr
+gibt. Exportiert wird immer der volle Bestand, unabhängig vom
+Ladefenster.
+
+Der Import **führt zusammen statt zu ersetzen**: Einträge mit
+derselben Kennung werden überschrieben, alles andere bleibt stehen.
+Ein versehentlich gewähltes altes Backup kann damit den aktuellen
+Stand nicht vernichten. Fremde oder beschädigte Dateien werden mit
+einer verständlichen Meldung abgelehnt, nicht mit einem Absturz.
+
+Die Namen aller Sammlungen stehen in `data/sammlungen.dart` – sonst
+fehlt im Export irgendwann eine, ohne dass es auffällt.
+
+Download und Dateiauswahl gibt es nur im Browser; `core/dateien.dart`
+schaltet über eine bedingte Einbindung um, damit die Tests weiter
+ohne Browser laufen.
 
 ## Fotos und Kosten
 
