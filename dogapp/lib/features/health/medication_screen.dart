@@ -134,6 +134,7 @@ class _MedicationScreenState extends State<MedicationScreen> {
                 ],
               ),
             ),
+          const MehrLaden(bereich: Bereich.gaben),
         ],
       ),
     );

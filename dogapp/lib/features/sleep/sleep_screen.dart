@@ -46,7 +46,6 @@ class _SleepScreenState extends State<SleepScreen> {
       byDay.putIfAbsent(startOfDay(s.start), () => []).add(s);
     }
     final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
-    final vollstaendig = state.schlafVollstaendig;
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
@@ -166,18 +165,7 @@ class _SleepScreenState extends State<SleepScreen> {
             icon: const Icon(Icons.edit_calendar_outlined),
             label: const Text('Schlafphase nachtragen'),
           ),
-          if (!vollstaendig)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 20, 4, 0),
-              child: Text(
-                'Zeigt die jüngsten Einträge. Ältere bleiben gespeichert, '
-                'werden aber nicht mitgeladen.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ),
+          const MehrLaden(bereich: Bereich.schlaf),
         ],
       ),
     );

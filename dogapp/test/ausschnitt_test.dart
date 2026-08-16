@@ -61,6 +61,33 @@ void main() {
     expect(rows, hasLength(3));
   });
 
+  test('ein größeres Fenster holt die älteren Einträge zurück', () async {
+    await lege('test', 30);
+
+    final ersteRunde = await repo
+        .watchCollection('test', sortierFeld: 'zeitpunkt', limit: 10)
+        .first;
+    expect(ersteRunde, hasLength(10));
+
+    // Genau das macht „Ältere laden": dasselbe Abonnement mit einem
+    // größeren Fenster. Nichts geht dabei verloren oder doppelt.
+    final zweiteRunde = await repo
+        .watchCollection('test', sortierFeld: 'zeitpunkt', limit: 25)
+        .first;
+    expect(zweiteRunde, hasLength(25));
+    expect(
+      zweiteRunde.map((r) => r['id']),
+      containsAll(ersteRunde.map((r) => r['id'])),
+    );
+    expect(zweiteRunde.map((r) => r['id']).toSet(), hasLength(25));
+
+    // Und über den Bestand hinaus kommt nichts dazu.
+    final dritteRunde = await repo
+        .watchCollection('test', sortierFeld: 'zeitpunkt', limit: 500)
+        .first;
+    expect(dritteRunde, hasLength(30));
+  });
+
   test('ein neuer Eintrag verdrängt den ältesten aus dem Fenster',
       () async {
     await lege('test', 10);

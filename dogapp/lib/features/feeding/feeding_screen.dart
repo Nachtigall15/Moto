@@ -23,7 +23,6 @@ class FeedingScreen extends StatelessWidget {
       byDay.putIfAbsent(startOfDay(f.zeitpunkt), () => []).add(f);
     }
     final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
-    final vollstaendig = state.fuetterungenVollstaendig;
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
@@ -92,18 +91,7 @@ class FeedingScreen extends StatelessWidget {
               ),
             ),
           ],
-          if (!vollstaendig)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 20, 4, 0),
-              child: Text(
-                'Zeigt die jüngsten Einträge. Ältere bleiben gespeichert, '
-                'werden aber nicht mitgeladen.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ),
+          const MehrLaden(bereich: Bereich.fuetterung),
         ],
       ),
     );

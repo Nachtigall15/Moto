@@ -14,6 +14,26 @@ import '../models/treat.dart';
 import '../models/vaccination.dart';
 import '../models/weight_entry.dart';
 
+/// Die Listen, die mit der Zeit wachsen und deshalb nur ausschnittweise
+/// geladen werden.
+///
+/// [schritt] ist zugleich die Startgröße und die Menge, die ein
+/// „Ältere laden" jeweils dazunimmt.
+enum Bereich {
+  fuetterung('fuetterungen', 'zeitpunkt', AppConfig.limitFuetterungen),
+  schlaf('schlaf', 'start', AppConfig.limitSchlaf),
+  gewicht('gewicht', 'zeitpunkt', AppConfig.limitGewicht),
+  termine('termine', 'zeitpunkt', AppConfig.limitTermine),
+  gaben('medikamentengaben', 'tag', AppConfig.limitGaben),
+  training('trainingseinheiten', 'tag', AppConfig.limitTraining);
+
+  const Bereich(this.sammlung, this.sortierFeld, this.schritt);
+
+  final String sammlung;
+  final String sortierFeld;
+  final int schritt;
+}
+
 /// Hält den kompletten Anwendungszustand und ist die einzige Stelle,
 /// die mit dem Repository spricht.
 ///
@@ -39,6 +59,52 @@ class AppState extends ChangeNotifier {
   static const _dProfile = 'profil';
 
   final List<StreamSubscription<dynamic>> _subs = [];
+
+  /// Abonnements der wachsenden Listen – einzeln gehalten, damit sich
+  /// ein Ausschnitt vergrößern lässt, ohne die App neu zu starten.
+  final Map<Bereich, StreamSubscription<dynamic>> _bereichSubs = {};
+  final Map<Bereich, int> _limits = {};
+  final Map<Bereich, void Function(List<Map<String, dynamic>>)> _handler = {};
+
+  /// Wie viele Einträge dieser Bereich gerade lädt.
+  int limitVon(Bereich b) => _limits[b] ?? b.schritt;
+
+  /// Wie viele davon tatsächlich angekommen sind.
+  int anzahlVon(Bereich b) => switch (b) {
+        Bereich.fuetterung => _feedings.length,
+        Bereich.schlaf => _sleeps.length,
+        Bereich.gewicht => _weights.length,
+        Bereich.termine => _appointments.length,
+        Bereich.gaben => _medLogs.length,
+        Bereich.training => _trainingLogs.length,
+      };
+
+  /// Ob die Liste am Rand des geladenen Ausschnitts steht. Nur dann
+  /// kann es überhaupt noch Älteres geben.
+  bool amRand(Bereich b) => anzahlVon(b) >= limitVon(b);
+
+  /// Nimmt den nächsten Schwung älterer Einträge dazu.
+  ///
+  /// Es wird nichts nachgeladen, was schon da ist – das Abonnement
+  /// wird schlicht mit einem größeren Fenster neu aufgesetzt. Deshalb
+  /// ist der Vorgang beliebig oft wiederholbar und kann nichts
+  /// durcheinanderbringen.
+  Future<void> mehrLaden(Bereich b) async {
+    _limits[b] = limitVon(b) + b.schritt;
+    await _abonniere(b);
+  }
+
+  Future<void> _abonniere(Bereich b) async {
+    await _bereichSubs[b]?.cancel();
+    _bereichSubs[b] = _repo
+        .watchCollection(
+          b.sammlung,
+          sortierFeld: b.sortierFeld,
+          limit: limitVon(b),
+        )
+        .listen(_handler[b]!);
+    notifyListeners();
+  }
 
   bool _ready = false;
   bool get ready => _ready;
@@ -85,41 +151,29 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     }));
 
-    _subs.add(_repo
-        .watchCollection(_cFeedings,
-            sortierFeld: 'zeitpunkt', limit: AppConfig.limitFuetterungen)
-        .listen((rows) {
+    _handler[Bereich.fuetterung] = (rows) {
       _feedings = rows.map(FeedingEntry.fromJson).toList()
         ..sort((a, b) => b.zeitpunkt.compareTo(a.zeitpunkt));
       notifyListeners();
-    }));
+    };
 
-    _subs.add(_repo
-        .watchCollection(_cSleeps,
-            sortierFeld: 'start', limit: AppConfig.limitSchlaf)
-        .listen((rows) {
+    _handler[Bereich.schlaf] = (rows) {
       _sleeps = rows.map(SleepEntry.fromJson).toList()
         ..sort((a, b) => b.start.compareTo(a.start));
       notifyListeners();
-    }));
+    };
 
-    _subs.add(_repo
-        .watchCollection(_cWeights,
-            sortierFeld: 'zeitpunkt', limit: AppConfig.limitGewicht)
-        .listen((rows) {
+    _handler[Bereich.gewicht] = (rows) {
       _weights = rows.map(WeightEntry.fromJson).toList()
         ..sort((a, b) => b.zeitpunkt.compareTo(a.zeitpunkt));
       notifyListeners();
-    }));
+    };
 
-    _subs.add(_repo
-        .watchCollection(_cAppointments,
-            sortierFeld: 'zeitpunkt', limit: AppConfig.limitTermine)
-        .listen((rows) {
+    _handler[Bereich.termine] = (rows) {
       _appointments = rows.map(Appointment.fromJson).toList()
         ..sort((a, b) => a.zeitpunkt.compareTo(b.zeitpunkt));
       notifyListeners();
-    }));
+    };
 
     _subs.add(_repo.watchCollection(_cMedications).listen((rows) {
       _medications = rows.map(Medication.fromJson).toList()
@@ -127,15 +181,12 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     }));
 
-    _subs.add(_repo
-        .watchCollection(_cMedLogs,
-            sortierFeld: 'tag', limit: AppConfig.limitGaben)
-        .listen((rows) {
+    _handler[Bereich.gaben] = (rows) {
       _medLogs = {
         for (final row in rows.map(MedicationLog.fromJson)) row.id: row,
       };
       notifyListeners();
-    }));
+    };
 
     _subs.add(_repo.watchCollection(_cVaccinations).listen((rows) {
       _vaccinations = rows.map(Vaccination.fromJson).toList()
@@ -153,15 +204,12 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     }));
 
-    _subs.add(_repo
-        .watchCollection(_cTrainingLogs,
-            sortierFeld: 'tag', limit: AppConfig.limitTraining)
-        .listen((rows) {
+    _handler[Bereich.training] = (rows) {
       _trainingLogs = {
         for (final row in rows.map(TrainingLog.fromJson)) row.id: row,
       };
       notifyListeners();
-    }));
+    };
 
     _subs.add(_repo.watchCollection(_cPlans).listen((rows) {
       _plans = rows.map(TrainingPlan.fromJson).toList()
@@ -180,6 +228,11 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     }));
 
+    // Erst wenn alle Empfänger stehen, die begrenzten Listen starten.
+    for (final b in Bereich.values) {
+      await _abonniere(b);
+    }
+
     _ready = true;
     notifyListeners();
   }
@@ -187,6 +240,9 @@ class AppState extends ChangeNotifier {
   @override
   void dispose() {
     for (final sub in _subs) {
+      sub.cancel();
+    }
+    for (final sub in _bereichSubs.values) {
       sub.cancel();
     }
     super.dispose();
@@ -223,15 +279,6 @@ class AppState extends ChangeNotifier {
     }
     return result;
   }
-
-  /// Ob die Liste den kompletten Bestand zeigt oder am Fensterrand
-  /// steht. Die Oberfläche sagt das dann dazu – sonst sucht jemand
-  /// irgendwann vergeblich nach der Fütterung vom letzten Frühjahr und
-  /// hält sie für verloren.
-  bool get fuetterungenVollstaendig =>
-      _feedings.length < AppConfig.limitFuetterungen;
-
-  bool get schlafVollstaendig => _sleeps.length < AppConfig.limitSchlaf;
 
   /// Bereits verwendete Futtersorten als Vorschläge beim Eintragen.
   List<String> get bekannteFuttersorten {

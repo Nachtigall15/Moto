@@ -180,7 +180,7 @@ class _WeightScreenState extends State<WeightScreen> {
                     'so entsteht ein Entwicklungsverlauf.',
               ),
             )
-          else
+          else ...[
             Card(
               child: Column(
                 children: [
@@ -188,6 +188,8 @@ class _WeightScreenState extends State<WeightScreen> {
                 ],
               ),
             ),
+            const MehrLaden(bereich: Bereich.gewicht),
+          ],
         ],
       ),
     );

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../state/app_state.dart';
 
 /// Karte mit Überschrift – das Grundelement aller Screens.
 class SectionCard extends StatelessWidget {
@@ -141,6 +144,74 @@ class StatTile extends StatelessWidget {
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Fuß einer wachsenden Liste: sagt, wie viel geladen ist, und lädt
+/// auf Knopfdruck den nächsten Schwung älterer Einträge dazu.
+///
+/// Die App zeigt aus Geschwindigkeitsgründen nur einen Ausschnitt der
+/// jüngsten Vergangenheit. Ohne diesen Fuß wäre nicht erkennbar, dass
+/// es überhaupt noch mehr gibt – und genau das lässt einen glauben,
+/// alte Einträge seien verloren.
+class MehrLaden extends StatefulWidget {
+  const MehrLaden({super.key, required this.bereich});
+
+  final Bereich bereich;
+
+  @override
+  State<MehrLaden> createState() => _MehrLadenState();
+}
+
+class _MehrLadenState extends State<MehrLaden> {
+  bool _laeuft = false;
+
+  Future<void> _laden() async {
+    setState(() => _laeuft = true);
+    await context.read<AppState>().mehrLaden(widget.bereich);
+    if (mounted) setState(() => _laeuft = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final state = context.watch<AppState>();
+    final anzahl = state.anzahlVon(widget.bereich);
+
+    // Am Rand kann es noch Älteres geben; sonst ist alles da.
+    final gibtVielleichtMehr = state.amRand(widget.bereich);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 20, 4, 0),
+      child: Column(
+        children: [
+          Text(
+            gibtVielleichtMehr
+                ? '$anzahl Einträge geladen. Ältere sind gespeichert, '
+                    'aber noch nicht geladen.'
+                : 'Alle $anzahl Einträge geladen.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          if (gibtVielleichtMehr) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _laeuft ? null : _laden,
+              icon: _laeuft
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.history),
+              label: Text(_laeuft ? 'Lädt …' : 'Ältere laden'),
             ),
           ],
         ],

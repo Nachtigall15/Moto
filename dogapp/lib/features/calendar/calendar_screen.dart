@@ -123,6 +123,8 @@ class CalendarScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
               ],
+          const MehrLaden(bereich: Bereich.termine),
+          const SizedBox(height: 16),
           if (erledigt.isNotEmpty) ...[
             Card(
               child: ExpansionTile(

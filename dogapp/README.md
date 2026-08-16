@@ -196,11 +196,17 @@ bei jedem Start mehrere tausend Fütterungen laden: langsam beim
 Öffnen und unnötig teuer, obwohl niemand die Fütterung vom letzten
 März sucht.
 
-Ältere Einträge bleiben gespeichert und tauchen wieder auf, sobald
-eine Grenze angehoben wird. Fütterungs- und Schlafliste sagen unten
-dazu, dass sie nur einen Ausschnitt zeigen. Gewicht ist bewusst
-großzügiger bemessen: Messungen gibt es selten, und der
-Entwicklungsverlauf lebt davon, weit zurückzureichen.
+**Gespeichert wird immer alles.** Die Grenze betrifft ausschließlich
+das Laden; gelöscht wird nie etwas. Unter jeder wachsenden Liste steht,
+wie viele Einträge geladen sind, und solange es noch ältere gibt, ein
+Knopf **Ältere laden** – der nimmt den nächsten Schwung dazu und lässt
+sich beliebig oft drücken, bis „Alle Einträge geladen" dasteht.
+Technisch wird dabei nur dasselbe Abonnement mit einem größeren
+Fenster neu aufgesetzt, es kann also nichts doppelt ankommen oder
+verloren gehen.
+
+Gewicht ist bewusst großzügiger bemessen: Messungen gibt es selten,
+und der Entwicklungsverlauf lebt davon, weit zurückzureichen.
 
 Die Sortierung läuft über ein einzelnes Feld, dafür legt Firestore die
 Indizes von selbst an – es ist nichts einzurichten.
