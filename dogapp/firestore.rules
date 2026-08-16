@@ -1,0 +1,26 @@
+rules_version = '2';
+
+// Zugriffsregeln für die Hunde-App.
+//
+// Die App meldet sich anonym an; die Zuordnung passiert über den
+// Haushalts-Code im Pfad. Diese Regeln verlangen deshalb nur eine
+// gültige Anmeldung – wer Adresse und Codewort kennt, kommt an die
+// Daten des Haushalts. Das ist die bewusst gewählte Abwägung: kein
+// Login für die Personen, die täglich mit dem Hund arbeiten.
+//
+// Zwei Dinge leisten die Regeln trotzdem:
+//   * Ohne Anmeldung geht gar nichts – Zufallszugriffe von außen
+//     laufen ins Leere.
+//   * Geschrieben werden darf ausschließlich unterhalb von
+//     `haushalte/…`; niemand kann anderswo Daten ablegen.
+//
+// Wer es strenger braucht (etwa nach einem Trainerwechsel), stellt auf
+// E-Mail-Konten um und ersetzt die Bedingung durch eine Prüfung auf
+// zugelassene Benutzer-IDs.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /haushalte/{haushalt}/{rest=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

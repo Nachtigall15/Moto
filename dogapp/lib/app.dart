@@ -8,12 +8,14 @@ import 'features/dashboard/dashboard_screen.dart';
 import 'features/feeding/feeding_screen.dart';
 import 'features/health/medication_screen.dart';
 import 'features/health/vaccination_screen.dart';
+import 'features/household/household_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/sleep/sleep_screen.dart';
 import 'features/training/training_screen.dart';
 import 'features/treats/treats_screen.dart';
 import 'features/weight/weight_screen.dart';
 import 'state/app_state.dart';
+import 'state/bootstrap.dart';
 
 /// Positionen in der unteren Navigationsleiste. Als Konstanten, damit
 /// Sprünge aus der Übersicht heraus nicht an Zahlen hängen.
@@ -28,14 +30,14 @@ class Tabs {
 }
 
 class DogApp extends StatelessWidget {
-  const DogApp({super.key, required this.state});
+  const DogApp({super.key, required this.bootstrap});
 
-  final AppState state;
+  final BootstrapController bootstrap;
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider.value(
-      value: state,
+      value: bootstrap,
       child: MaterialApp(
         title: 'Hunde-App',
         debugShowCheckedModeBanner: false,
@@ -56,9 +58,35 @@ class DogApp extends StatelessWidget {
           data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
           child: child!,
         ),
-        home: const HomeShell(),
+        home: const _Root(),
       ),
     );
+  }
+}
+
+/// Entscheidet, was zu sehen ist: Ladeanzeige, Haushalts-Abfrage oder
+/// die eigentliche App. Der Zustand kommt erst darunter dazu, damit
+/// die Screens ihn wie gewohnt aus dem Provider ziehen können.
+class _Root extends StatelessWidget {
+  const _Root();
+
+  @override
+  Widget build(BuildContext context) {
+    final bootstrap = context.watch<BootstrapController>();
+
+    return switch (bootstrap.phase) {
+      Startphase.laden => const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      Startphase.haushaltFehlt => HouseholdScreen(
+          onSubmit: bootstrap.setzeHaushalt,
+          onSkip: bootstrap.nurLokal,
+        ),
+      Startphase.bereit => ChangeNotifierProvider<AppState>.value(
+          value: bootstrap.state!,
+          child: const HomeShell(),
+        ),
+    };
   }
 }
 

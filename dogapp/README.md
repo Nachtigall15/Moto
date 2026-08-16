@@ -129,26 +129,50 @@ selbst in die Listen.
 
 ### Firebase einrichten
 
-1. Auf <https://console.firebase.google.com> ein Projekt anlegen.
-2. Eine **Web-App** hinzufügen (`</>`-Symbol).
-3. **Firestore Database** und **Storage** aktivieren.
-4. Die sechs Werte aus der Firebase-Konfiguration in den
-   GitHub-Repo-Secrets hinterlegen:
-   `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`,
-   `FIREBASE_STORAGE_BUCKET`, `FIREBASE_MESSAGING_SENDER_ID`,
-   `FIREBASE_APP_ID`.
+1. In der [Firebase-Konsole](https://console.firebase.google.com) das
+   Projekt anlegen (hier: `bheki-dog`).
+2. **Firestore Database** anlegen (Standort `eur3` oder
+   `europe-west3`) und **Storage** aktivieren.
+3. Unter **Authentication → Sign-in method** die **anonyme Anmeldung**
+   einschalten.
+4. Konfiguration erzeugen – im Ordner `dogapp/`, beschränkt auf Web:
 
-Diese Werte sind keine Geheimnisse – sie identifizieren nur das
-Projekt. Der Zugriffsschutz passiert über die Firestore-Regeln.
+   ```bash
+   cd dogapp
+   dart pub global activate flutterfire_cli
+   flutterfire configure --project=bheki-dog --platforms=web
+   ```
 
-Lokal zum Ausprobieren:
+   Das überschreibt `lib/firebase_options.dart`. Datei committen –
+   die Werte sind keine Geheimnisse, sie benennen nur das Projekt.
+   Sobald sie da ist, startet die App von selbst im Cloud-Modus.
 
-```bash
-flutter run -d chrome \
-  --dart-define=FIREBASE_API_KEY=... \
-  --dart-define=FIREBASE_PROJECT_ID=... \
-  --dart-define=FIREBASE_APP_ID=...
-```
+5. Die Regeln aus `firestore.rules` und `storage.rules` in der Konsole
+   hinterlegen (Firestore → Regeln, Storage → Regeln).
+
+Ohne die FlutterFire-Datei geht es auch über `--dart-define`
+(`FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`,
+`FIREBASE_STORAGE_BUCKET`, `FIREBASE_MESSAGING_SENDER_ID`,
+`FIREBASE_APP_ID`) – der Deploy-Workflow reicht sie aus den
+Repo-Secrets durch.
+
+### Haushalts-Codewort
+
+Statt Benutzerkonten gibt es ein gemeinsames Codewort. Beim ersten
+Start fragt die App danach; alle Geräte mit demselben Wort sehen
+denselben Stand. Die Daten liegen unter `haushalte/<code>/…`.
+
+Die Eingabe wird normalisiert (klein, Leerzeichen zu Bindestrichen,
+Umlaute umgeschrieben), damit „Bheki Zuhause" und „bheki-zuhause"
+nicht in zwei getrennten Datenbeständen landen.
+
+Das ist bewusst bequem statt streng: Wer Adresse und Codewort kennt,
+kann die Einträge sehen und ändern. Für den Wechsel auf echte Konten
+genügt es, in `firestore.rules` die Bedingung auf zugelassene
+Benutzer-IDs umzustellen und in der App eine Anmeldung vorzuschalten.
+
+Vertippt? Auf der Übersicht unten rechts **Wechseln** – die Daten
+bleiben unter dem alten Codewort erhalten.
 
 ## Fotos
 

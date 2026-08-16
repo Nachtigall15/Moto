@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'app.dart';
-import 'data/dog_repository.dart';
-import 'data/local_repository.dart';
-import 'state/app_state.dart';
+import 'state/bootstrap.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,12 +10,10 @@ Future<void> main() async {
   // Deutsche Monats-/Wochentagsnamen für alle Datumsformate.
   await initializeDateFormatting('de_DE');
 
-  // Solange keine Cloud-Konfiguration vorliegt, läuft die App
-  // vollständig lokal weiter – der Umstieg ist später ein Austausch
-  // dieser einen Zeile.
-  final DogRepository repo = LocalRepository();
-  final state = AppState(repo);
-  await state.init();
-
-  runApp(DogApp(state: state));
+  // Der Start läuft asynchron weiter: Die Oberfläche kommt sofort und
+  // zeigt so lange eine Ladeanzeige, statt vor einem weißen Bildschirm
+  // auf die Verbindung zu warten.
+  final bootstrap = BootstrapController();
+  runApp(DogApp(bootstrap: bootstrap));
+  await bootstrap.start();
 }
