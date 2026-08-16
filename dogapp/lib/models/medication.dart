@@ -94,6 +94,43 @@ class Medication {
       );
 }
 
+/// Eine einzelne Gabe an einem bestimmten Tag – geplant oder bereits
+/// gegeben. Das ist die Einheit, die im Kalender und im Tagesplan
+/// angezeigt wird.
+class MedicationDose {
+  const MedicationDose({
+    required this.medikament,
+    required this.minute,
+    required this.tag,
+    this.log,
+  });
+
+  final Medication medikament;
+  final int minute;
+  final DateTime tag;
+
+  /// Gesetzt, sobald jemand die Gabe abgehakt hat.
+  final MedicationLog? log;
+
+  bool get gegeben => log != null;
+
+  /// Zeitpunkt als echtes Datum – damit sich Gaben und Termine im
+  /// Kalender gemeinsam nach Uhrzeit sortieren lassen.
+  DateTime get zeitpunkt => DateTime(
+        tag.year,
+        tag.month,
+        tag.day,
+        minute ~/ 60,
+        minute % 60,
+      );
+
+  String get zeitLabel => Medication.zeitLabel(minute);
+
+  /// Steht die Gabe nicht im Plan des Medikaments, wurde sie
+  /// nachgetragen.
+  bool get nachgetragen => !medikament.zeiten.contains(minute);
+}
+
 /// Quittung für eine einzelne Gabe.
 ///
 /// Die ID setzt sich aus Medikament, Tag und Uhrzeit zusammen. Dadurch

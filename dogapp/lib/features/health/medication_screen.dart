@@ -6,17 +6,46 @@ import '../../models/medication.dart';
 import '../../state/app_state.dart';
 import '../common/ui.dart';
 
-/// Medikamentengabe: oben der Plan für heute zum Abhaken, darunter die
-/// hinterlegten Medikamente.
-class MedicationScreen extends StatelessWidget {
+/// Medikamentengabe: oben der Plan für den gewählten Tag zum Abhaken,
+/// darunter die hinterlegten Medikamente.
+///
+/// Der Tag lässt sich zurückblättern, weil das Abhaken im Alltag
+/// regelmäßig hinterherhinkt – wer abends merkt, dass die Mittagsgabe
+/// nicht quittiert ist, muss sie nachtragen können, ohne dass die
+/// Uhrzeit verfälscht wird.
+class MedicationScreen extends StatefulWidget {
   const MedicationScreen({super.key});
+
+  @override
+  State<MedicationScreen> createState() => _MedicationScreenState();
+}
+
+class _MedicationScreenState extends State<MedicationScreen> {
+  late DateTime _tag = startOfDay(DateTime.now());
+
+  bool get _istHeute => isSameDay(_tag, DateTime.now());
+
+  void _blaettern(int tage) => setState(
+        () => _tag = _tag.add(Duration(days: tage)),
+      );
+
+  String get _tagLabel {
+    final heute = startOfDay(DateTime.now());
+    final abstand = _tag.difference(heute).inDays;
+    return switch (abstand) {
+      0 => 'Heute',
+      -1 => 'Gestern',
+      1 => 'Morgen',
+      _ => dfWeekday.format(_tag),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
     final state = context.watch<AppState>();
-    final heute = DateTime.now();
-    final heutige = state.medicationsOn(heute);
+    final doses = state.dosesOn(_tag);
     final alle = state.medications;
+    final zukunft = _tag.isAfter(startOfDay(DateTime.now()));
 
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
@@ -28,17 +57,45 @@ class MedicationScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
         children: [
           SectionCard(
-            title: 'Heute zu geben',
+            title: 'Zu geben',
             icon: Icons.medication_outlined,
-            child: heutige.isEmpty
-                ? const EmptyHint(
-                    text: 'Für heute ist nichts eingetragen.',
-                  )
-                : Column(
-                    children: [
-                      for (final m in heutige) _TagesPlan(medikament: m),
-                    ],
+            trailing: _istHeute
+                ? null
+                : TextButton(
+                    onPressed: () =>
+                        setState(() => _tag = startOfDay(DateTime.now())),
+                    child: const Text('Heute'),
                   ),
+            child: Column(
+              children: [
+                _TagWechsler(
+                  label: _tagLabel,
+                  datum: dfDate.format(_tag),
+                  onZurueck: () => _blaettern(-1),
+                  onVor: () => _blaettern(1),
+                ),
+                const SizedBox(height: 8),
+                if (doses.isEmpty)
+                  EmptyHint(
+                    text: alle.isEmpty
+                        ? 'Noch keine Medikamente hinterlegt.'
+                        : 'Für diesen Tag ist nichts eingetragen.',
+                  )
+                else
+                  for (final dose in doses)
+                    _DoseRow(dose: dose, zukunft: zukunft),
+                if (alle.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: zukunft
+                        ? null
+                        : () => _openNachtragen(context, _tag),
+                    icon: const Icon(Icons.more_time),
+                    label: const Text('Gabe nachtragen'),
+                  ),
+                ],
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           if (alle.isEmpty)
@@ -97,86 +154,229 @@ class MedicationScreen extends StatelessWidget {
   }
 }
 
-/// Eine Zeile pro Medikament mit einem Haken je Gabezeit.
-class _TagesPlan extends StatelessWidget {
-  const _TagesPlan({required this.medikament});
+class _TagWechsler extends StatelessWidget {
+  const _TagWechsler({
+    required this.label,
+    required this.datum,
+    required this.onZurueck,
+    required this.onVor,
+  });
 
-  final Medication medikament;
+  final String label;
+  final String datum;
+  final VoidCallback onZurueck;
+  final VoidCallback onVor;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final state = context.watch<AppState>();
-    final heute = DateTime.now();
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            medikament.dosis.isEmpty
-                ? medikament.name
-                : '${medikament.name} · ${medikament.dosis}',
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 6),
-          if (medikament.zeiten.isEmpty)
-            Text(
-              'ohne feste Uhrzeit',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+    return Row(
+      children: [
+        IconButton(
+          tooltip: 'Tag zurück',
+          onPressed: onZurueck,
+          icon: const Icon(Icons.chevron_left),
+        ),
+        Expanded(
+          child: Column(
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
               ),
-            )
-          else
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                for (final minute in medikament.zeiten)
-                  _GabeChip(
-                    medikament: medikament,
-                    minute: minute,
-                    gegeben: state.istGegeben(medikament.id, heute, minute),
-                  ),
-              ],
-            ),
-        ],
-      ),
+              Text(
+                datum,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: 'Tag vor',
+          onPressed: onVor,
+          icon: const Icon(Icons.chevron_right),
+        ),
+      ],
     );
   }
 }
 
-class _GabeChip extends StatelessWidget {
-  const _GabeChip({
-    required this.medikament,
-    required this.minute,
-    required this.gegeben,
-  });
+class _DoseRow extends StatelessWidget {
+  const _DoseRow({required this.dose, required this.zukunft});
 
-  final Medication medikament;
-  final int minute;
-  final bool gegeben;
+  final MedicationDose dose;
+  final bool zukunft;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final state = context.read<AppState>();
-    final log = state.gabe(medikament.id, DateTime.now(), minute);
 
-    return FilterChip(
-      avatar: Icon(
-        gegeben ? Icons.check_circle : Icons.schedule,
-        size: 18,
+    final zusatz = <String>[
+      if (dose.medikament.dosis.isNotEmpty) dose.medikament.dosis,
+      if (dose.nachgetragen) 'nachgetragen',
+      if (dose.gegeben) 'gegeben ${dfTime.format(dose.log!.gegebenUm)} Uhr',
+    ];
+
+    return CheckboxListTile(
+      contentPadding: EdgeInsets.zero,
+      value: dose.gegeben,
+      onChanged: zukunft
+          ? null
+          : (_) => state.toggleGabe(
+                dose.medikament.id,
+                dose.tag,
+                dose.minute,
+              ),
+      secondary: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            dose.zeitLabel,
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          Text(
+            'Uhr',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
-      label: Text(
-        gegeben && log != null
-            ? '${Medication.zeitLabel(minute)} ✓ '
-                '${dfTime.format(log.gegebenUm)}'
-            : Medication.zeitLabel(minute),
+      title: Text(
+        dose.medikament.name,
+        style: const TextStyle(fontWeight: FontWeight.w600),
       ),
-      selected: gegeben,
-      onSelected: (_) =>
-          state.toggleGabe(medikament.id, DateTime.now(), minute),
+      subtitle: zusatz.isEmpty ? null : Text(zusatz.join(' · ')),
+    );
+  }
+}
+
+/// Gabe zu einer freien Uhrzeit eintragen – für Extra-Gaben und für
+/// Medikamente, die gar keine feste Zeit haben.
+Future<void> _openNachtragen(BuildContext context, DateTime tag) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (_) => _NachtragenSheet(tag: tag),
+  );
+}
+
+class _NachtragenSheet extends StatefulWidget {
+  const _NachtragenSheet({required this.tag});
+
+  final DateTime tag;
+
+  @override
+  State<_NachtragenSheet> createState() => _NachtragenSheetState();
+}
+
+class _NachtragenSheetState extends State<_NachtragenSheet> {
+  String? _medikamentId;
+  late TimeOfDay _zeit = TimeOfDay.fromDateTime(DateTime.now());
+
+  @override
+  void initState() {
+    super.initState();
+    final meds = context.read<AppState>().medications;
+    if (meds.length == 1) _medikamentId = meds.first.id;
+  }
+
+  Future<void> _save() async {
+    final id = _medikamentId;
+    if (id == null) return;
+    await context.read<AppState>().toggleGabe(
+          id,
+          widget.tag,
+          _zeit.hour * 60 + _zeit.minute,
+        );
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final meds = state.medications;
+    final schonEingetragen = _medikamentId != null &&
+        state.istGegeben(
+          _medikamentId!,
+          widget.tag,
+          _zeit.hour * 60 + _zeit.minute,
+        );
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Gabe nachtragen',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              dfWeekday.format(widget.tag),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                for (final m in meds)
+                  ChoiceChip(
+                    label: Text(m.name),
+                    selected: _medikamentId == m.id,
+                    onSelected: (_) => setState(() => _medikamentId = m.id),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final gewaehlt = await pickTime(context, _zeit);
+                if (gewaehlt != null) setState(() => _zeit = gewaehlt);
+              },
+              icon: const Icon(Icons.schedule),
+              label: Text(
+                'Uhrzeit: '
+                '${_zeit.hour.toString().padLeft(2, '0')}:'
+                '${_zeit.minute.toString().padLeft(2, '0')} Uhr',
+              ),
+            ),
+            if (schonEingetragen)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Für diese Uhrzeit ist bereits eine Gabe eingetragen.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 20),
+            FilledButton(
+              onPressed:
+                  _medikamentId == null || schonEingetragen ? null : _save,
+              child: const Text('Als gegeben eintragen'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -221,9 +421,9 @@ class _MedicationEditorState extends State<_MedicationEditor> {
   }
 
   Future<void> _addZeit() async {
-    final gewaehlt = await showTimePicker(
-      context: context,
-      initialTime: const TimeOfDay(hour: 8, minute: 0),
+    final gewaehlt = await pickTime(
+      context,
+      const TimeOfDay(hour: 8, minute: 0),
     );
     if (gewaehlt == null) return;
     final minute = gewaehlt.hour * 60 + gewaehlt.minute;
@@ -302,7 +502,7 @@ class _MedicationEditorState extends State<_MedicationEditor> {
               children: [
                 for (final minute in _zeiten)
                   InputChip(
-                    label: Text(Medication.zeitLabel(minute)),
+                    label: Text('${Medication.zeitLabel(minute)} Uhr'),
                     onDeleted: () =>
                         setState(() => _zeiten.remove(minute)),
                   ),

@@ -163,13 +163,27 @@ Future<DateTime?> pickDateTime(
   );
   if (date == null || !context.mounted) return null;
 
-  final time = await showTimePicker(
-    context: context,
-    initialTime: TimeOfDay.fromDateTime(initial),
-  );
+  final time = await pickTime(context, TimeOfDay.fromDateTime(initial));
   if (time == null) return null;
 
   return DateTime(date.year, date.month, date.day, time.hour, time.minute);
+}
+
+/// Uhrzeit-Auswahl, immer im 24-Stunden-Format.
+///
+/// Ohne die Überschreibung richtet sich der Dialog nach der
+/// Systemeinstellung des Geräts und zeigt auf manchen Handys AM/PM –
+/// in einem Haushalt, in dem mehrere Personen dieselben Zeiten
+/// eintragen, ist das eine Fehlerquelle.
+Future<TimeOfDay?> pickTime(BuildContext context, TimeOfDay initial) {
+  return showTimePicker(
+    context: context,
+    initialTime: initial,
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+      child: child!,
+    ),
+  );
 }
 
 /// Reines Datum (ohne Uhrzeit) – für Geburtstag, Chip-Datum usw.

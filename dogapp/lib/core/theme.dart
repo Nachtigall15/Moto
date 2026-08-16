@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 
-/// Freundliches, warmes Theme – ruhige Grüntöne mit Bernstein als
-/// Akzent. Hell und dunkel teilen sich dieselbe Formsprache (weiche
-/// Ecken, flache Karten), damit die App auf jedem Gerät gleich wirkt.
-const Color _seed = Color(0xFF3F8F6B);
+/// Warmes Theme im Rotbraun des Hundefells. Hell und dunkel teilen
+/// sich dieselbe Formsprache (weiche Ecken, flache Karten), damit die
+/// App auf jedem Gerät gleich wirkt.
+///
+/// Der Akzent ist der mittlere Fellton; die Sekundärfarbe ein
+/// deutlich helleres Gold. Beide liegen farblich zwar nah beieinander,
+/// unterscheiden sich aber klar in der Helligkeit – wichtig, weil die
+/// Sekundärfarbe die Warnhinweise trägt (fällige Impfung, offene
+/// Medikamentengabe) und nicht mit dem normalen Akzent verschwimmen
+/// darf.
+const Color _seed = Color(0xFFA65A31);
 
 ThemeData buildLightTheme() => _build(Brightness.light);
 
@@ -16,7 +23,8 @@ ThemeData _build(Brightness brightness) {
     seedColor: _seed,
     brightness: brightness,
   ).copyWith(
-    secondary: isDark ? const Color(0xFFF2C14E) : const Color(0xFFB07A0F),
+    primary: isDark ? const Color(0xFFD98B5F) : const Color(0xFF9A4F27),
+    secondary: isDark ? const Color(0xFFF0C24A) : const Color(0xFF8A6100),
     surface: isDark ? const Color(0xFF11171A) : const Color(0xFFF7F5F0),
   );
 

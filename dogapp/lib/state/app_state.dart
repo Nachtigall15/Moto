@@ -362,17 +362,58 @@ class AppState extends ChangeNotifier {
     await _repo.upsert(_cMedLogs, id, log.toJson());
   }
 
-  /// Wie viele Gaben stehen heute noch aus?
-  int offeneGabenHeute() {
-    final heute = DateTime.now();
-    var offen = 0;
-    for (final m in medicationsOn(heute)) {
-      for (final minute in m.zeiten) {
-        if (!istGegeben(m.id, heute, minute)) offen++;
+  /// Alle Gaben eines Tages, nach Uhrzeit sortiert.
+  ///
+  /// Enthält die geplanten Zeiten und zusätzlich alles, was jemand
+  /// außerhalb des Plans nachgetragen hat – eine Extra-Gabe darf nicht
+  /// unsichtbar bleiben, nur weil sie nicht im Schema steht. Aus dem
+  /// gleichen Grund kommen auch pausierte Medikamente in die Liste,
+  /// sofern für den Tag eine Gabe eingetragen ist.
+  List<MedicationDose> dosesOn(DateTime tag) {
+    final logsAmTag = _medLogs.values
+        .where((log) => isSameDay(log.tag, tag))
+        .toList();
+
+    final kandidaten = <String, Medication>{
+      for (final m in medicationsOn(tag)) m.id: m,
+    };
+    for (final log in logsAmTag) {
+      if (kandidaten.containsKey(log.medikamentId)) continue;
+      for (final m in _medications) {
+        if (m.id == log.medikamentId) kandidaten[m.id] = m;
       }
     }
-    return offen;
+
+    final doses = <MedicationDose>[];
+    for (final m in kandidaten.values) {
+      final eigeneLogs = {
+        for (final log in logsAmTag)
+          if (log.medikamentId == m.id) log.minute: log,
+      };
+      final minuten = <int>{...m.zeiten, ...eigeneLogs.keys};
+      for (final minute in minuten) {
+        doses.add(MedicationDose(
+          medikament: m,
+          minute: minute,
+          tag: startOfDay(tag),
+          log: eigeneLogs[minute],
+        ));
+      }
+    }
+
+    doses.sort((a, b) {
+      final t = a.minute.compareTo(b.minute);
+      if (t != 0) return t;
+      return a.medikament.name
+          .toLowerCase()
+          .compareTo(b.medikament.name.toLowerCase());
+    });
+    return doses;
   }
+
+  /// Wie viele Gaben stehen heute noch aus?
+  int offeneGabenHeute() =>
+      dosesOn(DateTime.now()).where((d) => !d.gegeben).length;
 
   // --- Impfungen ------------------------------------------------------
 

@@ -3,12 +3,21 @@ import 'package:provider/provider.dart';
 
 import '../../core/format.dart';
 import '../../models/appointment.dart';
+import '../../models/medication.dart';
 import '../../state/app_state.dart';
 import '../common/ui.dart';
+
+/// Wie weit die geplanten Medikamentengaben in die Zukunft
+/// mitgeschrieben werden. Weiter voraus wäre die Liste nur noch eine
+/// endlose Wiederholung derselben Zeilen.
+const int _gabenVorschauTage = 7;
 
 /// Terminkalender als Agenda: was als Nächstes ansteht, steht oben.
 /// Auf dem Handy ist das brauchbarer als ein Monatsraster, in dem man
 /// erst auf einen Tag tippen muss, um überhaupt etwas zu sehen.
+///
+/// Termine und Medikamentengaben stehen gemeinsam in der Tagesliste,
+/// nach Uhrzeit sortiert – der Tag hat schließlich nur einen Ablauf.
 class CalendarScreen extends StatelessWidget {
   const CalendarScreen({super.key});
 
@@ -18,9 +27,10 @@ class CalendarScreen extends StatelessWidget {
     final theme = Theme.of(context);
 
     final verpasst = state.verpassteTermine;
-    final offen = state.offeneTermine;
     final faellig = state.faelligeImpfungen;
     final erledigt = state.erledigteTermine;
+    final gruppen = _baueGruppen(state);
+    final leer = gruppen.every((g) => g.eintraege.isEmpty) && verpasst.isEmpty;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Kalender')),
@@ -73,26 +83,47 @@ class CalendarScreen extends StatelessWidget {
             const SizedBox(height: 16),
           ],
           if (verpasst.isNotEmpty) ...[
-            _Group(
-              titel: 'Vergangen, noch offen',
+            SectionCard(
+              title: 'Vergangen, noch offen',
               icon: Icons.error_outline,
-              termine: verpasst,
+              child: Column(
+                children: [
+                  for (final a in verpasst) _AppointmentTile(entry: a),
+                ],
+              ),
             ),
             const SizedBox(height: 16),
           ],
-          if (offen.isEmpty && verpasst.isEmpty)
+          if (leer)
             const Card(
               child: EmptyHint(
                 icon: Icons.event_available_outlined,
-                text: 'Keine Termine eingetragen.\n'
+                text: 'Nichts eingetragen.\n'
                     'Tierarzt, Hundeschule, Wurmkur – alles, was einen\n'
-                    'festen Zeitpunkt hat, gehört hierher.',
+                    'festen Zeitpunkt hat, gehört hierher.\n'
+                    'Medikamentengaben erscheinen hier automatisch.',
               ),
             )
-          else if (offen.isNotEmpty)
-            ..._offeneGruppen(context, offen),
+          else
+            for (final gruppe in gruppen)
+              if (gruppe.eintraege.isNotEmpty) ...[
+                SectionCard(
+                  title: gruppe.titel,
+                  icon: gruppe.icon,
+                  child: Column(
+                    children: [
+                      for (final eintrag in gruppe.eintraege)
+                        switch (eintrag) {
+                          _TerminEintrag(:final termin) =>
+                            _AppointmentTile(entry: termin),
+                          _GabeEintrag(:final gabe) => _DoseTile(dose: gabe),
+                        },
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
           if (erledigt.isNotEmpty) ...[
-            const SizedBox(height: 16),
             Card(
               child: ExpansionTile(
                 shape: const Border(),
@@ -110,74 +141,131 @@ class CalendarScreen extends StatelessWidget {
     );
   }
 
-  /// Anstehende Termine in „Heute / Diese Woche / Später" schneiden.
-  List<Widget> _offeneGruppen(
-    BuildContext context,
-    List<Appointment> offen,
-  ) {
+  /// Termine und Gaben zu „Heute / Diese Woche / Später" bündeln.
+  ///
+  /// Gaben gibt es nur für den Vorschauzeitraum; Termine dagegen
+  /// vollständig, damit der Tierarzttermin in drei Monaten nicht
+  /// unter den Tisch fällt.
+  List<_Gruppe> _baueGruppen(AppState state) {
     final heute = startOfDay(DateTime.now());
     final wocheEnde = heute.add(const Duration(days: 7));
 
-    final heuteListe = <Appointment>[];
-    final wocheListe = <Appointment>[];
-    final spaeterListe = <Appointment>[];
+    final eintraege = <_Eintrag>[
+      for (final a in state.offeneTermine) _TerminEintrag(a),
+      for (var offset = 0; offset < _gabenVorschauTage; offset++)
+        for (final d in state.dosesOn(heute.add(Duration(days: offset))))
+          _GabeEintrag(d),
+    ]..sort((a, b) => a.zeitpunkt.compareTo(b.zeitpunkt));
 
-    for (final a in offen) {
-      final tag = startOfDay(a.zeitpunkt);
+    final gruppen = [
+      _Gruppe('Heute', Icons.today_outlined),
+      _Gruppe('Diese Woche', Icons.date_range_outlined),
+      _Gruppe('Später', Icons.event_outlined),
+    ];
+
+    for (final eintrag in eintraege) {
+      final tag = startOfDay(eintrag.zeitpunkt);
       if (tag == heute) {
-        heuteListe.add(a);
+        gruppen[0].eintraege.add(eintrag);
       } else if (tag.isBefore(wocheEnde)) {
-        wocheListe.add(a);
+        gruppen[1].eintraege.add(eintrag);
       } else {
-        spaeterListe.add(a);
+        gruppen[2].eintraege.add(eintrag);
       }
     }
-
-    return [
-      if (heuteListe.isNotEmpty)
-        _Group(
-          titel: 'Heute',
-          icon: Icons.today_outlined,
-          termine: heuteListe,
-        ),
-      if (heuteListe.isNotEmpty) const SizedBox(height: 16),
-      if (wocheListe.isNotEmpty)
-        _Group(
-          titel: 'Diese Woche',
-          icon: Icons.date_range_outlined,
-          termine: wocheListe,
-        ),
-      if (wocheListe.isNotEmpty) const SizedBox(height: 16),
-      if (spaeterListe.isNotEmpty)
-        _Group(
-          titel: 'Später',
-          icon: Icons.event_outlined,
-          termine: spaeterListe,
-        ),
-    ];
+    return gruppen;
   }
 }
 
-class _Group extends StatelessWidget {
-  const _Group({
-    required this.titel,
-    required this.icon,
-    required this.termine,
-  });
+class _Gruppe {
+  _Gruppe(this.titel, this.icon);
 
   final String titel;
   final IconData icon;
-  final List<Appointment> termine;
+  final List<_Eintrag> eintraege = [];
+}
+
+sealed class _Eintrag {
+  DateTime get zeitpunkt;
+}
+
+class _TerminEintrag extends _Eintrag {
+  _TerminEintrag(this.termin);
+
+  final Appointment termin;
+
+  @override
+  DateTime get zeitpunkt => termin.zeitpunkt;
+}
+
+class _GabeEintrag extends _Eintrag {
+  _GabeEintrag(this.gabe);
+
+  final MedicationDose gabe;
+
+  @override
+  DateTime get zeitpunkt => gabe.zeitpunkt;
+}
+
+/// Eine geplante oder erledigte Medikamentengabe im Kalender.
+class _DoseTile extends StatelessWidget {
+  const _DoseTile({required this.dose});
+
+  final MedicationDose dose;
 
   @override
   Widget build(BuildContext context) {
-    return SectionCard(
-      title: titel,
-      icon: icon,
-      child: Column(
-        children: [for (final a in termine) _AppointmentTile(entry: a)],
+    final theme = Theme.of(context);
+    final state = context.read<AppState>();
+    final heute = startOfDay(DateTime.now());
+    final zukunft = dose.tag.isAfter(heute);
+    final ueberfaellig =
+        !dose.gegeben && dose.zeitpunkt.isBefore(DateTime.now());
+
+    final farbe = dose.gegeben
+        ? theme.colorScheme.primary
+        : (ueberfaellig
+            ? theme.colorScheme.secondary
+            : theme.colorScheme.onSurfaceVariant);
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: CircleAvatar(
+        backgroundColor: farbe.withValues(alpha: 0.14),
+        child: Icon(Icons.medication_outlined, size: 20, color: farbe),
       ),
+      title: Text(
+        dose.medikament.dosis.isEmpty
+            ? dose.medikament.name
+            : '${dose.medikament.name} · ${dose.medikament.dosis}',
+        style: TextStyle(
+          fontWeight: FontWeight.w600,
+          decoration: dose.gegeben ? TextDecoration.lineThrough : null,
+        ),
+      ),
+      subtitle: Text(_untertitel()),
+      trailing: zukunft
+          // Eine Gabe von morgen abzuhaken, ergibt keinen Sinn – der
+          // Haken soll dokumentieren, was passiert ist.
+          ? Icon(Icons.schedule, color: theme.colorScheme.outline)
+          : Checkbox(
+              value: dose.gegeben,
+              onChanged: (_) => state.toggleGabe(
+                dose.medikament.id,
+                dose.tag,
+                dose.minute,
+              ),
+            ),
     );
+  }
+
+  String _untertitel() {
+    final teile = <String>['${dose.zeitLabel} Uhr'];
+    if (dose.nachgetragen) teile.add('nachgetragen');
+    if (dose.gegeben) {
+      teile.add('gegeben ${dfTime.format(dose.log!.gegebenUm)} Uhr');
+    }
+    return teile.join(' · ');
   }
 }
 

@@ -1,4 +1,5 @@
 import 'package:dogapp/data/local_repository.dart';
+import 'package:dogapp/core/format.dart';
 import 'package:dogapp/models/appointment.dart';
 import 'package:dogapp/models/medication.dart';
 import 'package:dogapp/models/training.dart';
@@ -87,6 +88,59 @@ void main() {
       await settle();
       expect(state.istGegeben(med.id, heute, 8 * 60), isFalse);
       expect(state.offeneGabenHeute(), 2);
+    });
+
+    test('Gabe lässt sich für einen vergangenen Tag nachtragen', () async {
+      final med = Medication(name: 'Metacam', zeiten: [12 * 60]);
+      await state.saveMedication(med);
+      await settle();
+
+      final gestern = DateTime.now().subtract(const Duration(days: 1));
+      await state.toggleGabe(med.id, gestern, 12 * 60);
+      await settle();
+
+      // Der Haken hängt am gewählten Tag, nicht an heute.
+      expect(state.istGegeben(med.id, gestern, 12 * 60), isTrue);
+      expect(state.istGegeben(med.id, DateTime.now(), 12 * 60), isFalse);
+      expect(state.offeneGabenHeute(), 1);
+    });
+
+    test('Gabe außerhalb des Plans taucht im Tag auf', () async {
+      final med = Medication(name: 'Wurmkur', zeiten: [8 * 60]);
+      await state.saveMedication(med);
+      await settle();
+
+      final heute = DateTime.now();
+      // 17:30 steht nicht im Plan – eine Extra-Gabe.
+      await state.toggleGabe(med.id, heute, 17 * 60 + 30);
+      await settle();
+
+      final doses = state.dosesOn(heute);
+      expect(doses.map((d) => d.minute), [8 * 60, 17 * 60 + 30]);
+      expect(doses.first.gegeben, isFalse);
+      expect(doses.first.nachgetragen, isFalse);
+      expect(doses.last.gegeben, isTrue);
+      expect(doses.last.nachgetragen, isTrue);
+    });
+
+    test('Gaben eines Tages sind nach Uhrzeit sortiert', () async {
+      await state.saveMedication(
+        Medication(name: 'Abends', zeiten: [20 * 60]),
+      );
+      await state.saveMedication(
+        Medication(name: 'Morgens', zeiten: [7 * 60, 12 * 60]),
+      );
+      await settle();
+
+      final doses = state.dosesOn(DateTime.now());
+      expect(
+        doses.map((d) => '${d.medikament.name}@${d.zeitLabel}'),
+        ['Morgens@07:00', 'Morgens@12:00', 'Abends@20:00'],
+      );
+      // Der Zeitpunkt trägt den Tag mit, damit sich Gaben und Termine
+      // im Kalender gemeinsam sortieren lassen.
+      expect(doses.first.zeitpunkt.hour, 7);
+      expect(isSameDay(doses.first.zeitpunkt, DateTime.now()), isTrue);
     });
 
     test('pausierte und abgelaufene Medikamente fallen aus dem Tagesplan',

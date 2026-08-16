@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'core/theme.dart';
@@ -40,6 +41,21 @@ class DogApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: buildLightTheme(),
         darkTheme: buildDarkTheme(),
+        // Ohne feste Sprache kämen Datums- und Uhrzeit-Dialoge auf
+        // Englisch und mit AM/PM.
+        locale: const Locale('de', 'DE'),
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [Locale('de', 'DE')],
+        // Zusätzlich zur Sprache: 24-Stunden-Anzeige unabhängig davon,
+        // wie das Gerät eingestellt ist.
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        ),
         home: const HomeShell(),
       ),
     );
