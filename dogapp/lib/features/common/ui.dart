@@ -152,6 +152,85 @@ class StatTile extends StatelessWidget {
   }
 }
 
+/// Überschrift einer Tagesgruppe: links der Tag, rechts die Summe
+/// dieses Tages.
+///
+/// Die Kennzahlen oben auf den Bildschirmen gelten immer nur für heute.
+/// Erst die Tagessumme in der Überschrift macht vergangene Tage
+/// vergleichbar, ohne dass man die einzelnen Einträge zusammenrechnet.
+class TagesKopf extends StatelessWidget {
+  const TagesKopf({
+    super.key,
+    required this.tag,
+    required this.summe,
+    this.zusatz,
+  });
+
+  /// Beschriftung des Tages, z. B. „Heute" oder „Montag, 4. August".
+  final String tag;
+
+  /// Tagessumme, z. B. „7 h 20 min" oder „450 g · 2 Stück". Leer, wenn
+  /// es nichts zu summieren gibt.
+  final String summe;
+
+  /// Kleine Ergänzung unter dem Tag, z. B. „3 Phasen".
+  final String? zusatz;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 14, 4, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  tag,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (zusatz != null && zusatz!.isNotEmpty)
+                  Text(
+                    zusatz!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.outline,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (summe.isNotEmpty) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Text(
+                summe,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 /// Fuß einer wachsenden Liste: sagt, wie viel geladen ist, und lädt
 /// auf Knopfdruck den nächsten Schwung älterer Einträge dazu.
 ///

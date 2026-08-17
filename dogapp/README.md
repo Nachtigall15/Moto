@@ -39,10 +39,13 @@ Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
   Medikamentengaben, nicht abgehakte Termine, fällige Impfungen.
 - **Fütterung** – was, wann, wie viel, welche Mahlzeit, Notiz. Bereits
   benutzte Futtersorten werden beim Eintippen vorgeschlagen. Mengen
-  werden pro Einheit summiert (Gramm und Stück nie vermischt).
+  werden pro Einheit summiert (Gramm und Stück nie vermischt). Jeder
+  Tag in der Liste trägt seine Tagesmenge in der Überschrift – auch
+  vergangene.
 - **Schlaf** – „Schläft jetzt" / „Aufgewacht" per Knopfdruck, laufende
-  Phase mit mitlaufender Dauer, Nachtragen und Korrigieren möglich,
-  Tagessumme.
+  Phase mit mitlaufender Dauer, Nachtragen und Korrigieren möglich.
+  Jeder Tag in der Liste zeigt seine Gesamtdauer und die Zahl der
+  Phasen; eine noch laufende Phase zählt bewusst nicht mit.
 - **Gewicht & Fotos** – Messung mit Datum/Uhrzeit, optionalem Foto und
   Notiz. Verlaufsdiagramm mit optionaler Zielgewichtslinie; Fotos
   hängen direkt am jeweiligen Messwert, so entsteht der

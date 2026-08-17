@@ -335,15 +335,9 @@ class AppState extends ChangeNotifier {
           f.zeitpunkt.day == day.day)
       .toList();
 
-  /// Futtermengen des Tages, getrennt nach Einheit – Gramm und Stück
-  /// darf man nicht zusammenzählen.
-  Map<Einheit, double> totalsOn(DateTime day) {
-    final result = <Einheit, double>{};
-    for (final f in feedingsOn(day)) {
-      result[f.einheit] = (result[f.einheit] ?? 0) + f.menge;
-    }
-    return result;
-  }
+  /// Futtermengen des Tages, getrennt nach Einheit.
+  Map<Einheit, double> totalsOn(DateTime day) =>
+      futterSumme(feedingsOn(day));
 
   /// Bereits verwendete Futtersorten als Vorschläge beim Eintragen.
   List<String> get bekannteFuttersorten {
@@ -389,9 +383,7 @@ class AppState extends ChangeNotifier {
           s.start.day == day.day)
       .toList();
 
-  Duration sleepTotalOn(DateTime day) => sleepsOn(day)
-      .where((s) => !s.laeuft)
-      .fold(Duration.zero, (sum, s) => sum + s.dauer);
+  Duration sleepTotalOn(DateTime day) => schlafSumme(sleepsOn(day));
 
   // --- Gewicht & Fotos ------------------------------------------------
 
@@ -782,3 +774,36 @@ class AppState extends ChangeNotifier {
     }
   }
 }
+
+// --- Tagessummen ------------------------------------------------------
+//
+// Bewusst als freie Funktionen: Die Bildschirme gruppieren die Einträge
+// ohnehin schon nach Tagen und können die Summe damit direkt aus der
+// fertigen Gruppe ziehen, statt für jeden Tag noch einmal die ganze
+// Liste zu durchsuchen.
+
+/// Summe der Schlafphasen. Eine noch laufende Phase bleibt außen vor –
+/// sonst würde die Tagessumme im Sekundentakt weiterwachsen.
+Duration schlafSumme(Iterable<SleepEntry> phasen) => phasen
+    .where((s) => !s.laeuft)
+    .fold(Duration.zero, (summe, s) => summe + s.dauer);
+
+/// Futtermengen getrennt nach Einheit – Gramm und Stück darf man nicht
+/// zusammenzählen. Die Reihenfolge folgt [Einheit.values], damit die
+/// Beschriftung nicht von der Eingabereihenfolge abhängt.
+Map<Einheit, double> futterSumme(Iterable<FeedingEntry> mahlzeiten) {
+  final summen = <Einheit, double>{};
+  for (final f in mahlzeiten) {
+    summen[f.einheit] = (summen[f.einheit] ?? 0) + f.menge;
+  }
+  return {
+    for (final e in Einheit.values)
+      if (summen.containsKey(e)) e: summen[e]!,
+  };
+}
+
+/// Tagesmenge als Text, z. B. „450 g · 2 Stück". Leer, wenn nichts
+/// eingetragen ist.
+String futterSummeLabel(Map<Einheit, double> summen) => summen.entries
+    .map((e) => '${nfAmount.format(e.value)} ${e.key.label}')
+    .join(' · ');

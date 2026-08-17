@@ -120,6 +120,93 @@ void main() {
     });
   });
 
+  group('Tagessummen vergangener Tage', () {
+    test('Schlaf: jeder Tag wird für sich summiert', () async {
+      final vorgestern = DateTime.now().subtract(const Duration(days: 2));
+      final tag = DateTime(vorgestern.year, vorgestern.month, vorgestern.day);
+
+      // 22:00–23:30 und 13:00–15:00 am selben Tag = 3 h 30 min.
+      await state.saveSleep(SleepEntry(
+        start: tag.add(const Duration(hours: 22)),
+        ende: tag.add(const Duration(hours: 23, minutes: 30)),
+      ));
+      await state.saveSleep(SleepEntry(
+        start: tag.add(const Duration(hours: 13)),
+        ende: tag.add(const Duration(hours: 15)),
+      ));
+      // Ein anderer Tag darf nicht mitzählen.
+      await state.saveSleep(SleepEntry(
+        start: tag.subtract(const Duration(hours: 5)),
+        ende: tag.subtract(const Duration(hours: 1)),
+      ));
+
+      await settle();
+
+      expect(
+        state.sleepTotalOn(tag),
+        const Duration(hours: 3, minutes: 30),
+      );
+      expect(
+        schlafSumme(state.sleepsOn(tag)),
+        state.sleepTotalOn(tag),
+      );
+    });
+
+    test('Schlaf: eine laufende Phase bleibt außen vor', () {
+      final start = DateTime.now().subtract(const Duration(days: 3));
+      final summe = schlafSumme([
+        SleepEntry(start: start, ende: start.add(const Duration(hours: 2))),
+        SleepEntry(start: start.add(const Duration(hours: 4))),
+      ]);
+
+      expect(summe, const Duration(hours: 2));
+    });
+
+    test('Futter: Gramm und Stück bleiben getrennt und in fester Folge', () {
+      final tag = DateTime.now().subtract(const Duration(days: 4));
+      final summen = futterSumme([
+        FeedingEntry(
+          zeitpunkt: tag,
+          futter: 'Kausnack',
+          menge: 2,
+          einheit: Einheit.stueck,
+          mahlzeit: Mahlzeit.leckerli,
+        ),
+        FeedingEntry(zeitpunkt: tag, futter: 'Trockenfutter', menge: 250),
+        FeedingEntry(zeitpunkt: tag, futter: 'Nassfutter', menge: 200),
+      ]);
+
+      expect(summen[Einheit.gramm], 450);
+      expect(summen[Einheit.stueck], 2);
+      // Gramm zuerst, unabhängig davon, was zuerst eingetragen wurde.
+      expect(summen.keys.toList(), [Einheit.gramm, Einheit.stueck]);
+      expect(futterSummeLabel(summen), '450 g · 2 Stück');
+    });
+
+    test('Futter: Tagessumme eines vergangenen Tages', () async {
+      final gestern = DateTime.now().subtract(const Duration(days: 1));
+      final tag = DateTime(gestern.year, gestern.month, gestern.day, 8);
+
+      await state.saveFeeding(
+          FeedingEntry(zeitpunkt: tag, futter: 'Trocken', menge: 150));
+      await state.saveFeeding(FeedingEntry(
+          zeitpunkt: tag.add(const Duration(hours: 10)),
+          futter: 'Nass',
+          menge: 300));
+      // Heute – darf die Summe von gestern nicht verändern.
+      await state.saveFeeding(FeedingEntry(
+          zeitpunkt: DateTime.now(), futter: 'Trocken', menge: 999));
+
+      await settle();
+
+      expect(futterSummeLabel(state.totalsOn(tag)), '450 g');
+    });
+
+    test('Futter: leere Summe ergibt einen leeren Text', () {
+      expect(futterSummeLabel(futterSumme(const [])), '');
+    });
+  });
+
   group('Gewicht', () {
     test('Differenz vergleicht die beiden jüngsten Messungen', () async {
       final now = DateTime.now();

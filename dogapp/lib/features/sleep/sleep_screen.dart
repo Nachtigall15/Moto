@@ -116,15 +116,20 @@ class _SleepScreenState extends State<SleepScreen> {
               ),
             ),
           for (final day in days) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
-              child: Text(
-                isSameDay(day, today) ? 'Heute' : dfWeekday.format(day),
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ),
+            Builder(builder: (context) {
+              final phasen = byDay[day]!;
+              final summe = schlafSumme(phasen);
+              final laeuftNoch = phasen.any((s) => s.laeuft);
+              return TagesKopf(
+                tag: isSameDay(day, today) ? 'Heute' : dfWeekday.format(day),
+                summe: summe == Duration.zero ? '' : formatDuration(summe),
+                zusatz: '${phasen.length} '
+                    '${phasen.length == 1 ? 'Phase' : 'Phasen'}'
+                    // Eine laufende Phase zählt noch nicht mit, sonst
+                    // stiege die Summe im Sekundentakt.
+                    '${laeuftNoch ? ' · eine läuft noch' : ''}',
+              );
+            }),
             Card(
               child: Column(
                 children: [

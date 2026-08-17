@@ -53,12 +53,7 @@ class FeedingScreen extends StatelessWidget {
                 Expanded(
                   child: StatTile(
                     label: 'Menge',
-                    value: totals.isEmpty
-                        ? '–'
-                        : totals.entries
-                            .map((e) =>
-                                '${nfAmount.format(e.value)} ${e.key.label}')
-                            .join(' · '),
+                    value: totals.isEmpty ? '–' : futterSummeLabel(totals),
                     icon: Icons.scale_outlined,
                   ),
                 ),
@@ -75,15 +70,23 @@ class FeedingScreen extends StatelessWidget {
               ),
             ),
           for (final day in days) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
-              child: Text(
-                isSameDay(day, today) ? 'Heute' : dfWeekday.format(day),
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ),
+            Builder(builder: (context) {
+              final eintraege = byDay[day]!;
+              // Die Summe zählt alles mit, was an dem Tag im Napf
+              // gelandet ist – genau wie die Kennzahl oben. Zwei
+              // verschiedene Tagesmengen auf einem Bildschirm wären
+              // schlimmer als die fehlende Feinheit.
+              final leckerli =
+                  eintraege.where((f) => f.mahlzeit == Mahlzeit.leckerli).length;
+              final mahlzeiten = eintraege.length - leckerli;
+              return TagesKopf(
+                tag: isSameDay(day, today) ? 'Heute' : dfWeekday.format(day),
+                summe: futterSummeLabel(futterSumme(eintraege)),
+                zusatz: '$mahlzeiten '
+                    '${mahlzeiten == 1 ? 'Mahlzeit' : 'Mahlzeiten'}'
+                    '${leckerli == 0 ? '' : ' · $leckerli Leckerli'}',
+              );
+            }),
             Card(
               child: Column(
                 children: [
