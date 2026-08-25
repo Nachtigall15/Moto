@@ -1,6 +1,7 @@
 import 'package:dogapp/app.dart';
 import 'package:dogapp/data/local_repository.dart';
 import 'package:dogapp/features/calendar/calendar_screen.dart';
+import 'package:dogapp/features/dashboard/dashboard_screen.dart';
 import 'package:dogapp/features/feeding/feeding_screen.dart';
 import 'package:dogapp/features/sleep/sleep_screen.dart';
 import 'package:dogapp/models/appointment.dart';
@@ -320,6 +321,64 @@ void main() {
       expect(neu.menge, 150);
       expect(neu.einheit, Einheit.gramm);
       expect(neu.mahlzeit, Mahlzeit.fruehstueck);
+    });
+  });
+
+  group('Übersicht: Kacheln springen in den Bereich', () {
+    /// Die Übersicht allein, mit aufgezeichneten Sprüngen. Der Hinweis
+    /// auf den Speicherort unten braucht zusätzlich den Bootstrap.
+    Widget zeigeUebersicht(List<(int, int?)> spruenge) => MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AppState>.value(value: state),
+            ChangeNotifierProvider<BootstrapController>.value(
+              value: BootstrapController.bereit(state),
+            ),
+          ],
+          child: MaterialApp(
+            home: DashboardScreen(
+              onOpen: (index, {int? unterreiter}) =>
+                  spruenge.add((index, unterreiter)),
+            ),
+          ),
+        );
+
+    testWidgets('Mahlzeiten führt zur Fütterung, Schlaf zum Schlaf',
+        (tester) async {
+      handyFormat(tester);
+      // Jeder Sprung als (Bereich, Unterreiter).
+      final spruenge = <(int, int?)>[];
+
+      await tester.pumpWidget(zeigeUebersicht(spruenge));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Mahlzeiten'));
+      await tester.pumpAndSettle();
+      expect(spruenge.last, (Tabs.alltag, 0));
+
+      await tester.tap(find.text('Schlaf'));
+      await tester.pumpAndSettle();
+      expect(spruenge.last, (Tabs.alltag, 1));
+    });
+
+    testWidgets('die Knöpfe darunter bleiben und tragen weiter ein',
+        (tester) async {
+      handyFormat(tester);
+      final spruenge = <(int, int?)>[];
+
+      await tester.pumpWidget(zeigeUebersicht(spruenge));
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(FilledButton, 'Fütterung'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Schläft'), findsOneWidget);
+
+      // „Schläft" startet die Schlafphase, statt den Bereich zu wechseln.
+      await tester.tap(find.widgetWithText(FilledButton, 'Schläft'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pumpAndSettle();
+
+      expect(state.laufenderSchlaf, isNotNull);
+      expect(spruenge, isEmpty);
     });
   });
 }

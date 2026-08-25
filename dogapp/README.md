@@ -38,7 +38,10 @@ Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
   steht das Alter in Jahren, Monaten und Wochen; was null ist, fällt
   weg, und in der ersten Woche zählen noch die Tage. Darunter die
   Hinweise, die man morgens wirklich lesen muss: offene
-  Medikamentengaben, nicht abgehakte Termine, fällige Impfungen.
+  Medikamentengaben, nicht abgehakte Termine, fällige Impfungen. Die
+  Kacheln „Mahlzeiten" und „Schlaf" führen mit einem Tipp in den
+  jeweiligen Bereich; die Knöpfe darunter bleiben, was sie sind – der
+  kürzeste Weg zum Eintrag.
 - **Fütterung** – was, wann, wie viel, welche Mahlzeit, Notiz. Die
   **drei häufigsten Fütterungen** stehen im Eingabefenster als Knopf:
   einmal antippen füllt Name, Menge, Einheit und Mahlzeit auf einmal.

@@ -82,6 +82,10 @@ class EmptyHint extends StatelessWidget {
 }
 
 /// Kompakte Kennzahl (Wert groß, Beschriftung klein darunter).
+///
+/// Mit [onTap] wird sie zum Sprungbrett in den zugehörigen Bereich –
+/// eine Zahl auf der Startseite lädt zum Antippen ein, und ohne
+/// Reaktion wirkt sie kaputt.
 class StatTile extends StatelessWidget {
   const StatTile({
     super.key,
@@ -90,6 +94,7 @@ class StatTile extends StatelessWidget {
     this.hint,
     this.icon,
     this.color,
+    this.onTap,
   });
 
   final String label;
@@ -97,19 +102,16 @@ class StatTile extends StatelessWidget {
   final String? hint;
   final IconData? icon;
   final Color? color;
+  final VoidCallback? onTap;
+
+  static const _rundung = 14.0;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final accent = color ?? theme.colorScheme.primary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.25)),
-      ),
-      child: Column(
+
+    final inhalt = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -127,6 +129,10 @@ class StatTile extends StatelessWidget {
                   ),
                 ),
               ),
+              // Kleiner Wink, dass hier mehr dahintersteckt.
+              if (onTap != null)
+                Icon(Icons.chevron_right,
+                    size: 16, color: theme.colorScheme.outline),
             ],
           ),
           const SizedBox(height: 6),
@@ -147,6 +153,31 @@ class StatTile extends StatelessWidget {
             ),
           ],
         ],
+      );
+
+    final schmuck = BoxDecoration(
+      color: accent.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(_rundung),
+      border: Border.all(color: accent.withValues(alpha: 0.25)),
+    );
+    const abstand = EdgeInsets.symmetric(horizontal: 14, vertical: 12);
+
+    if (onTap == null) {
+      return Container(padding: abstand, decoration: schmuck, child: inhalt);
+    }
+
+    // Der Hintergrund liegt in einem Ink, sonst versteckte er die
+    // Welle des Fingertipps unter sich.
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(_rundung),
+        child: Ink(
+          padding: abstand,
+          decoration: schmuck,
+          child: inhalt,
+        ),
       ),
     );
   }

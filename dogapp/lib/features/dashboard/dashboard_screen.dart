@@ -80,6 +80,9 @@ class DashboardScreen extends StatelessWidget {
                   children: [
                     Expanded(
                       child: StatTile(
+                        // Antippen führt in den Bereich, die Knöpfe
+                        // darunter bleiben für den schnellen Eintrag.
+                        onTap: () => onOpen(Tabs.alltag, unterreiter: 0),
                         label: 'Mahlzeiten',
                         value: '${heuteFutter.length}',
                         hint: totals.isEmpty
@@ -95,6 +98,7 @@ class DashboardScreen extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(
                       child: StatTile(
+                        onTap: () => onOpen(Tabs.alltag, unterreiter: 1),
                         label: 'Schlaf',
                         value: schlaf != null
                             ? 'läuft'
