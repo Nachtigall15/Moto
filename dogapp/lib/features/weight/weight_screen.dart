@@ -248,7 +248,8 @@ class _FotoKachel extends StatelessWidget {
           Text(
             geburtstag == null
                 ? entry.gewichtLabel
-                : formatAge(geburtstag, now: entry.zeitpunkt),
+                // Unter dem Foto ist wenig Platz – hier ohne Wochen.
+                : formatAge(geburtstag, now: entry.zeitpunkt, kompakt: true),
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

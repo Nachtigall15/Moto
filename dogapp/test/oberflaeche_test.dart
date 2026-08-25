@@ -261,4 +261,65 @@ void main() {
       expect(state.appointments.single.erledigt, isTrue);
     });
   });
+
+  group('Fütterung: Vorschläge', () {
+    testWidgets('ein Antippen füllt Menge, Einheit und Mahlzeit mit',
+        (tester) async {
+      handyFormat(tester);
+      final jetzt = DateTime.now();
+
+      await tester.runAsync(() async {
+        for (var i = 1; i <= 2; i++) {
+          await state.saveFeeding(FeedingEntry(
+            zeitpunkt: jetzt.subtract(Duration(days: i)),
+            futter: 'Trockenfutter',
+            menge: 150,
+            mahlzeit: Mahlzeit.fruehstueck,
+          ));
+        }
+        await Future<void>.delayed(Duration.zero);
+      });
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppState>.value(
+          value: state,
+          child: const MaterialApp(home: FeedingScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Eingabefenster öffnen.
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Neue Fütterung'), findsOneWidget);
+
+      // Der Vorschlag steht als Knopf bereit …
+      final vorschlag = find.widgetWithText(
+        ActionChip,
+        'Trockenfutter · 150 g · Frühstück',
+      );
+      expect(vorschlag, findsOneWidget);
+
+      // … und ein Antippen füllt alles aus.
+      await tester.tap(vorschlag);
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(TextField, 'Trockenfutter'), findsOneWidget);
+      expect(find.widgetWithText(TextField, '150'), findsOneWidget);
+
+      // Direkt speichern – ohne einen einzigen Tastendruck.
+      await tester.ensureVisible(find.text('Speichern'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Speichern'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pumpAndSettle();
+
+      final neu = state.feedings.first;
+      expect(neu.futter, 'Trockenfutter');
+      expect(neu.menge, 150);
+      expect(neu.einheit, Einheit.gramm);
+      expect(neu.mahlzeit, Mahlzeit.fruehstueck);
+    });
+  });
 }

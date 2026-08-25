@@ -78,6 +78,67 @@ void main() {
       expect(state.bekannteFuttersorten, ['Trockenfutter']);
     });
 
+    test('die häufigsten Fütterungen stehen als Vorlage bereit', () async {
+      final jetzt = DateTime.now();
+      Future<void> futter(
+        String name,
+        double menge,
+        int vorStunden, {
+        Mahlzeit mahlzeit = Mahlzeit.fruehstueck,
+        Einheit einheit = Einheit.gramm,
+      }) =>
+          state.saveFeeding(FeedingEntry(
+            zeitpunkt: jetzt.subtract(Duration(hours: vorStunden)),
+            futter: name,
+            menge: menge,
+            einheit: einheit,
+            mahlzeit: mahlzeit,
+          ));
+
+      // Dreimal dasselbe Frühstück …
+      await futter('Trockenfutter', 150, 72);
+      await futter('Trockenfutter', 150, 48);
+      await futter('Trockenfutter', 150, 24);
+      // … zweimal dasselbe Abendessen …
+      await futter('Nassfutter', 300, 60, mahlzeit: Mahlzeit.abendessen);
+      await futter('Nassfutter', 300, 36, mahlzeit: Mahlzeit.abendessen);
+      // … einmal ein Kausnack …
+      await futter('Kausnack', 1, 12,
+          mahlzeit: Mahlzeit.leckerli, einheit: Einheit.stueck);
+      // … und einmal dieselbe Sorte mit anderer Menge: eigene Vorlage.
+      await futter('Trockenfutter', 90, 6);
+      // Ohne Menge taucht nichts als komplette Vorlage auf.
+      await futter('Reste', 0, 3);
+
+      await settle();
+
+      final vorlagen = state.futterVorlagen();
+      final komplett = vorlagen.where((v) => v.istKomplett).toList();
+
+      expect(komplett, hasLength(3));
+      expect(komplett[0].futter, 'Trockenfutter');
+      expect(komplett[0].menge, 150);
+      expect(komplett[0].mahlzeit, Mahlzeit.fruehstueck);
+      expect(komplett[0].anzahl, 3);
+      expect(komplett[0].details, '150 g · Frühstück');
+
+      expect(komplett[1].futter, 'Nassfutter');
+      expect(komplett[1].anzahl, 2);
+
+      // Gleich häufig (je einmal): das zuletzt Gefütterte zuerst.
+      expect(komplett[2].futter, 'Trockenfutter');
+      expect(komplett[2].menge, 90);
+
+      // Danach die übrigen Sorten als reine Namen, ohne Dubletten.
+      final namen = vorlagen.where((v) => !v.istKomplett).map((v) => v.futter);
+      expect(namen, containsAll(['Kausnack', 'Reste']));
+      expect(namen, isNot(contains('Nassfutter')));
+    });
+
+    test('ohne Fütterungen gibt es keine Vorlagen', () {
+      expect(state.futterVorlagen(), isEmpty);
+    });
+
     test('Löschen entfernt den Eintrag', () async {
       final entry =
           FeedingEntry(zeitpunkt: DateTime.now(), futter: 'Test', menge: 10);
@@ -445,14 +506,56 @@ void main() {
   });
 
   group('Formatierung', () {
-    test('Alter wird in Jahren und Monaten ausgegeben', () {
+    test('Alter wird in Jahren, Monaten und Wochen ausgegeben', () {
+      expect(
+        formatAge(DateTime(2023, 1, 10), now: DateTime(2024, 4, 26)),
+        '1 Jahr, 3 Monate, 2 Wochen',
+      );
+      // Ohne volle Woche steht nichts von Wochen da …
       expect(
         formatAge(DateTime(2023, 1, 10), now: DateTime(2024, 4, 12)),
         '1 Jahr, 3 Monate',
       );
+      // … und ohne volles Jahr nichts von Jahren.
       expect(
-        formatAge(DateTime(2024, 1, 10), now: DateTime(2024, 1, 20)),
-        '10 Tage',
+        formatAge(DateTime(2024, 1, 10), now: DateTime(2024, 6, 27)),
+        '5 Monate, 2 Wochen',
+      );
+      expect(
+        formatAge(DateTime(2024, 1, 10), now: DateTime(2024, 1, 25)),
+        '2 Wochen',
+      );
+      // In der ersten Woche zählen noch die Tage.
+      expect(
+        formatAge(DateTime(2024, 1, 10), now: DateTime(2024, 1, 14)),
+        '4 Tage',
+      );
+      expect(
+        formatAge(DateTime(2024, 1, 10), now: DateTime(2024, 1, 11)),
+        '1 Tag',
+      );
+      // Kurzform für enge Stellen.
+      expect(
+        formatAge(DateTime(2023, 1, 10),
+            now: DateTime(2024, 4, 26), kompakt: true),
+        '1 Jahr, 3 Monate',
+      );
+    });
+
+    test('Alter rechnet über Monatsenden hinweg richtig', () {
+      // 31. Januar plus einen Monat ist der 29. Februar, nicht der
+      // 2. März – sonst käme eine negative Tagesdifferenz heraus.
+      expect(
+        formatAge(DateTime(2024, 1, 31), now: DateTime(2024, 3, 1)),
+        '1 Monat',
+      );
+      expect(
+        formatAge(DateTime(2024, 1, 31), now: DateTime(2024, 2, 29)),
+        '4 Wochen',
+      );
+      expect(
+        formatAge(DateTime(2024, 6, 1), now: DateTime(2024, 5, 1)),
+        'noch nicht geboren',
       );
     });
 

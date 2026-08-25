@@ -196,6 +196,18 @@ class _FeedingEditorState extends State<_FeedingEditor> {
     super.dispose();
   }
 
+  /// Vorschlag übernehmen. Der Name landet über den Controller im
+  /// Feld, hier kommt der Rest dazu – ein reiner Namensvorschlag lässt
+  /// die schon eingetippte Menge in Ruhe.
+  void _uebernehmen(Futtervorlage vorlage) {
+    if (!vorlage.istKomplett) return;
+    setState(() {
+      _menge.text = nfAmount.format(vorlage.menge);
+      _einheit = vorlage.einheit;
+      if (vorlage.mahlzeit != null) _mahlzeit = vorlage.mahlzeit!;
+    });
+  }
+
   Future<void> _save() async {
     final state = context.read<AppState>();
     final menge = double.tryParse(_menge.text.trim().replaceAll(',', '.')) ?? 0;
@@ -227,7 +239,7 @@ class _FeedingEditorState extends State<_FeedingEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final vorschlaege = context.read<AppState>().bekannteFuttersorten;
+    final vorschlaege = context.read<AppState>().futterVorlagen();
 
     return Padding(
       padding: EdgeInsets.only(
@@ -258,18 +270,52 @@ class _FeedingEditorState extends State<_FeedingEditor> {
               ],
             ),
             const SizedBox(height: 16),
-            // Autocomplete spart Tipparbeit: die immer gleichen
-            // Futtersorten müssen nur einmal geschrieben werden.
-            RawAutocomplete<String>(
+            // Die drei häufigsten Fütterungen als Knopf: ein Antippen
+            // füllt Name, Menge, Einheit und Mahlzeit auf einmal.
+            //
+            // Sie stehen zusätzlich zur Vervollständigung im Feld, weil
+            // deren Liste erst beim Tippen aufgeht – wer nichts
+            // eintippt, bekäme sie sonst nie zu sehen.
+            if (vorschlaege.any((v) => v.istKomplett)) ...[
+              Text(
+                'Häufig',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final v in vorschlaege.where((v) => v.istKomplett))
+                    ActionChip(
+                      avatar: const Icon(Icons.bolt_outlined, size: 16),
+                      label: Text('${v.futter} · ${v.details}'),
+                      onPressed: () {
+                        _futter.text = v.futter;
+                        _uebernehmen(v);
+                      },
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+            // Antippen genügt: Die häufigsten Fütterungen stehen oben
+            // und füllen Menge, Einheit und Mahlzeit gleich mit. Wer
+            // tippt, bekommt zusätzlich die bekannten Sorten.
+            RawAutocomplete<Futtervorlage>(
               textEditingController: _futter,
               focusNode: _futterFocus,
+              displayStringForOption: (v) => v.futter,
               optionsBuilder: (value) {
                 final q = value.text.trim().toLowerCase();
                 if (q.isEmpty) return vorschlaege.take(6);
                 return vorschlaege
-                    .where((s) => s.toLowerCase().contains(q))
+                    .where((v) => v.futter.toLowerCase().contains(q))
                     .take(6);
               },
+              onSelected: _uebernehmen,
               fieldViewBuilder: (context, controller, focusNode, onSubmit) =>
                   TextField(
                 controller: controller,
@@ -286,13 +332,22 @@ class _FeedingEditorState extends State<_FeedingEditor> {
                   elevation: 3,
                   borderRadius: BorderRadius.circular(12),
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 200),
+                    constraints: const BoxConstraints(maxHeight: 260),
                     child: ListView(
                       shrinkWrap: true,
                       children: [
                         for (final o in options)
                           ListTile(
-                            title: Text(o),
+                            leading: Icon(
+                              o.istKomplett
+                                  ? Icons.bolt_outlined
+                                  : Icons.restaurant_outlined,
+                              size: 20,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            title: Text(o.futter),
+                            subtitle:
+                                o.istKomplett ? Text(o.details) : null,
                             onTap: () => onSelected(o),
                           ),
                       ],

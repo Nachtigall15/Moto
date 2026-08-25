@@ -34,12 +34,16 @@ Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
 **Alle drei Stufen sind umgesetzt.**
 
 - **Übersicht** – Tagesstand auf einen Blick: Mahlzeiten, Schlaf,
-  nächster Termin, letztes Gewicht, Schnellaktionen. Oben stehen die
+  nächster Termin, letztes Gewicht, Schnellaktionen. In der Begrüßung
+  steht das Alter in Jahren, Monaten und Wochen; was null ist, fällt
+  weg, und in der ersten Woche zählen noch die Tage. Darunter die
   Hinweise, die man morgens wirklich lesen muss: offene
   Medikamentengaben, nicht abgehakte Termine, fällige Impfungen.
-- **Fütterung** – was, wann, wie viel, welche Mahlzeit, Notiz. Bereits
-  benutzte Futtersorten werden beim Eintippen vorgeschlagen. Mengen
-  werden pro Einheit summiert (Gramm und Stück nie vermischt). Jeder
+- **Fütterung** – was, wann, wie viel, welche Mahlzeit, Notiz. Die
+  **drei häufigsten Fütterungen** stehen im Eingabefenster als Knopf:
+  einmal antippen füllt Name, Menge, Einheit und Mahlzeit auf einmal.
+  Bereits benutzte Futtersorten werden zusätzlich beim Eintippen
+  vorgeschlagen. Mengen werden pro Einheit summiert (Gramm und Stück nie vermischt). Jeder
   Tag in der Liste trägt seine Tagesmenge in der Überschrift – auch
   vergangene.
 - **Schlaf** – „Schläft jetzt" / „Aufgewacht" per Knopfdruck, laufende

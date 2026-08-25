@@ -339,6 +339,58 @@ class AppState extends ChangeNotifier {
   Map<Einheit, double> totalsOn(DateTime day) =>
       futterSumme(feedingsOn(day));
 
+  /// Vorschläge für das Eingabefenster: erst die Fütterungen, die es
+  /// am häufigsten gab – komplett mit Menge, Einheit und Mahlzeit –,
+  /// danach die übrigen bekannten Futtersorten als reine Namen.
+  ///
+  /// Der Alltag besteht aus denselben zwei, drei Mahlzeiten. Die einmal
+  /// anzutippen ist der ganze Sinn der Sache; alles andere ist jeden
+  /// Tag dieselbe Tipparbeit.
+  List<Futtervorlage> futterVorlagen({int haeufigste = 3}) {
+    final zaehler = <String, ({FeedingEntry beispiel, int anzahl})>{};
+    for (final f in _feedings) {
+      final name = f.futter.trim();
+      if (name.isEmpty || f.menge <= 0) continue;
+      final schluessel = '$name|${f.menge}|${f.einheit.name}|'
+          '${f.mahlzeit.name}';
+      final bisher = zaehler[schluessel];
+      zaehler[schluessel] = (
+        // Als Beispiel gilt der jüngste Eintrag dieser Art.
+        beispiel: bisher == null || f.zeitpunkt.isAfter(bisher.beispiel.zeitpunkt)
+            ? f
+            : bisher.beispiel,
+        anzahl: (bisher?.anzahl ?? 0) + 1,
+      );
+    }
+
+    final sortiert = zaehler.values.toList()
+      ..sort((a, b) {
+        final nachAnzahl = b.anzahl.compareTo(a.anzahl);
+        if (nachAnzahl != 0) return nachAnzahl;
+        // Gleich häufig: das zuletzt Gefütterte zuerst.
+        return b.beispiel.zeitpunkt.compareTo(a.beispiel.zeitpunkt);
+      });
+
+    final vorlagen = [
+      for (final e in sortiert.take(haeufigste))
+        Futtervorlage(
+          futter: e.beispiel.futter.trim(),
+          menge: e.beispiel.menge,
+          einheit: e.beispiel.einheit,
+          mahlzeit: e.beispiel.mahlzeit,
+          anzahl: e.anzahl,
+        ),
+    ];
+
+    // Übrige Sorten als reiner Name – für den Tag, an dem es doch
+    // einmal eine andere Menge ist.
+    final schonDrin = vorlagen.map((v) => v.futter).toSet();
+    for (final name in bekannteFuttersorten) {
+      if (schonDrin.add(name)) vorlagen.add(Futtervorlage(futter: name));
+    }
+    return vorlagen;
+  }
+
   /// Bereits verwendete Futtersorten als Vorschläge beim Eintragen.
   List<String> get bekannteFuttersorten {
     final seen = <String>{};
@@ -807,6 +859,36 @@ class AppState extends ChangeNotifier {
 Duration schlafSumme(Iterable<Schlafabschnitt> abschnitte) => abschnitte
     .where((a) => !a.offen)
     .fold(Duration.zero, (summe, a) => summe + a.dauer);
+
+/// Ein Vorschlag im Feld „Was": entweder eine komplette Fütterung, die
+/// mit einem Antippen alle Felder füllt, oder nur ein Name.
+class Futtervorlage {
+  const Futtervorlage({
+    required this.futter,
+    this.menge,
+    this.einheit = Einheit.gramm,
+    this.mahlzeit,
+    this.anzahl = 0,
+  });
+
+  final String futter;
+
+  /// null heißt: nur der Name, Menge und Mahlzeit bleiben wie sie sind.
+  final double? menge;
+  final Einheit einheit;
+  final Mahlzeit? mahlzeit;
+
+  /// Wie oft es diese Fütterung schon gab.
+  final int anzahl;
+
+  bool get istKomplett => menge != null;
+
+  /// Zweite Zeile im Vorschlag, z. B. „150 g · Frühstück".
+  String get details => istKomplett
+      ? '${nfAmount.format(menge)} ${einheit.label}'
+          '${mahlzeit == null ? '' : ' · ${mahlzeit!.label}'}'
+      : '';
+}
 
 /// Futtermengen getrennt nach Einheit – Gramm und Stück darf man nicht
 /// zusammenzählen. Die Reihenfolge folgt [Einheit.values], damit die

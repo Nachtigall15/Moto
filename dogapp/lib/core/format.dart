@@ -27,25 +27,52 @@ bool isSameDay(DateTime a, DateTime b) =>
 
 DateTime startOfDay(DateTime d) => DateTime(d.year, d.month, d.day);
 
-/// Menschenlesbares Alter, z. B. „1 Jahr, 3 Monate".
-String formatAge(DateTime birthday, {DateTime? now}) {
+/// Menschenlesbares Alter, z. B. „1 Jahr, 3 Monate, 2 Wochen".
+///
+/// Nullwerte fallen weg: Ein halbjähriger Welpe ist „5 Monate,
+/// 2 Wochen", kein „0 Jahre, 5 Monate". Ist noch keine Woche vorbei,
+/// bleiben die Tage stehen – in der Welpenzeit zählt jeder einzelne.
+///
+/// [kompakt] lässt die Wochen weg, wo nur wenig Platz ist.
+String formatAge(DateTime birthday, {DateTime? now, bool kompakt = false}) {
   final ref = now ?? DateTime.now();
-  var years = ref.year - birthday.year;
-  var months = ref.month - birthday.month;
-  if (ref.day < birthday.day) months--;
-  if (months < 0) {
-    years--;
-    months += 12;
+  var jahre = ref.year - birthday.year;
+  var monate = ref.month - birthday.month;
+  if (ref.day < birthday.day) monate--;
+  if (monate < 0) {
+    jahre--;
+    monate += 12;
   }
-  if (years < 0) return 'noch nicht geboren';
-  if (years == 0 && months == 0) {
-    final days = ref.difference(birthday).inDays;
-    return '$days Tage';
+  if (jahre < 0) return 'noch nicht geboren';
+
+  // Tage seit dem letzten „Monatsgeburtstag" – daraus die Wochen. Über
+  // den Umweg des Jubiläumsdatums, weil Monate unterschiedlich lang
+  // sind und eine Rechnung mit 30 Tagen daneben läge.
+  final jubilaeum = _plusMonate(birthday, jahre * 12 + monate);
+  final tage = startOfDay(ref).difference(startOfDay(jubilaeum)).inDays;
+  final wochen = tage ~/ 7;
+
+  final teile = <String>[];
+  if (jahre > 0) teile.add(jahre == 1 ? '1 Jahr' : '$jahre Jahre');
+  if (monate > 0) teile.add(monate == 1 ? '1 Monat' : '$monate Monate');
+  if (wochen > 0 && !kompakt) {
+    teile.add(wochen == 1 ? '1 Woche' : '$wochen Wochen');
   }
-  final parts = <String>[];
-  if (years > 0) parts.add(years == 1 ? '1 Jahr' : '$years Jahre');
-  if (months > 0) parts.add(months == 1 ? '1 Monat' : '$months Monate');
-  return parts.join(', ');
+  if (teile.isEmpty) {
+    final seitGeburt = startOfDay(ref).difference(startOfDay(birthday)).inDays;
+    return seitGeburt == 1 ? '1 Tag' : '$seitGeburt Tage';
+  }
+  return teile.join(', ');
+}
+
+/// Datum um [monate] Monate weiter, ohne in den Folgemonat zu rutschen:
+/// Der 31. Januar plus einen Monat ist der 28. oder 29. Februar.
+DateTime _plusMonate(DateTime d, int monate) {
+  final gesamt = d.month - 1 + monate;
+  final jahr = d.year + gesamt ~/ 12;
+  final monat = gesamt % 12 + 1;
+  final letzterTag = DateTime(jahr, monat + 1, 0).day;
+  return DateTime(jahr, monat, d.day < letzterTag ? d.day : letzterTag);
 }
 
 final _rnd = Random();
