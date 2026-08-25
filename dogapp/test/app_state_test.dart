@@ -8,6 +8,7 @@ import 'package:dogapp/models/sleep_entry.dart';
 import 'package:dogapp/models/weight_entry.dart';
 import 'package:dogapp/state/app_state.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -20,6 +21,8 @@ void main() {
   Future<void> settle() => Future<void>.delayed(Duration.zero);
 
   setUp(() async {
+    // Die Zeitangaben der Abschnitte werden deutsch formatiert.
+    await initializeDateFormatting('de_DE');
     SharedPreferences.setMockInitialValues({});
     state = AppState(LocalRepository());
     await state.init();
@@ -147,16 +150,24 @@ void main() {
         const Duration(hours: 3, minutes: 30),
       );
       expect(
-        schlafSumme(state.sleepsOn(tag)),
+        schlafSumme(state.schlafAbschnitteAm(tag)),
         state.sleepTotalOn(tag),
       );
     });
 
     test('Schlaf: eine laufende Phase bleibt außen vor', () {
-      final start = DateTime.now().subtract(const Duration(days: 3));
+      final vorTagen = DateTime.now().subtract(const Duration(days: 3));
+      final tag = DateTime(vorTagen.year, vorTagen.month, vorTagen.day);
       final summe = schlafSumme([
-        SleepEntry(start: start, ende: start.add(const Duration(hours: 2))),
-        SleepEntry(start: start.add(const Duration(hours: 4))),
+        ...zerlegeNachTagen(SleepEntry(
+          start: tag.add(const Duration(hours: 10)),
+          ende: tag.add(const Duration(hours: 12)),
+        )),
+        // Ohne Ende: läuft noch.
+        ...zerlegeNachTagen(
+          SleepEntry(start: tag.add(const Duration(hours: 14))),
+          jetzt: tag.add(const Duration(hours: 16)),
+        ),
       ]);
 
       expect(summe, const Duration(hours: 2));
@@ -204,6 +215,101 @@ void main() {
 
     test('Futter: leere Summe ergibt einen leeren Text', () {
       expect(futterSummeLabel(futterSumme(const [])), '');
+    });
+  });
+
+  group('Nacht über Mitternacht', () {
+    /// 22:00 bis 6:00 – die klassische Nacht per „Schläft jetzt" und
+    /// „Aufgewacht" gebucht.
+    SleepEntry nacht(DateTime tag) => SleepEntry(
+          start: tag.add(const Duration(hours: 22)),
+          ende: DateTime(tag.year, tag.month, tag.day + 1, 6),
+        );
+
+    test('wird an der Tagesgrenze in zwei Abschnitte geteilt', () {
+      final tag = DateTime(2026, 3, 10);
+      final abschnitte = zerlegeNachTagen(nacht(tag));
+
+      expect(abschnitte, hasLength(2));
+
+      expect(abschnitte[0].tag, tag);
+      expect(abschnitte[0].dauer, const Duration(hours: 2));
+      expect(abschnitte[0].gehtWeiter, isTrue);
+      expect(abschnitte[0].kommtVonGestern, isFalse);
+      expect(abschnitte[0].zeitLabel, '22:00 – 24:00 Uhr');
+
+      expect(abschnitte[1].tag, DateTime(2026, 3, 11));
+      expect(abschnitte[1].dauer, const Duration(hours: 6));
+      expect(abschnitte[1].kommtVonGestern, isTrue);
+      expect(abschnitte[1].gehtWeiter, isFalse);
+      expect(abschnitte[1].zeitLabel, '00:00 – 06:00 Uhr');
+    });
+
+    test('zählt auf beide Tage statt komplett auf den ersten', () async {
+      final gestern = DateTime.now().subtract(const Duration(days: 2));
+      final tag = DateTime(gestern.year, gestern.month, gestern.day);
+      final folgetag = DateTime(tag.year, tag.month, tag.day + 1);
+
+      await state.saveSleep(nacht(tag));
+      await settle();
+
+      expect(state.sleepTotalOn(tag), const Duration(hours: 2));
+      expect(state.sleepTotalOn(folgetag), const Duration(hours: 6));
+
+      // Die Nacht taucht an beiden Tagen auf – geschlafen hat er an
+      // beiden.
+      expect(state.sleepsOn(tag), hasLength(1));
+      expect(state.sleepsOn(folgetag), hasLength(1));
+
+      // Gespeichert bleibt eine einzige Phase.
+      expect(state.sleeps, hasLength(1));
+      expect(state.sleeps.single.dauer, const Duration(hours: 8));
+    });
+
+    test('endet die Phase genau um Mitternacht, gibt es keinen '
+        'leeren Abschnitt', () {
+      final tag = DateTime(2026, 5, 4);
+      final abschnitte = zerlegeNachTagen(SleepEntry(
+        start: tag.add(const Duration(hours: 23)),
+        ende: DateTime(tag.year, tag.month, tag.day + 1),
+      ));
+
+      expect(abschnitte, hasLength(1));
+      expect(abschnitte.single.dauer, const Duration(hours: 1));
+      expect(abschnitte.single.gehtWeiter, isFalse);
+    });
+
+    test('bei einer laufenden Nacht ist der gestrige Teil schon fest', () {
+      final tag = DateTime(2026, 5, 4);
+      final abschnitte = zerlegeNachTagen(
+        SleepEntry(start: tag.add(const Duration(hours: 21))),
+        jetzt: DateTime(tag.year, tag.month, tag.day + 1, 5, 30),
+      );
+
+      expect(abschnitte, hasLength(2));
+      // Der abgeschlossene Vortag zählt mit …
+      expect(abschnitte[0].offen, isFalse);
+      expect(schlafSumme([abschnitte[0]]), const Duration(hours: 3));
+      // … der laufende Tag nicht.
+      expect(abschnitte[1].offen, isTrue);
+      expect(schlafSumme([abschnitte[1]]), Duration.zero);
+      expect(abschnitte[1].zeitLabel, 'seit 00:00 Uhr');
+    });
+
+    test('eine Phase über mehrere Tage ergibt einen Abschnitt je Tag', () {
+      final tag = DateTime(2026, 5, 4, 20);
+      final abschnitte = zerlegeNachTagen(SleepEntry(
+        start: tag,
+        ende: DateTime(2026, 5, 7, 8),
+      ));
+
+      expect(abschnitte, hasLength(4));
+      expect(abschnitte[1].dauer, const Duration(hours: 24));
+      expect(abschnitte[1].zeitLabel, '00:00 – 24:00 Uhr');
+      expect(
+        abschnitte.fold(Duration.zero, (s, a) => s + a.dauer),
+        const Duration(hours: 60),
+      );
     });
   });
 

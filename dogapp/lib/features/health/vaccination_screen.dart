@@ -194,6 +194,8 @@ class _StatusZeile extends StatelessWidget {
     };
 
     final faellig = tage != null && tage <= 56;
+    final abgehakt = impfung.erinnerungErledigt;
+    final state = context.read<AppState>();
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -210,13 +212,15 @@ class _StatusZeile extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
                 Text(
-                  text,
-                  style: theme.textTheme.bodySmall?.copyWith(color: farbe),
+                  abgehakt ? '$text · abgehakt' : text,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: abgehakt ? theme.colorScheme.outline : farbe,
+                  ),
                 ),
               ],
             ),
           ),
-          if (faellig)
+          if (faellig && !abgehakt)
             TextButton(
               // Direkt aus der Warnung heraus einen Tierarzttermin
               // anlegen – das ist der Schritt, der sonst untergeht.
@@ -227,6 +231,14 @@ class _StatusZeile extends StatelessWidget {
                 zeitVorgabe: impfung.gueltigBis,
               ),
               child: const Text('Termin'),
+            ),
+          // Der Haken nimmt die Erinnerung aus dem Kalender. Hier steht
+          // er auch dann noch, wenn sie dort schon verschwunden ist –
+          // sonst käme man an das Zurücknehmen nicht mehr heran.
+          if (faellig || abgehakt)
+            Checkbox(
+              value: abgehakt,
+              onChanged: (_) => state.toggleImpferinnerung(impfung),
             ),
         ],
       ),

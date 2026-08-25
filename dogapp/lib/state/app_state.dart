@@ -376,14 +376,23 @@ class AppState extends ChangeNotifier {
     await saveSleep(running.copyWith(ende: DateTime.now()));
   }
 
-  List<SleepEntry> sleepsOn(DateTime day) => _sleeps
-      .where((s) =>
-          s.start.year == day.year &&
-          s.start.month == day.month &&
-          s.start.day == day.day)
-      .toList();
+  /// Alle Tagesabschnitte dieses Tages – auch die aus Nächten, die am
+  /// Vortag begonnen haben.
+  List<Schlafabschnitt> schlafAbschnitteAm(DateTime day) {
+    final tag = startOfDay(day);
+    return [
+      for (final s in _sleeps)
+        for (final a in zerlegeNachTagen(s))
+          if (a.tag == tag) a,
+    ];
+  }
 
-  Duration sleepTotalOn(DateTime day) => schlafSumme(sleepsOn(day));
+  /// Die Phasen, die diesen Tag berühren. Eine Nacht von 22:00 bis 6:00
+  /// zählt für beide Tage – an beiden hat der Hund geschlafen.
+  List<SleepEntry> sleepsOn(DateTime day) =>
+      schlafAbschnitteAm(day).map((a) => a.phase).toList();
+
+  Duration sleepTotalOn(DateTime day) => schlafSumme(schlafAbschnitteAm(day));
 
   // --- Gewicht & Fotos ------------------------------------------------
 
@@ -656,9 +665,18 @@ class AppState extends ChangeNotifier {
     return ergebnis;
   }
 
+  /// Die Impfungen, die eine Erinnerung wert sind. Abgehakte fallen
+  /// heraus – sonst stünden sie bis zur nächsten Auffrischung dauerhaft
+  /// im Kalender.
   List<Vaccination> get faelligeImpfungen => aktuelleImpfungen
-      .where((v) => v.istAbgelaufen || v.wirdBaldFaellig)
+      .where((v) =>
+          !v.erinnerungErledigt && (v.istAbgelaufen || v.wirdBaldFaellig))
       .toList();
+
+  /// Erinnerung abhaken oder wieder aufmachen.
+  Future<void> toggleImpferinnerung(Vaccination v) => saveVaccination(
+        v.copyWith(erinnerungErledigt: !v.erinnerungErledigt),
+      );
 
   // --- Training -------------------------------------------------------
 
@@ -782,11 +800,13 @@ class AppState extends ChangeNotifier {
 // fertigen Gruppe ziehen, statt für jeden Tag noch einmal die ganze
 // Liste zu durchsuchen.
 
-/// Summe der Schlafphasen. Eine noch laufende Phase bleibt außen vor –
-/// sonst würde die Tagessumme im Sekundentakt weiterwachsen.
-Duration schlafSumme(Iterable<SleepEntry> phasen) => phasen
-    .where((s) => !s.laeuft)
-    .fold(Duration.zero, (summe, s) => summe + s.dauer);
+/// Summe von Schlafabschnitten. Ein noch laufender Abschnitt bleibt
+/// außen vor – sonst würde die Tagessumme im Sekundentakt weiter
+/// wachsen. Der gestrige Teil einer noch laufenden Nacht zählt dagegen
+/// mit: Der ist um Mitternacht endgültig geworden.
+Duration schlafSumme(Iterable<Schlafabschnitt> abschnitte) => abschnitte
+    .where((a) => !a.offen)
+    .fold(Duration.zero, (summe, a) => summe + a.dauer);
 
 /// Futtermengen getrennt nach Einheit – Gramm und Stück darf man nicht
 /// zusammenzählen. Die Reihenfolge folgt [Einheit.values], damit die

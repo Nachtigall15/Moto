@@ -41,9 +41,13 @@ class _SleepScreenState extends State<SleepScreen> {
     final running = state.laufenderSchlaf;
     final heute = state.sleepsOn(today);
 
-    final byDay = <DateTime, List<SleepEntry>>{};
+    // Nächte über Mitternacht stehen an beiden Tagen – jeweils mit dem
+    // Stück, das auf den Tag entfällt.
+    final byDay = <DateTime, List<Schlafabschnitt>>{};
     for (final s in state.sleeps) {
-      byDay.putIfAbsent(startOfDay(s.start), () => []).add(s);
+      for (final a in zerlegeNachTagen(s)) {
+        byDay.putIfAbsent(a.tag, () => []).add(a);
+      }
     }
     final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
 
@@ -117,53 +121,25 @@ class _SleepScreenState extends State<SleepScreen> {
             ),
           for (final day in days) ...[
             Builder(builder: (context) {
-              final phasen = byDay[day]!;
-              final summe = schlafSumme(phasen);
-              final laeuftNoch = phasen.any((s) => s.laeuft);
+              final abschnitte = byDay[day]!;
+              final summe = schlafSumme(abschnitte);
+              final laeuftNoch = abschnitte.any((a) => a.offen);
               return TagesKopf(
                 tag: isSameDay(day, today) ? 'Heute' : dfWeekday.format(day),
                 summe: summe == Duration.zero ? '' : formatDuration(summe),
-                zusatz: '${phasen.length} '
-                    '${phasen.length == 1 ? 'Phase' : 'Phasen'}'
-                    // Eine laufende Phase zählt noch nicht mit, sonst
-                    // stiege die Summe im Sekundentakt.
+                zusatz: '${abschnitte.length} '
+                    '${abschnitte.length == 1 ? 'Phase' : 'Phasen'}'
+                    // Ein laufender Abschnitt zählt noch nicht mit,
+                    // sonst stiege die Summe im Sekundentakt.
                     '${laeuftNoch ? ' · eine läuft noch' : ''}',
               );
             }),
             Card(
               child: Column(
                 children: [
-                  for (final entry
-                      in byDay[day]!
-                        ..sort((a, b) => b.start.compareTo(a.start)))
-                    ListTile(
-                      onTap: () => _openEditor(context, entry: entry),
-                      leading: Icon(
-                        entry.laeuft
-                            ? Icons.hourglass_bottom
-                            : Icons.bedtime_outlined,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      title: Text(
-                        entry.laeuft
-                            ? 'seit ${dfTime.format(entry.start)} Uhr'
-                            : '${dfTime.format(entry.start)} – '
-                                '${dfTime.format(entry.ende!)} Uhr',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: entry.notiz.isEmpty && entry.ort.isEmpty
-                          ? null
-                          : Text([entry.ort, entry.notiz]
-                              .where((s) => s.isNotEmpty)
-                              .join(' · ')),
-                      trailing: Text(
-                        entry.dauerLabel,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                    ),
+                  for (final abschnitt
+                      in byDay[day]!..sort((a, b) => b.von.compareTo(a.von)))
+                    _AbschnittZeile(abschnitt: abschnitt),
                 ],
               ),
             ),
@@ -176,6 +152,47 @@ class _SleepScreenState extends State<SleepScreen> {
           ),
           const MehrLaden(bereich: Bereich.schlaf),
         ],
+      ),
+    );
+  }
+}
+
+/// Eine Zeile der Tagesliste: der Teil einer Phase, der auf diesen Tag
+/// fällt. Angetippt wird immer die ganze Phase bearbeitet – gespeichert
+/// ist sie schließlich als eine Nacht, nicht als zwei Bruchstücke.
+class _AbschnittZeile extends StatelessWidget {
+  const _AbschnittZeile({required this.abschnitt});
+
+  final Schlafabschnitt abschnitt;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final untertitel = [
+      abschnitt.uebergang,
+      abschnitt.phase.ort,
+      abschnitt.phase.notiz,
+    ].whereType<String>().where((s) => s.isNotEmpty).join(' · ');
+
+    return ListTile(
+      onTap: () => _openEditor(context, entry: abschnitt.phase),
+      leading: Icon(
+        abschnitt.offen
+            ? Icons.hourglass_bottom
+            : (abschnitt.kommtVonGestern || abschnitt.gehtWeiter
+                ? Icons.nights_stay_outlined
+                : Icons.bedtime_outlined),
+        color: theme.colorScheme.primary,
+      ),
+      title: Text(
+        abschnitt.zeitLabel,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+      subtitle: untertitel.isEmpty ? null : Text(untertitel),
+      trailing: Text(
+        abschnitt.dauerLabel,
+        style:
+            theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
       ),
     );
   }

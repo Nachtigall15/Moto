@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/format.dart';
 import '../../models/appointment.dart';
 import '../../models/medication.dart';
+import '../../models/vaccination.dart';
 import '../../state/app_state.dart';
 import '../common/ui.dart';
 
@@ -66,20 +67,8 @@ class CalendarScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    for (final v in faellig)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 3),
-                        child: Text(
-                          v.istAbgelaufen
-                              ? '${v.bezeichnung}: seit '
-                                  '${dfDate.format(v.gueltigBis!)} überfällig'
-                              : '${v.bezeichnung}: fällig am '
-                                  '${dfDate.format(v.gueltigBis!)} '
-                                  '(in ${v.tageBisFaellig} Tagen)',
-                          style: theme.textTheme.bodyMedium,
-                        ),
-                      ),
+                    const SizedBox(height: 4),
+                    for (final v in faellig) _ImpfZeile(impfung: v),
                   ],
                 ),
               ),
@@ -283,6 +272,57 @@ class _DoseTile extends StatelessWidget {
       teile.add('gegeben ${dfTime.format(dose.log!.gegebenUm)} Uhr');
     }
     return teile.join(' · ');
+  }
+}
+
+/// Eine fällige Impfung im Kalender – mit Haken zum Erledigen.
+///
+/// Ohne den Haken bleibt die Warnung bis zur nächsten Auffrischung
+/// stehen, auch wenn der Termin längst gemacht ist.
+class _ImpfZeile extends StatelessWidget {
+  const _ImpfZeile({required this.impfung});
+
+  final Vaccination impfung;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final state = context.read<AppState>();
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      title: Text(
+        impfung.bezeichnung,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        impfung.istAbgelaufen
+            ? 'seit ${dfDate.format(impfung.gueltigBis!)} überfällig'
+            : 'fällig am ${dfDate.format(impfung.gueltigBis!)} '
+                '(in ${impfung.tageBisFaellig} Tagen)',
+        style: theme.textTheme.bodySmall,
+      ),
+      trailing: Checkbox(
+        value: impfung.erinnerungErledigt,
+        onChanged: (_) {
+          final messenger = ScaffoldMessenger.of(context);
+          state.toggleImpferinnerung(impfung);
+          messenger.hideCurrentSnackBar();
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text('${impfung.bezeichnung}: Erinnerung abgehakt'),
+              duration: const Duration(seconds: 6),
+              action: SnackBarAction(
+                label: 'Rückgängig',
+                // Der Eintrag, wie er vor dem Haken war.
+                onPressed: () => state.saveVaccination(impfung),
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 }
 

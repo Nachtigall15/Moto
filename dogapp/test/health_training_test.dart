@@ -289,6 +289,58 @@ void main() {
       expect(faellig, containsAll(['Leptospirose', 'Zwingerhusten']));
       expect(faellig, isNot(contains('Borreliose')));
     });
+
+    test('eine abgehakte Erinnerung verschwindet aus der Meldung',
+        () async {
+      final heute = DateTime.now();
+      await state.saveVaccination(Vaccination(
+        bezeichnung: 'Tollwut',
+        datum: heute.subtract(const Duration(days: 1100)),
+        gueltigBis: heute.subtract(const Duration(days: 5)),
+      ));
+      await settle();
+      expect(state.faelligeImpfungen, hasLength(1));
+
+      await state.toggleImpferinnerung(state.faelligeImpfungen.single);
+      await settle();
+
+      expect(state.faelligeImpfungen, isEmpty);
+      // Die Impfung selbst bleibt bestehen, nur die Erinnerung ruht.
+      expect(state.aktuelleImpfungen.single.istAbgelaufen, isTrue);
+      expect(state.aktuelleImpfungen.single.erinnerungErledigt, isTrue);
+
+      // Und wieder aufmachen geht auch.
+      await state.toggleImpferinnerung(state.aktuelleImpfungen.single);
+      await settle();
+      expect(state.faelligeImpfungen, hasLength(1));
+    });
+
+    test('nach dem Nachimpfen meldet sich die neue Impfung wieder',
+        () async {
+      final heute = DateTime.now();
+      await state.saveVaccination(Vaccination(
+        bezeichnung: 'Leptospirose',
+        datum: heute.subtract(const Duration(days: 400)),
+        gueltigBis: heute.subtract(const Duration(days: 10)),
+        erinnerungErledigt: true,
+      ));
+      await settle();
+      expect(state.faelligeImpfungen, isEmpty);
+
+      // Auffrischung mit kurzer Gültigkeit: sofort wieder fällig.
+      await state.saveVaccination(Vaccination(
+        bezeichnung: 'Leptospirose',
+        datum: heute.subtract(const Duration(days: 1)),
+        gueltigBis: heute.add(const Duration(days: 20)),
+      ));
+      await settle();
+
+      // Der Haken der alten Impfung darf die neue nicht stumm stellen.
+      expect(
+        state.faelligeImpfungen.map((v) => v.bezeichnung),
+        ['Leptospirose'],
+      );
+    });
   });
 
   group('Training', () {

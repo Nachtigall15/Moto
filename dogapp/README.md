@@ -45,7 +45,12 @@ Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
 - **Schlaf** – „Schläft jetzt" / „Aufgewacht" per Knopfdruck, laufende
   Phase mit mitlaufender Dauer, Nachtragen und Korrigieren möglich.
   Jeder Tag in der Liste zeigt seine Gesamtdauer und die Zahl der
-  Phasen; eine noch laufende Phase zählt bewusst nicht mit.
+  Phasen; ein noch laufender Abschnitt zählt bewusst nicht mit.
+  **Nächte über Mitternacht** werden an der Tagesgrenze geteilt: 22:00
+  bis 6:00 zählt mit zwei Stunden zum einen und sechs Stunden zum
+  anderen Tag. Gespeichert bleibt trotzdem eine einzige Phase – beim
+  Antippen hat man wieder die ganze Nacht vor sich statt zweier
+  Bruchstücke.
 - **Gewicht & Fotos** – Messung mit Datum/Uhrzeit, optionalem Foto und
   Notiz. Verlaufsdiagramm mit optionaler Zielgewichtslinie; Fotos
   hängen direkt am jeweiligen Messwert, so entsteht der
@@ -74,7 +79,10 @@ Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
   gebündelt**: alle Auffrischungen einer Art untereinander, jüngste
   zuerst. Der Status rechnet nur mit der jeweils jüngsten Impfung
   je Bezeichnung; acht Wochen vor Ablauf gibt es eine Warnung und
-  daneben einen Knopf, der direkt den Tierarzttermin anlegt.
+  daneben einen Knopf, der direkt den Tierarzttermin anlegt. Die
+  Warnung lässt sich **abhaken**, sonst stünde sie bis zur nächsten
+  Auffrischung im Kalender. Der Haken hängt an der einzelnen Impfung:
+  Nach dem Nachimpfen meldet sich der neue Eintrag von selbst wieder.
 - **Training** – Übungskatalog mit Trainingsstand (offen / in Arbeit /
   sitzt), Tagesliste zum Abhaken und Trainingspläne, die bestimmen,
   was unter „Heute" steht. Der Startkatalog (Name, Sitz, Platz, Bleib,

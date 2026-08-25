@@ -11,6 +11,7 @@ class Vaccination {
     this.chargennummer = '',
     this.tierarzt = '',
     this.notiz = '',
+    this.erinnerungErledigt = false,
   }) : id = id ?? newId();
 
   final String id;
@@ -21,6 +22,14 @@ class Vaccination {
   final String chargennummer;
   final String tierarzt;
   final String notiz;
+
+  /// Die Erinnerung an die Auffrischung ist abgehakt.
+  ///
+  /// Ohne das blieben fällige Impfungen für immer im Kalender stehen:
+  /// Der Termin ist gemacht, die Auffrischung erledigt oder bewusst
+  /// verschoben – die Warnung bleibt trotzdem. Der Haken sagt „gesehen
+  /// und geregelt" und lässt sich jederzeit wieder lösen.
+  final bool erinnerungErledigt;
 
   /// Tage bis zur Auffrischung; negativ heißt überfällig.
   int? get tageBisFaellig => gueltigBis == null
@@ -44,6 +53,7 @@ class Vaccination {
     String? chargennummer,
     String? tierarzt,
     String? notiz,
+    bool? erinnerungErledigt,
   }) =>
       Vaccination(
         id: id,
@@ -55,6 +65,7 @@ class Vaccination {
         chargennummer: chargennummer ?? this.chargennummer,
         tierarzt: tierarzt ?? this.tierarzt,
         notiz: notiz ?? this.notiz,
+        erinnerungErledigt: erinnerungErledigt ?? this.erinnerungErledigt,
       );
 
   Map<String, dynamic> toJson() => {
@@ -66,6 +77,7 @@ class Vaccination {
         'chargennummer': chargennummer,
         'tierarzt': tierarzt,
         'notiz': notiz,
+        'erinnerungErledigt': erinnerungErledigt,
       };
 
   static Vaccination fromJson(Map<String, dynamic> json) => Vaccination(
@@ -78,6 +90,7 @@ class Vaccination {
         chargennummer: json['chargennummer'] as String? ?? '',
         tierarzt: json['tierarzt'] as String? ?? '',
         notiz: json['notiz'] as String? ?? '',
+        erinnerungErledigt: json['erinnerungErledigt'] as bool? ?? false,
       );
 
   /// Übliche Hundeimpfungen als Auswahl – mit dem Intervall, das in
