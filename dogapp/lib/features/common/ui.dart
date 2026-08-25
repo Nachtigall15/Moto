@@ -334,75 +334,79 @@ class _SwipeZumLoeschenState extends State<SwipeZumLoeschen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Stack(
-      children: [
-        // Der Knopf entsteht erst beim Wischen – sonst läge er
-        // unsichtbar unter jeder Zeile und würde Berührungen fangen.
-        if (_offen)
-          Positioned.fill(
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: SizedBox(
-                  width: _breite,
-                  child: Material(
-                    color: theme.colorScheme.error,
-                    borderRadius: BorderRadius.circular(12),
-                    child: InkWell(
+    // Ohne den Beschnitt schöbe sich der Zeileninhalt beim Wischen über
+    // den Kartenrand hinaus statt darunter zu verschwinden.
+    return ClipRect(
+      child: Stack(
+        children: [
+          // Der Knopf entsteht erst beim Wischen – sonst läge er
+          // unsichtbar unter jeder Zeile und würde Berührungen fangen.
+          if (_offen)
+            Positioned.fill(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: SizedBox(
+                    width: _breite,
+                    child: Material(
+                      color: theme.colorScheme.error,
                       borderRadius: BorderRadius.circular(12),
-                      onTap: () {
-                        _schliessen();
-                        widget.onLoeschen();
-                      },
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.delete_outline,
-                              size: 18, color: theme.colorScheme.onError),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              'Löschen',
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.labelLarge
-                                  ?.copyWith(color: theme.colorScheme.onError),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          _schliessen();
+                          widget.onLoeschen();
+                        },
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.delete_outline,
+                                size: 18, color: theme.colorScheme.onError),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                'Löschen',
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelLarge
+                                    ?.copyWith(color: theme.colorScheme.onError),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-        // Die Verschiebung liegt über der Wischfläche, nicht darunter:
-        // Sonst bliebe die Fläche an ihrem Platz liegen und finge die
-        // Berührungen des freigelegten Knopfes ab.
-        AnimatedContainer(
-          duration:
-              _ziehend ? Duration.zero : const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          transform: Matrix4.translationValues(_versatz, 0, 0),
-          child: GestureDetector(
-            // Die ganze Zeile ist Wischfläche, nicht nur der Text.
-            behavior: HitTestBehavior.opaque,
-            onHorizontalDragStart: (_) => setState(() => _ziehend = true),
-            onHorizontalDragUpdate: (d) => setState(
-              () => _versatz = (_versatz + d.delta.dx).clamp(-_breite, 0.0),
+          // Die Verschiebung liegt über der Wischfläche, nicht darunter:
+          // Sonst bliebe die Fläche an ihrem Platz liegen und finge die
+          // Berührungen des freigelegten Knopfes ab.
+          AnimatedContainer(
+            duration:
+                _ziehend ? Duration.zero : const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            transform: Matrix4.translationValues(_versatz, 0, 0),
+            child: GestureDetector(
+              // Die ganze Zeile ist Wischfläche, nicht nur der Text.
+              behavior: HitTestBehavior.opaque,
+              onHorizontalDragStart: (_) => setState(() => _ziehend = true),
+              onHorizontalDragUpdate: (d) => setState(
+                () => _versatz = (_versatz + d.delta.dx).clamp(-_breite, 0.0),
+              ),
+              onHorizontalDragEnd: (_) => setState(() {
+                _ziehend = false;
+                _versatz = _versatz < -_breite / 2 ? -_breite : 0;
+              }),
+              // Ist der Knopf offen, schließt eine Berührung der Zeile ihn
+              // wieder, statt den Eintrag zu öffnen.
+              onTap: _offen ? _schliessen : null,
+              child: AbsorbPointer(absorbing: _offen, child: widget.child),
             ),
-            onHorizontalDragEnd: (_) => setState(() {
-              _ziehend = false;
-              _versatz = _versatz < -_breite / 2 ? -_breite : 0;
-            }),
-            // Ist der Knopf offen, schließt eine Berührung der Zeile ihn
-            // wieder, statt den Eintrag zu öffnen.
-            onTap: _offen ? _schliessen : null,
-            child: AbsorbPointer(absorbing: _offen, child: widget.child),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
