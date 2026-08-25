@@ -299,6 +299,114 @@ class _MehrLadenState extends State<MehrLaden> {
   }
 }
 
+/// Nach links wischen legt einen Löschknopf frei.
+///
+/// Bewusst zweistufig: Ein Wisch allein löscht nichts. Erst der Knopf
+/// löst aus, und danach bleibt der Eintrag über „Rückgängig" noch eine
+/// Weile erreichbar. Versehentliches Wischen in einer Liste passiert
+/// oft genug, um es nicht mit Datenverlust zu bestrafen.
+class SwipeZumLoeschen extends StatefulWidget {
+  const SwipeZumLoeschen({
+    super.key,
+    required this.child,
+    required this.onLoeschen,
+  });
+
+  final Widget child;
+  final VoidCallback onLoeschen;
+
+  @override
+  State<SwipeZumLoeschen> createState() => _SwipeZumLoeschenState();
+}
+
+class _SwipeZumLoeschenState extends State<SwipeZumLoeschen> {
+  /// Breite des freigelegten Knopfes.
+  static const double _breite = 132;
+
+  double _versatz = 0;
+  bool _ziehend = false;
+
+  bool get _offen => _versatz < -1;
+
+  void _schliessen() => setState(() => _versatz = 0);
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Stack(
+      children: [
+        // Der Knopf entsteht erst beim Wischen – sonst läge er
+        // unsichtbar unter jeder Zeile und würde Berührungen fangen.
+        if (_offen)
+          Positioned.fill(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: SizedBox(
+                  width: _breite,
+                  child: Material(
+                    color: theme.colorScheme.error,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        _schliessen();
+                        widget.onLoeschen();
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.delete_outline,
+                              size: 18, color: theme.colorScheme.onError),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'Löschen',
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelLarge
+                                  ?.copyWith(color: theme.colorScheme.onError),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        // Die Verschiebung liegt über der Wischfläche, nicht darunter:
+        // Sonst bliebe die Fläche an ihrem Platz liegen und finge die
+        // Berührungen des freigelegten Knopfes ab.
+        AnimatedContainer(
+          duration:
+              _ziehend ? Duration.zero : const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          transform: Matrix4.translationValues(_versatz, 0, 0),
+          child: GestureDetector(
+            // Die ganze Zeile ist Wischfläche, nicht nur der Text.
+            behavior: HitTestBehavior.opaque,
+            onHorizontalDragStart: (_) => setState(() => _ziehend = true),
+            onHorizontalDragUpdate: (d) => setState(
+              () => _versatz = (_versatz + d.delta.dx).clamp(-_breite, 0.0),
+            ),
+            onHorizontalDragEnd: (_) => setState(() {
+              _ziehend = false;
+              _versatz = _versatz < -_breite / 2 ? -_breite : 0;
+            }),
+            // Ist der Knopf offen, schließt eine Berührung der Zeile ihn
+            // wieder, statt den Eintrag zu öffnen.
+            onTap: _offen ? _schliessen : null,
+            child: AbsorbPointer(absorbing: _offen, child: widget.child),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// Datum + Uhrzeit in einem Rutsch abfragen. Gibt null zurück, wenn
 /// der Nutzer abbricht.
 Future<DateTime?> pickDateTime(

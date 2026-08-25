@@ -56,7 +56,11 @@ Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
 - **Kalender** – Termine nach Art (Tierarzt, Impfung, Medikament,
   Hundeschule, Pflege, Sonstiges), gruppiert in Heute / Diese Woche /
   Später. Vergangene, nicht abgehakte Termine stehen oben, damit sie
-  nicht durchrutschen.
+  nicht durchrutschen. Abhaken geht in der Liste und im Eingabefenster
+  selbst; das Fenster lässt sich über „Abbrechen" auch wieder
+  schließen, ohne etwas anzulegen. Löschen per Wisch nach links: Der
+  Wisch legt einen Löschknopf frei, und danach bleibt der Termin über
+  „Rückgängig" noch acht Sekunden lang zurückholbar.
 - **Medikamente** – Gabezeiten pro Medikament, Tagesplan zum Abhaken
   mit Uhrzeit der tatsächlichen Gabe, darunter der **Verlauf** aller
   Gaben über die Tage hinweg (nach Tag gebündelt, mit Zähler für die

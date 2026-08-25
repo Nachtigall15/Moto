@@ -128,6 +128,17 @@ class CalendarScreen extends StatelessWidget {
                 const SizedBox(height: 16),
               ],
           const MehrLaden(bereich: Bereich.termine),
+          if (!leer)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 10, 4, 0),
+              child: Text(
+                'Zum Löschen einen Termin nach links wischen.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
           const SizedBox(height: 16),
           if (erledigt.isNotEmpty) ...[
             Card(
@@ -286,39 +297,64 @@ class _AppointmentTile extends StatelessWidget {
     final state = context.read<AppState>();
     final ueberfaellig = !entry.erledigt && entry.istVergangen;
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      onTap: () => openAppointmentEditor(context, entry: entry),
-      leading: CircleAvatar(
-        backgroundColor: (ueberfaellig
+    return SwipeZumLoeschen(
+      onLoeschen: () => _loesche(context, state),
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        onTap: () => openAppointmentEditor(context, entry: entry),
+        leading: CircleAvatar(
+          backgroundColor: (ueberfaellig
+                  ? theme.colorScheme.error
+                  : theme.colorScheme.primary)
+              .withValues(alpha: 0.14),
+          child: Icon(
+            entry.kategorie.icon,
+            size: 20,
+            color: ueberfaellig
                 ? theme.colorScheme.error
-                : theme.colorScheme.primary)
-            .withValues(alpha: 0.14),
-        child: Icon(
-          entry.kategorie.icon,
-          size: 20,
-          color: ueberfaellig
-              ? theme.colorScheme.error
-              : theme.colorScheme.primary,
+                : theme.colorScheme.primary,
+          ),
+        ),
+        title: Text(
+          entry.titel.isEmpty ? entry.kategorie.label : entry.titel,
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            decoration: entry.erledigt ? TextDecoration.lineThrough : null,
+          ),
+        ),
+        subtitle: Text(
+          '${dfDate.format(entry.zeitpunkt)} · ${entry.zeitLabel}'
+          '${entry.ort.isEmpty ? '' : ' · ${entry.ort}'}'
+          '${entry.notiz.isEmpty ? '' : '\n${entry.notiz}'}',
+        ),
+        isThreeLine: entry.notiz.isNotEmpty,
+        trailing: Checkbox(
+          value: entry.erledigt,
+          onChanged: (v) =>
+              state.saveAppointment(entry.copyWith(erledigt: v ?? false)),
         ),
       ),
-      title: Text(
-        entry.titel.isEmpty ? entry.kategorie.label : entry.titel,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          decoration: entry.erledigt ? TextDecoration.lineThrough : null,
+    );
+  }
+
+  /// Löschen mit Netz: Der Eintrag bleibt über „Rückgängig" noch
+  /// erreichbar – mit derselben Kennung, also auch auf den anderen
+  /// Geräten wieder derselbe Termin.
+  void _loesche(BuildContext context, AppState state) {
+    final messenger = ScaffoldMessenger.of(context);
+    state.deleteAppointment(entry.id);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Termin gelöscht: '
+          '${entry.titel.isEmpty ? entry.kategorie.label : entry.titel}',
         ),
-      ),
-      subtitle: Text(
-        '${dfDate.format(entry.zeitpunkt)} · ${entry.zeitLabel}'
-        '${entry.ort.isEmpty ? '' : ' · ${entry.ort}'}'
-        '${entry.notiz.isEmpty ? '' : '\n${entry.notiz}'}',
-      ),
-      isThreeLine: entry.notiz.isNotEmpty,
-      trailing: Checkbox(
-        value: entry.erledigt,
-        onChanged: (v) =>
-            state.saveAppointment(entry.copyWith(erledigt: v ?? false)),
+        duration: const Duration(seconds: 8),
+        action: SnackBarAction(
+          label: 'Rückgängig',
+          onPressed: () => state.saveAppointment(entry),
+        ),
       ),
     );
   }
@@ -376,6 +412,7 @@ class _AppointmentEditorState extends State<_AppointmentEditor> {
   late TerminArt _kategorie =
       widget.entry?.kategorie ?? widget.vorgabe ?? TerminArt.tierarzt;
   late int? _dauer = widget.entry?.dauerMinuten;
+  late bool _erledigt = widget.entry?.erledigt ?? false;
 
   static DateTime _naechsteVolleStunde() {
     final jetzt = DateTime.now();
@@ -403,6 +440,7 @@ class _AppointmentEditorState extends State<_AppointmentEditor> {
             clearDauer: _dauer == null,
             ort: _ort.text.trim(),
             notiz: _notiz.text.trim(),
+            erledigt: _erledigt,
           ),
         );
     if (mounted) Navigator.of(context).pop();
@@ -422,11 +460,26 @@ class _AppointmentEditorState extends State<_AppointmentEditor> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              widget.entry == null ? 'Neuer Termin' : 'Termin bearbeiten',
-              style: Theme.of(context).textTheme.titleLarge,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.entry == null
+                        ? 'Neuer Termin'
+                        : 'Termin bearbeiten',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+                // Sichtbarer Rückweg: Das Fenster nach unten zu wischen
+                // findet nicht jeder, und am Rechner geht es gar nicht.
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Schließen, ohne zu speichern',
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 4,
@@ -496,8 +549,37 @@ class _AppointmentEditorState extends State<_AppointmentEditor> {
                 hintText: 'z. B. nüchtern bleiben, Impfpass mitnehmen',
               ),
             ),
-            const SizedBox(height: 20),
-            FilledButton(onPressed: _save, child: const Text('Speichern')),
+            const SizedBox(height: 4),
+            // Auch beim Anlegen sinnvoll: Wer einen vergangenen Termin
+            // nachträgt, hakt ihn gleich mit ab.
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: _erledigt,
+              onChanged: (v) => setState(() => _erledigt = v ?? false),
+              title: const Text('Erledigt'),
+              subtitle: const Text(
+                'Abgehakte Termine stehen unten unter „Erledigt".',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Abbrechen'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _save,
+                    child: const Text('Speichern'),
+                  ),
+                ),
+              ],
+            ),
             if (widget.entry != null) ...[
               const SizedBox(height: 8),
               TextButton.icon(
