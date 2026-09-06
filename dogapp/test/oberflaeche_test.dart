@@ -1,12 +1,14 @@
 import 'package:dogapp/app.dart';
 import 'package:dogapp/data/local_repository.dart';
 import 'package:dogapp/features/calendar/calendar_screen.dart';
+import 'package:dogapp/features/analysis/analysis_screen.dart';
 import 'package:dogapp/features/dashboard/dashboard_screen.dart';
 import 'package:dogapp/features/feeding/feeding_screen.dart';
 import 'package:dogapp/features/sleep/sleep_screen.dart';
 import 'package:dogapp/models/appointment.dart';
 import 'package:dogapp/models/feeding_entry.dart';
 import 'package:dogapp/models/sleep_entry.dart';
+import 'package:dogapp/state/analyse.dart';
 import 'package:dogapp/state/app_state.dart';
 import 'package:dogapp/state/bootstrap.dart';
 import 'package:flutter/material.dart';
@@ -379,6 +381,85 @@ void main() {
 
       expect(state.laufenderSchlaf, isNotNull);
       expect(spruenge, isEmpty);
+    });
+  });
+
+  group('Analyse', () {
+    testWidgets('zeigt Wochentage, typische Zeiten und Zyklen',
+        (tester) async {
+      handyFormat(tester);
+      final heute = DateTime.now();
+      // Drei Tage hintereinander dasselbe Muster: morgens Futter,
+      // mittags ein Nickerchen.
+      await tester.runAsync(() async {
+        for (var i = 1; i <= 3; i++) {
+          final tag = DateTime(heute.year, heute.month, heute.day - i);
+          await state.saveFeeding(FeedingEntry(
+            zeitpunkt: tag.add(const Duration(hours: 7)),
+            futter: 'Trockenfutter',
+            menge: 150,
+          ));
+          await state.saveSleep(SleepEntry(
+            start: tag.add(const Duration(hours: 13)),
+            ende: tag.add(const Duration(hours: 15)),
+          ));
+        }
+        await Future<void>.delayed(Duration.zero);
+      });
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppState>.value(
+          value: state,
+          child: const MaterialApp(home: AnalysisScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Fütterung – wann'), findsOneWidget);
+
+      // Alle sieben Wochentage stehen im Raster, auch die ohne Eintrag.
+      for (final kurz in wochentagKurz) {
+        expect(find.text(kurz), findsWidgets);
+      }
+
+      // Die wiederkehrende Morgenfütterung ist als Zeitfenster erkannt.
+      expect(find.text('07:00 · 3×'), findsOneWidget);
+
+      // Die Schlafauswertung liegt darunter – die Liste baut sie erst
+      // beim Scrollen auf.
+      await tester.scrollUntilVisible(
+        find.text('Schlaf – wann und wie lang'),
+        300,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Schlaf – wann und wie lang'), findsOneWidget);
+
+      // Zwei Stunden Mittagsschlaf je Tag, als Zyklus in der Klasse
+      // „1–2 h".
+      expect(find.text('2 h'), findsWidgets);
+      await tester.scrollUntilVisible(find.text('1–2 h'), 300);
+      expect(find.text('1–2 h'), findsOneWidget);
+    });
+
+    testWidgets('der Zeitraum lässt sich umstellen', (tester) async {
+      handyFormat(tester);
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppState>.value(
+          value: state,
+          child: const MaterialApp(home: AnalysisScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Ohne Daten sagt die Auswertung das auch.
+      expect(
+        find.text('In diesem Zeitraum ist keine Mahlzeit erfasst.'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('7 Tage'));
+      await tester.pumpAndSettle();
+      expect(find.text('7 Tage'), findsOneWidget);
     });
   });
 }

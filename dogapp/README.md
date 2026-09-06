@@ -21,7 +21,7 @@ Einträge wären auf einem Handy unbedienbar:
 | Bereich    | Inhalt                                      |
 | ---------- | ------------------------------------------- |
 | Übersicht  | Tagesstand, Hinweise, Schnellaktionen        |
-| Alltag     | Fütterung · Schlaf · Leckerli                |
+| Alltag     | Fütterung · Schlaf · Leckerli · Analyse      |
 | Gesundheit | Entwicklung · Medikamente · Impfungen        |
 | Kalender   | Termine aller Art                            |
 | Training   | Heute · Übungen · Pläne                      |
@@ -58,6 +58,17 @@ Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
   anderen Tag. Gespeichert bleibt trotzdem eine einzige Phase – beim
   Antippen hat man wieder die ganze Nacht vor sich statt zweier
   Bruchstücke.
+- **Analyse** – zwei Fragen, nach Wochentagen aufgeschlüsselt: *Wann
+  wird gefüttert?* (ein Punkt je Mahlzeit auf einem Zeitstrahl von 0
+  bis 24 Uhr, dazu die wiederkehrenden Zeitfenster – Leckerli zählen
+  nicht mit) und *wann und wie lang schläft er?* (Stundenraster, je
+  dunkler desto mehr Schlaf, dazu die Zyklen nach Dauer). Ein Zyklus
+  ist eine Schlafphase von Anfang bis Ende und gehört zum Tag ihres
+  Beginns; die Tagessummen dagegen zählen Nächte über Mitternacht
+  anteilig, wie in der Schlafliste. Zeitraum wählbar (7 / 30 / 90 Tage
+  / alles). Gemittelt wird über **erfasste** Tage, nicht über
+  Kalendertage – ein Tag ohne Eintrag ist meist ein Tag ohne
+  Aufzeichnung und würde den Schnitt nur verfälschen.
 - **Gewicht & Fotos** – Messung mit Datum/Uhrzeit, optionalem Foto und
   Notiz. Verlaufsdiagramm mit optionaler Zielgewichtslinie; Fotos
   hängen direkt am jeweiligen Messwert, so entsteht der

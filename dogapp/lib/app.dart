@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'core/theme.dart';
+import 'features/analysis/analysis_screen.dart';
 import 'features/calendar/calendar_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
 import 'features/feeding/feeding_screen.dart';
@@ -141,6 +142,7 @@ class _HomeShellState extends State<HomeShell> {
           ('Fütterung', FeedingScreen()),
           ('Schlaf', SleepScreen()),
           ('Leckerli', TreatsScreen()),
+          ('Analyse', AnalysisScreen()),
         ],
       ),
       _GroupPage(
