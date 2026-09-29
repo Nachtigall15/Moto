@@ -30,6 +30,10 @@ class AppConfig {
   static const int limitGaben = 500;
   static const int limitTraining = 500;
 
+  /// Ein Welpe muss in der Erziehung zur Stubenreinheit leicht
+  /// zehnmal am Tag raus – Pipi und Kaki einzeln gezählt.
+  static const int limitGeschaefte = 800;
+
   /// Fotos werden vor dem Speichern auf diese Kantenlänge verkleinert.
   /// Reicht für den Entwicklungsverlauf locker.
   static const int photoMaxEdge = 800;

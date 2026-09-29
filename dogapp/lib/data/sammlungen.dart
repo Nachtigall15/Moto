@@ -18,6 +18,7 @@ class Sammlungen {
   static const trainingseinheiten = 'trainingseinheiten';
   static const trainingsplaene = 'trainingsplaene';
   static const leckerli = 'leckerli';
+  static const geschaefte = 'geschaefte';
 
   /// Reihenfolge egal, Vollständigkeit nicht.
   static const List<String> alle = [
@@ -32,6 +33,7 @@ class Sammlungen {
     trainingseinheiten,
     trainingsplaene,
     leckerli,
+    geschaefte,
   ];
 
   /// Einzeldokumente (keine Sammlung).

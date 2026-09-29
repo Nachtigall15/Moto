@@ -11,12 +11,14 @@ import '../data/sicherung.dart'
 import '../models/appointment.dart';
 import '../models/dog_profile.dart';
 import '../models/feeding_entry.dart';
+import '../models/geschaeft.dart';
 import '../models/medication.dart';
 import '../models/sleep_entry.dart';
 import '../models/training.dart';
 import '../models/treat.dart';
 import '../models/vaccination.dart';
 import '../models/weight_entry.dart';
+import 'stubenreinheit.dart';
 
 /// Die Listen, die mit der Zeit wachsen und deshalb nur ausschnittweise
 /// geladen werden.
@@ -29,7 +31,8 @@ enum Bereich {
   gewicht(Sammlungen.gewicht, 'zeitpunkt', AppConfig.limitGewicht),
   termine(Sammlungen.termine, 'zeitpunkt', AppConfig.limitTermine),
   gaben(Sammlungen.gaben, 'tag', AppConfig.limitGaben),
-  training(Sammlungen.trainingseinheiten, 'tag', AppConfig.limitTraining);
+  training(Sammlungen.trainingseinheiten, 'tag', AppConfig.limitTraining),
+  geschaefte(Sammlungen.geschaefte, 'zeitpunkt', AppConfig.limitGeschaefte);
 
   const Bereich(this.sammlung, this.sortierFeld, this.schritt);
 
@@ -60,6 +63,7 @@ class AppState extends ChangeNotifier {
   static const _cTrainingLogs = Sammlungen.trainingseinheiten;
   static const _cPlans = Sammlungen.trainingsplaene;
   static const _cTreats = Sammlungen.leckerli;
+  static const _cGeschaefte = Sammlungen.geschaefte;
   static const _dProfile = Sammlungen.profil;
 
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -81,6 +85,7 @@ class AppState extends ChangeNotifier {
         Bereich.termine => _appointments.length,
         Bereich.gaben => _medLogs.length,
         Bereich.training => _trainingLogs.length,
+        Bereich.geschaefte => _geschaefte.length,
       };
 
   /// Ob die Liste am Rand des geladenen Ausschnitts steht. Nur dann
@@ -166,6 +171,7 @@ class AppState extends ChangeNotifier {
 
   List<FeedingEntry> _feedings = const [];
   List<SleepEntry> _sleeps = const [];
+  List<Geschaeft> _geschaefte = const [];
   List<WeightEntry> _weights = const [];
   List<Appointment> _appointments = const [];
   List<Medication> _medications = const [];
@@ -175,6 +181,7 @@ class AppState extends ChangeNotifier {
   /// Jeweils neueste zuerst – so werden die Listen überall angezeigt.
   List<FeedingEntry> get feedings => _feedings;
   List<SleepEntry> get sleeps => _sleeps;
+  List<Geschaeft> get geschaefte => _geschaefte;
   List<WeightEntry> get weights => _weights;
 
   /// Termine dagegen chronologisch aufsteigend – ein Kalender liest
@@ -209,6 +216,12 @@ class AppState extends ChangeNotifier {
     _handler[Bereich.schlaf] = (rows) {
       _sleeps = rows.map(SleepEntry.fromJson).toList()
         ..sort((a, b) => b.start.compareTo(a.start));
+      notifyListeners();
+    };
+
+    _handler[Bereich.geschaefte] = (rows) {
+      _geschaefte = rows.map(Geschaeft.fromJson).toList()
+        ..sort((a, b) => b.zeitpunkt.compareTo(a.zeitpunkt));
       notifyListeners();
     };
 
@@ -445,6 +458,21 @@ class AppState extends ChangeNotifier {
       schlafAbschnitteAm(day).map((a) => a.phase).toList();
 
   Duration sleepTotalOn(DateTime day) => schlafSumme(schlafAbschnitteAm(day));
+
+  // --- Stubenreinheit ------------------------------------------------
+
+  Future<void> saveGeschaeft(Geschaeft eintrag) =>
+      _schreibe(_repo.upsert(_cGeschaefte, eintrag.id, eintrag.toJson()));
+
+  Future<void> deleteGeschaeft(String id) =>
+      _schreibe(_repo.delete(_cGeschaefte, id));
+
+  List<Geschaeft> geschaefteAm(DateTime day) =>
+      _geschaefte.where((g) => isSameDay(g.zeitpunkt, day)).toList();
+
+  /// Trainingsübersicht zum jetzigen Zeitpunkt.
+  Stubenbilanz stubenbilanz([DateTime? jetzt]) =>
+      stubenBilanz(_geschaefte, jetzt ?? DateTime.now());
 
   // --- Gewicht & Fotos ------------------------------------------------
 

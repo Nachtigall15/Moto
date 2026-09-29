@@ -12,6 +12,7 @@ import 'features/health/vaccination_screen.dart';
 import 'features/auth/login_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/sleep/sleep_screen.dart';
+import 'features/stubenreinheit/stubenreinheit_screen.dart';
 import 'features/training/training_screen.dart';
 import 'features/treats/treats_screen.dart';
 import 'features/weight/weight_screen.dart';
@@ -28,6 +29,9 @@ class Tabs {
   static const gesundheit = 2;
   static const kalender = 3;
   static const training = 4;
+
+  /// Unter-Reiter im Alltag, für Sprünge aus der Übersicht.
+  static const stubenreinheit = 2;
 }
 
 class DogApp extends StatelessWidget {
@@ -141,6 +145,7 @@ class _HomeShellState extends State<HomeShell> {
         reiter: const [
           ('Fütterung', FeedingScreen()),
           ('Schlaf', SleepScreen()),
+          ('Stubenreinheit', StubenreinheitScreen()),
           ('Leckerli', TreatsScreen()),
           ('Analyse', AnalysisScreen()),
         ],
@@ -303,6 +308,10 @@ class _GroupPageState extends State<_GroupPage>
         title: Text(widget.titel),
         bottom: TabBar(
           controller: _controller,
+          // Ab fünf Reitern wird es auf dem Handy zu eng – dann lieber
+          // seitlich schieben als abgeschnittene Beschriftungen.
+          isScrollable: widget.reiter.length > 4,
+          tabAlignment: widget.reiter.length > 4 ? TabAlignment.start : null,
           tabs: [for (final r in widget.reiter) Tab(text: r.$1)],
         ),
       ),

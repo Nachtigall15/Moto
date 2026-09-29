@@ -4,11 +4,13 @@ import 'package:provider/provider.dart';
 import '../../app.dart';
 import '../../core/format.dart';
 import '../../models/feeding_entry.dart';
+import '../../models/geschaeft.dart';
 import '../../state/app_state.dart';
 import '../../state/bootstrap.dart';
 import '../backup/backup_screen.dart';
 import '../common/dog_photo.dart';
 import '../common/ui.dart';
+import '../stubenreinheit/stubenreinheit_screen.dart' show iconFuer;
 
 /// Startseite: der Blick, den jemand braucht, der gerade zur Tür
 /// reinkommt – hat er gefressen, schläft er, sind Medikamente fällig,
@@ -141,6 +143,8 @@ class DashboardScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
+          _Stubenreinheit(state: state, onOpen: onOpen),
+          const SizedBox(height: 16),
           SectionCard(
             title: 'Nächster Termin',
             icon: Icons.event_outlined,
@@ -239,6 +243,108 @@ class DashboardScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _SyncHint(state: state),
+        ],
+      ),
+    );
+  }
+}
+
+/// Stubenreinheit auf einen Blick: wann war er zuletzt, wann muss er
+/// wieder raus – und die beiden Einträge, die man am häufigsten
+/// braucht, direkt als Knopf.
+class _Stubenreinheit extends StatelessWidget {
+  const _Stubenreinheit({required this.state, required this.onOpen});
+
+  final AppState state;
+  final void Function(int index, {int? unterreiter}) onOpen;
+
+  void _eintragen(BuildContext context, Geschaeftsart art) {
+    final eintrag = Geschaeft(zeitpunkt: DateTime.now(), art: art);
+    state.saveGeschaeft(eintrag);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(
+        content: Text(
+          '${eintrag.label} um ${dfTime.format(eintrag.zeitpunkt)} Uhr '
+          'eingetragen.',
+        ),
+        action: SnackBarAction(
+          label: 'Rückgängig',
+          onPressed: () => state.deleteGeschaeft(eintrag.id),
+        ),
+      ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final jetzt = DateTime.now();
+    final bilanz = state.stubenbilanz(jetzt);
+    final heute = bilanz.tage.first.$2;
+    final pipi = bilanz.letztesPipi;
+    final naechster = bilanz.naechsterGang;
+    final ueberfaellig = naechster != null && !naechster.isAfter(jetzt);
+
+    return SectionCard(
+      title: 'Stubenreinheit',
+      icon: Icons.water_drop_outlined,
+      trailing: TextButton(
+        onPressed: () =>
+            onOpen(Tabs.alltag, unterreiter: Tabs.stubenreinheit),
+        child: const Text('Übersicht'),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: StatTile(
+                  onTap: () =>
+                      onOpen(Tabs.alltag, unterreiter: Tabs.stubenreinheit),
+                  label: 'Letztes Pipi',
+                  value: pipi == null
+                      ? '–'
+                      : dfTime.format(pipi.zeitpunkt),
+                  hint: pipi == null
+                      ? 'noch nichts'
+                      : 'vor ${formatDuration(jetzt.difference(pipi.zeitpunkt))}',
+                  icon: Icons.water_drop_outlined,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: StatTile(
+                  onTap: () =>
+                      onOpen(Tabs.alltag, unterreiter: Tabs.stubenreinheit),
+                  label: 'Wieder raus',
+                  value: naechster == null
+                      ? '–'
+                      : (ueberfaellig ? 'jetzt' : '~${dfTime.format(naechster)}'),
+                  hint: heute.gesamt == 0
+                      ? null
+                      : '${heute.draussen} von ${heute.gesamt} heute draußen',
+                  icon: Icons.schedule,
+                  color: ueberfaellig ? theme.colorScheme.secondary : null,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              for (final art in Geschaeftsart.values) ...[
+                if (art != Geschaeftsart.values.first)
+                  const SizedBox(width: 10),
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: () => _eintragen(context, art),
+                    icon: Icon(iconFuer(art)),
+                    label: Text('${art.label} draußen'),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ],
       ),
     );
