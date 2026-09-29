@@ -2,7 +2,7 @@ import '../core/format.dart';
 
 /// Ein Geschäft: was, wann, wo – das Rohmaterial der Stubenreinheit.
 ///
-/// Jedes Geschäft ist ein eigener Eintrag, auch wenn Pipi und Kaki im
+/// Jedes Geschäft ist ein eigener Eintrag, auch wenn Pipi und Kakki im
 /// selben Gang passieren. Nur so lassen sich die Abstände zwischen
 /// zwei Pipis sauber ausrechnen – und genau die bestimmen, wann der
 /// nächste Gang fällig ist.
@@ -29,7 +29,7 @@ class Geschaeft {
 
   bool get draussen => ort == Ort.draussen;
 
-  /// „Pipi draußen", „Kaki drinnen" …
+  /// „Pipi draußen", „Kakki drinnen" …
   String get label => '${art.label} ${ort.label}';
 
   Geschaeft copyWith({
@@ -70,7 +70,9 @@ class Geschaeft {
 
 enum Geschaeftsart {
   pipi('Pipi'),
-  kaki('Kaki');
+  // Der interne Name bleibt „kaki“ – so steht er in den gespeicherten
+  // Einträgen. Umbenannt ist nur die Beschriftung.
+  kaki('Kakki');
 
   const Geschaeftsart(this.label);
 

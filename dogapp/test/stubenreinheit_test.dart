@@ -46,7 +46,7 @@ void main() {
       expect(zurueck.ort, Ort.drinnen);
       expect(zurueck.gemeldet, isTrue);
       expect(zurueck.notiz, 'nach dem Spielen');
-      expect(zurueck.label, 'Kaki drinnen');
+      expect(zurueck.label, 'Kakki drinnen');
     });
 
     test('die Sammlung wird mitgesichert', () {
@@ -68,7 +68,7 @@ void main() {
       expect(tag.drinnen, 1);
       expect(tag.gemeldet, 1);
       expect(quoteLabel(tag.quote), '75 %');
-      expect(tag.zusammenfassung, '3× Pipi · 1× Kaki');
+      expect(tag.zusammenfassung, '3× Pipi · 1× Kakki');
     });
 
     test('ohne Einträge gibt es keine Quote statt 0 %', () {

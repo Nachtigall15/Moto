@@ -58,10 +58,10 @@ Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
   anderen Tag. Gespeichert bleibt trotzdem eine einzige Phase – beim
   Antippen hat man wieder die ganze Nacht vor sich statt zweier
   Bruchstücke.
-- **Stubenreinheit** – was, wann, wo: Pipi oder Kaki, draußen oder
+- **Stubenreinheit** – was, wann, wo: Pipi oder Kakki, draußen oder
   drinnen, dazu ob er sich vorher gemeldet hat. Die vier häufigsten
   Einträge stehen oben als Knopf – ein Tipp trägt mit der aktuellen
-  Uhrzeit ein, „Rückgängig" nimmt ihn wieder zurück. Pipi und Kaki im
+  Uhrzeit ein, „Rückgängig" nimmt ihn wieder zurück. Pipi und Kakki im
   selben Gang werden zwei Einträge, sonst stimmen die Abstände nicht.
   Darunter die **Trainingsübersicht**: Anteil draußen heute und über
   sieben Tage mit Vergleich zur Vorwoche, Tage ohne Missgeschick, wie
@@ -69,7 +69,7 @@ Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
   denen es drinnen passiert. Aus den Abständen zwischen zwei Pipis
   (Median der letzten zwei Wochen, Pausen über sechs Stunden gelten als
   Nacht) ergibt sich, wann er **wieder raus** muss – das steht auch auf
-  der Übersicht, zusammen mit Knöpfen für „Pipi draußen" und „Kaki
+  der Übersicht, zusammen mit Knöpfen für „Pipi draußen" und „Kakki
   draußen".
 - **Analyse** – zwei Fragen, nach Wochentagen aufgeschlüsselt: *Wann
   wird gefüttert?* (ein Punkt je Mahlzeit auf einem Zeitstrahl von 0

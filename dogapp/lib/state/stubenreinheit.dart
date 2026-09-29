@@ -30,10 +30,10 @@ class StubenTag {
   /// ohne Eintrag ist kein Tag mit 0 %, sondern einer ohne Aufzeichnung.
   double? get quote => gesamt == 0 ? null : draussen / gesamt;
 
-  /// „4× Pipi · 2× Kaki"
+  /// „4× Pipi · 2× Kakki"
   String get zusammenfassung => [
         if (pipi > 0) '$pipi× Pipi',
-        if (kaki > 0) '$kaki× Kaki',
+        if (kaki > 0) '$kaki× Kakki',
       ].join(' · ');
 }
 

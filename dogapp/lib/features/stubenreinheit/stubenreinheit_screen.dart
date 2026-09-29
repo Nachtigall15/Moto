@@ -118,7 +118,7 @@ class _StubenreinheitScreenState extends State<StubenreinheitScreen> {
                         onPressed: () =>
                             _schnell(Geschaeftsart.kaki, Ort.draussen),
                         icon: Icon(iconFuer(Geschaeftsart.kaki)),
-                        label: const Text('Kaki draußen'),
+                        label: const Text('Kakki draußen'),
                       ),
                     ),
                   ],
@@ -137,7 +137,7 @@ class _StubenreinheitScreenState extends State<StubenreinheitScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: _DrinnenKnopf(
-                        text: 'Kaki drinnen',
+                        text: 'Kakki drinnen',
                         art: Geschaeftsart.kaki,
                         onPressed: () =>
                             _schnell(Geschaeftsart.kaki, Ort.drinnen),
