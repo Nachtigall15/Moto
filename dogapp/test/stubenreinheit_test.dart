@@ -71,6 +71,44 @@ void main() {
       expect(tag.zusammenfassung, '3× Pipi · 1× Kakki');
     });
 
+    test('Terrasse zählt als stubenrein, aber getrennt von draußen', () {
+      final tag = stubenTag([
+        pipi(heuteUm(7)),
+        pipi(heuteUm(9), ort: Ort.terrasse),
+        kaki(heuteUm(9, 5), ort: Ort.terrasse),
+        pipi(heuteUm(11), ort: Ort.drinnen),
+      ]);
+      expect(tag.draussen, 1);
+      expect(tag.terrasse, 2);
+      expect(tag.drinnen, 1);
+      expect(tag.stubenrein, 3);
+      expect(quoteLabel(tag.quote), '75 %');
+      expect(tag.orte, '1× draußen · 2× Terrasse · 1× drinnen');
+    });
+
+    test('ein Pipi auf der Terrasse ist kein Missgeschick', () {
+      final b = stubenBilanz([
+        pipi(vorTagen(2, 9), ort: Ort.drinnen),
+        pipi(heuteUm(8), ort: Ort.terrasse),
+      ], jetzt);
+      expect(b.letztesMissgeschick!.zeitpunkt, vorTagen(2, 9));
+      expect(b.tageOhneMissgeschick(jetzt), 2);
+    });
+
+    test('alte Einträge ohne Terrasse lesen sich weiter', () {
+      final alt = Geschaeft.fromJson({
+        'id': 'x',
+        'zeitpunkt': heuteUm(8).toIso8601String(),
+        'art': 'pipi',
+        'ort': 'draussen',
+      });
+      expect(alt.ort, Ort.draussen);
+      expect(
+        Geschaeft.fromJson({...alt.toJson(), 'ort': 'terrasse'}).label,
+        'Pipi Terrasse',
+      );
+    });
+
     test('ohne Einträge gibt es keine Quote statt 0 %', () {
       expect(stubenTag(const []).quote, isNull);
       expect(quoteLabel(null), '–');

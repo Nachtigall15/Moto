@@ -322,7 +322,7 @@ class _Stubenreinheit extends StatelessWidget {
                       : (ueberfaellig ? 'jetzt' : '~${dfTime.format(naechster)}'),
                   hint: heute.gesamt == 0
                       ? null
-                      : '${heute.draussen} von ${heute.gesamt} heute draußen',
+                      : '${heute.stubenrein} von ${heute.gesamt} heute stubenrein',
                   icon: Icons.schedule,
                   color: ueberfaellig ? theme.colorScheme.secondary : null,
                 ),

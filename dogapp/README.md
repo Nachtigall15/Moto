@@ -58,12 +58,14 @@ Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
   anderen Tag. Gespeichert bleibt trotzdem eine einzige Phase – beim
   Antippen hat man wieder die ganze Nacht vor sich statt zweier
   Bruchstücke.
-- **Stubenreinheit** – was, wann, wo: Pipi oder Kakki, draußen oder
-  drinnen, dazu ob er sich vorher gemeldet hat. Die vier häufigsten
-  Einträge stehen oben als Knopf – ein Tipp trägt mit der aktuellen
+- **Stubenreinheit** – was, wann, wo: Pipi oder Kakki, draußen, auf
+  der Terrasse oder drinnen, dazu ob er sich vorher gemeldet hat. Die
+  Terrasse zählt als stubenrein – sie gehört nicht zur Wohnung –, wird
+  aber getrennt ausgewiesen, weil das Ziel die Wiese ist. Alle
+  Kombinationen stehen oben als Knopf – ein Tipp trägt mit der aktuellen
   Uhrzeit ein, „Rückgängig" nimmt ihn wieder zurück. Pipi und Kakki im
   selben Gang werden zwei Einträge, sonst stimmen die Abstände nicht.
-  Darunter die **Trainingsübersicht**: Anteil draußen heute und über
+  Darunter die **Trainingsübersicht**: Anteil stubenrein heute und über
   sieben Tage mit Vergleich zur Vorwoche, Tage ohne Missgeschick, wie
   oft er sich gemeldet hat, ein Balken je Tag und die Uhrzeiten, zu
   denen es drinnen passiert. Aus den Abständen zwischen zwei Pipis

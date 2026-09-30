@@ -102,49 +102,24 @@ class _StubenreinheitScreenState extends State<StubenreinheitScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () =>
-                            _schnell(Geschaeftsart.pipi, Ort.draussen),
-                        icon: Icon(iconFuer(Geschaeftsart.pipi)),
-                        label: const Text('Pipi draußen'),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () =>
-                            _schnell(Geschaeftsart.kaki, Ort.draussen),
-                        icon: Icon(iconFuer(Geschaeftsart.kaki)),
-                        label: const Text('Kakki draußen'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _DrinnenKnopf(
-                        text: 'Pipi drinnen',
-                        art: Geschaeftsart.pipi,
-                        onPressed: () =>
-                            _schnell(Geschaeftsart.pipi, Ort.drinnen),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _DrinnenKnopf(
-                        text: 'Kakki drinnen',
-                        art: Geschaeftsart.kaki,
-                        onPressed: () =>
-                            _schnell(Geschaeftsart.kaki, Ort.drinnen),
-                      ),
-                    ),
-                  ],
-                ),
+                for (final ort in Ort.values) ...[
+                  if (ort != Ort.values.first) const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      for (final art in Geschaeftsart.values) ...[
+                        if (art != Geschaeftsart.values.first)
+                          const SizedBox(width: 10),
+                        Expanded(
+                          child: _OrtKnopf(
+                            art: art,
+                            ort: ort,
+                            onPressed: () => _schnell(art, ort),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 4),
                 Align(
                   alignment: Alignment.centerLeft,
@@ -176,8 +151,8 @@ class _StubenreinheitScreenState extends State<StubenreinheitScreen> {
               final tag = stubenTag(byDay[day]!);
               return TagesKopf(
                 tag: isSameDay(day, jetzt) ? 'Heute' : dfWeekday.format(day),
-                summe: '${quoteLabel(tag.quote)} draußen',
-                zusatz: tag.zusammenfassung,
+                summe: '${quoteLabel(tag.quote)} stubenrein',
+                zusatz: '${tag.zusammenfassung} · ${tag.orte}',
               );
             }),
             Card(
@@ -203,28 +178,45 @@ IconData iconFuer(Geschaeftsart art) => switch (art) {
       Geschaeftsart.kaki => Icons.grain,
     };
 
-/// Farbe für drinnen – deutlich, aber kein Alarm. Ein Missgeschick
+/// Farbe je Ort. Drinnen deutlich, aber kein Alarm – ein Missgeschick
 /// gehört zum Lernen dazu.
-Color drinnenFarbe(ThemeData theme) => theme.colorScheme.error;
+Color ortFarbe(ThemeData theme, Ort ort) => switch (ort) {
+      Ort.draussen => theme.colorScheme.primary,
+      Ort.terrasse => theme.colorScheme.tertiary,
+      Ort.drinnen => theme.colorScheme.error,
+    };
 
-class _DrinnenKnopf extends StatelessWidget {
-  const _DrinnenKnopf({
-    required this.text,
+IconData ortIcon(Ort ort) => switch (ort) {
+      Ort.draussen => Icons.park_outlined,
+      Ort.terrasse => Icons.deck_outlined,
+      Ort.drinnen => Icons.home_outlined,
+    };
+
+/// Draußen ist das Ziel und bekommt den vollen Knopf; Terrasse und
+/// drinnen stehen als Umriss in ihrer Farbe darunter.
+class _OrtKnopf extends StatelessWidget {
+  const _OrtKnopf({
     required this.art,
+    required this.ort,
     required this.onPressed,
   });
 
-  final String text;
   final Geschaeftsart art;
+  final Ort ort;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    final farbe = drinnenFarbe(Theme.of(context));
+    final text = Text('${art.label} ${ort.label}');
+    final icon = Icon(iconFuer(art));
+    if (ort == Ort.draussen) {
+      return FilledButton.icon(onPressed: onPressed, icon: icon, label: text);
+    }
+    final farbe = ortFarbe(Theme.of(context), ort);
     return OutlinedButton.icon(
       onPressed: onPressed,
-      icon: Icon(iconFuer(art)),
-      label: Text(text),
+      icon: icon,
+      label: text,
       style: OutlinedButton.styleFrom(
         foregroundColor: farbe,
         side: BorderSide(color: farbe.withValues(alpha: 0.5)),
@@ -233,7 +225,7 @@ class _DrinnenKnopf extends StatelessWidget {
   }
 }
 
-/// Der Stand von heute: wie viel ging draußen, wann war er zuletzt,
+/// Der Stand von heute: wie viel ging nicht in die Wohnung, wann war er zuletzt,
 /// wann muss er wieder raus.
 class _Heute extends StatelessWidget {
   const _Heute({required this.bilanz, required this.jetzt});
@@ -257,11 +249,11 @@ class _Heute extends StatelessWidget {
         children: [
           Expanded(
             child: StatTile(
-              label: 'Draußen',
+              label: 'Stubenrein',
               value: heute.gesamt == 0
                   ? '–'
-                  : '${heute.draussen} von ${heute.gesamt}',
-              hint: heute.gesamt == 0 ? 'noch nichts' : heute.zusammenfassung,
+                  : '${heute.stubenrein} von ${heute.gesamt}',
+              hint: heute.gesamt == 0 ? 'noch nichts' : heute.orte,
               icon: Icons.park_outlined,
             ),
           ),
@@ -335,12 +327,12 @@ class _Training extends StatelessWidget {
             children: [
               Expanded(
                 child: StatTile(
-                  label: 'Draußen',
+                  label: 'Stubenrein',
                   value: quoteLabel(woche.quote),
                   hint: trend ??
                       (woche.gesamt == 0
                           ? 'noch keine Einträge'
-                          : '${woche.draussen} von ${woche.gesamt}'),
+                          : '${woche.stubenrein} von ${woche.gesamt}'),
                   icon: Icons.park_outlined,
                 ),
               ),
@@ -376,13 +368,23 @@ class _Training extends StatelessWidget {
           const SizedBox(height: 16),
           _Wochenbalken(tage: bilanz.tage.reversed.toList()),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 16,
+            runSpacing: 4,
             children: [
-              _Legende(farbe: theme.colorScheme.primary, text: 'draußen'),
-              const SizedBox(width: 16),
-              _Legende(farbe: drinnenFarbe(theme), text: 'drinnen'),
+              for (final ort in Ort.values)
+                _Legende(farbe: ortFarbe(theme, ort), text: ort.label),
             ],
           ),
+          if (woche.terrasse > 0) ...[
+            const SizedBox(height: 12),
+            Text(
+              '${woche.terrasse} von ${woche.stubenrein} Geschäften ohne '
+              'Missgeschick waren auf der Terrasse – '
+              '${quoteLabel(woche.draussen / woche.stubenrein)} richtig draußen.',
+              style: gedaempft,
+            ),
+          ],
           if (bilanz.missgeschickStunden.isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(
@@ -398,8 +400,8 @@ class _Training extends StatelessWidget {
   }
 }
 
-/// Sieben Tage nebeneinander, je ein Balken aus draußen (unten) und
-/// drinnen (oben). Die Höhe folgt der Zahl der Geschäfte, darunter
+/// Sieben Tage nebeneinander, je ein Balken aus draußen (unten),
+/// Terrasse und drinnen (oben). Die Höhe folgt der Zahl der Geschäfte, darunter
 /// steht die Quote – so sieht man Fortschritt und Datenlage zugleich.
 class _Wochenbalken extends StatelessWidget {
   const _Wochenbalken({required this.tage});
@@ -408,6 +410,20 @@ class _Wochenbalken extends StatelessWidget {
   final List<(DateTime, StubenTag)> tage;
 
   static const _hoehe = 72.0;
+
+  static int _anzahl(StubenTag t, Ort ort) => switch (ort) {
+        Ort.draussen => t.draussen,
+        Ort.terrasse => t.terrasse,
+        Ort.drinnen => t.drinnen,
+      };
+
+  /// Nur das oberste Stück bekommt runde Ecken.
+  static Ort? _obersterOrt(StubenTag t) {
+    for (final ort in Ort.values.reversed) {
+      if (_anzahl(t, ort) > 0) return ort;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -435,28 +451,20 @@ class _Wochenbalken extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        if (zahlen.drinnen > 0)
-                          Container(
-                            height: _hoehe * zahlen.drinnen / maximum,
-                            decoration: BoxDecoration(
-                              color: drinnenFarbe(theme),
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(4),
+                        // Von oben nach unten: drinnen, Terrasse, draußen.
+                        for (final ort in Ort.values.reversed)
+                          if (_anzahl(zahlen, ort) > 0)
+                            Container(
+                              height: _hoehe * _anzahl(zahlen, ort) / maximum,
+                              decoration: BoxDecoration(
+                                color: ortFarbe(theme, ort),
+                                borderRadius: BorderRadius.vertical(
+                                  top: _obersterOrt(zahlen) == ort
+                                      ? const Radius.circular(4)
+                                      : Radius.zero,
+                                ),
                               ),
                             ),
-                          ),
-                        if (zahlen.draussen > 0)
-                          Container(
-                            height: _hoehe * zahlen.draussen / maximum,
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primary,
-                              borderRadius: BorderRadius.vertical(
-                                top: zahlen.drinnen > 0
-                                    ? Radius.zero
-                                    : const Radius.circular(4),
-                              ),
-                            ),
-                          ),
                         if (zahlen.gesamt == 0)
                           Container(
                             height: 2,
@@ -521,8 +529,7 @@ class _GeschaeftTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final farbe =
-        eintrag.draussen ? theme.colorScheme.primary : drinnenFarbe(theme);
+    final farbe = ortFarbe(theme, eintrag.ort);
 
     return ListTile(
       onTap: () => _openEditor(context, eintrag: eintrag),
@@ -539,10 +546,7 @@ class _GeschaeftTile extends StatelessWidget {
         if (eintrag.gemeldet) 'hat sich gemeldet',
         if (eintrag.notiz.isNotEmpty) eintrag.notiz,
       ].join(' · ')),
-      trailing: Icon(
-        eintrag.draussen ? Icons.park_outlined : Icons.home_outlined,
-        color: farbe,
-      ),
+      trailing: Icon(ortIcon(eintrag.ort), color: farbe),
     );
   }
 }
@@ -653,17 +657,13 @@ class _GeschaeftEditorState extends State<_GeschaeftEditor> {
             ),
             const SizedBox(height: 12),
             SegmentedButton<Ort>(
-              segments: const [
-                ButtonSegment(
-                  value: Ort.draussen,
-                  label: Text('Draußen'),
-                  icon: Icon(Icons.park_outlined),
-                ),
-                ButtonSegment(
-                  value: Ort.drinnen,
-                  label: Text('Drinnen'),
-                  icon: Icon(Icons.home_outlined),
-                ),
+              segments: [
+                for (final o in Ort.values)
+                  ButtonSegment(
+                    value: o,
+                    label: Text(o.titel),
+                    icon: Icon(ortIcon(o)),
+                  ),
               ],
               selected: {_ort},
               onSelectionChanged: (s) => setState(() => _ort = s.first),

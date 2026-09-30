@@ -14,6 +14,7 @@ class StubenTag {
     this.pipi = 0,
     this.kaki = 0,
     this.draussen = 0,
+    this.terrasse = 0,
     this.drinnen = 0,
     this.gemeldet = 0,
   });
@@ -21,42 +22,52 @@ class StubenTag {
   final int pipi;
   final int kaki;
   final int draussen;
+  final int terrasse;
   final int drinnen;
   final int gemeldet;
 
-  int get gesamt => draussen + drinnen;
+  int get gesamt => draussen + terrasse + drinnen;
 
-  /// Anteil draußen, 0 bis 1 – null, wenn nichts erfasst ist. Ein Tag
-  /// ohne Eintrag ist kein Tag mit 0 %, sondern einer ohne Aufzeichnung.
-  double? get quote => gesamt == 0 ? null : draussen / gesamt;
+  /// Alles, was nicht in der Wohnung passiert ist.
+  int get stubenrein => draussen + terrasse;
+
+  /// Anteil stubenrein (draußen oder Terrasse), 0 bis 1 – null, wenn
+  /// nichts erfasst ist. Ein Tag ohne Eintrag ist kein Tag mit 0 %,
+  /// sondern einer ohne Aufzeichnung.
+  double? get quote => gesamt == 0 ? null : stubenrein / gesamt;
 
   /// „4× Pipi · 2× Kakki"
   String get zusammenfassung => [
         if (pipi > 0) '$pipi× Pipi',
         if (kaki > 0) '$kaki× Kakki',
       ].join(' · ');
+
+  /// „3× draußen · 1× Terrasse"
+  String get orte => [
+        if (draussen > 0) '$draussen× draußen',
+        if (terrasse > 0) '$terrasse× Terrasse',
+        if (drinnen > 0) '$drinnen× drinnen',
+      ].join(' · ');
 }
 
 StubenTag stubenTag(Iterable<Geschaeft> eintraege) {
-  var pipi = 0, kaki = 0, draussen = 0, drinnen = 0, gemeldet = 0;
+  var pipi = 0, kaki = 0, gemeldet = 0;
+  final orte = {for (final o in Ort.values) o: 0};
   for (final g in eintraege) {
     if (g.art == Geschaeftsart.pipi) {
       pipi++;
     } else {
       kaki++;
     }
-    if (g.draussen) {
-      draussen++;
-    } else {
-      drinnen++;
-    }
+    orte[g.ort] = orte[g.ort]! + 1;
     if (g.gemeldet) gemeldet++;
   }
   return StubenTag(
     pipi: pipi,
     kaki: kaki,
-    draussen: draussen,
-    drinnen: drinnen,
+    draussen: orte[Ort.draussen]!,
+    terrasse: orte[Ort.terrasse]!,
+    drinnen: orte[Ort.drinnen]!,
     gemeldet: gemeldet,
   );
 }
@@ -166,7 +177,7 @@ Stubenbilanz stubenBilanz(List<Geschaeft> alle, DateTime jetzt) {
 
   final stunden = <int, int>{};
   for (final g in alle) {
-    if (!g.draussen && !g.zeitpunkt.isBefore(seit)) {
+    if (g.missgeschick && !g.zeitpunkt.isBefore(seit)) {
       stunden.update(g.zeitpunkt.hour, (n) => n + 1, ifAbsent: () => 1);
     }
   }
@@ -186,7 +197,7 @@ Stubenbilanz stubenBilanz(List<Geschaeft> alle, DateTime jetzt) {
     vorwoche: spanne(bilanzTage, 2 * bilanzTage),
     letztesPipi: juengstes((g) => g.art == Geschaeftsart.pipi),
     letztesKaki: juengstes((g) => g.art == Geschaeftsart.kaki),
-    letztesMissgeschick: juengstes((g) => !g.draussen),
+    letztesMissgeschick: juengstes((g) => g.missgeschick),
     // Mindestens drei Abstände, sonst ist es Zufall und kein Rhythmus.
     pipiAbstand: abstaende.length < 3 ? null : abstaende[abstaende.length ~/ 2],
     missgeschickStunden: missgeschickStunden,

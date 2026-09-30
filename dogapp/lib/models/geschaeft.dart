@@ -27,9 +27,9 @@ class Geschaeft {
   final bool gemeldet;
   final String notiz;
 
-  bool get draussen => ort == Ort.draussen;
+  bool get missgeschick => ort.missgeschick;
 
-  /// „Pipi draußen", „Kakki drinnen" …
+  /// „Pipi draußen", „Pipi Terrasse", „Kakki drinnen" …
   String get label => '${art.label} ${ort.label}';
 
   Geschaeft copyWith({
@@ -84,13 +84,26 @@ enum Geschaeftsart {
       );
 }
 
+/// Wo es passiert ist.
+///
+/// Die Terrasse ist ein eigener Ort: kein Missgeschick – sie gehört
+/// nicht zur Wohnung –, aber auch nicht das Ziel. Wer sehen will, ob er
+/// lernt, bis zur Wiese zu warten, braucht sie getrennt.
 enum Ort {
-  draussen('draußen'),
-  drinnen('drinnen');
+  draussen('draußen', 'Draußen'),
+  terrasse('Terrasse', 'Terrasse'),
+  drinnen('drinnen', 'Drinnen');
 
-  const Ort(this.label);
+  const Ort(this.label, this.titel);
 
+  /// Im Satz: „Pipi draußen", „Pipi Terrasse", „Pipi drinnen".
   final String label;
+
+  /// Allein stehend, z. B. als Auswahl im Eingabefenster.
+  final String titel;
+
+  /// Drinnen ist das Einzige, was als Missgeschick zählt.
+  bool get missgeschick => this == Ort.drinnen;
 
   static Ort parse(String? raw) => Ort.values.firstWhere(
         (o) => o.name == raw,
