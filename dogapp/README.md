@@ -73,6 +73,24 @@ Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
   Nacht) ergibt sich, wann er **wieder raus** muss – das steht auch auf
   der Übersicht, zusammen mit Knöpfen für „Pipi draußen" und „Kakki
   draußen".
+- **Nach dem Fressen** (im Bereich Stubenreinheit) – Fütterung und
+  Geschäfte zusammen ausgewertet: Wie lange nach einer Mahlzeit kommt
+  Kakki, wie lange Pipi? Je Mahlzeit zählt das erste Geschäft danach,
+  höchstens vier Stunden später und vor der nächsten Mahlzeit;
+  Fütterungen im Abstand unter 30 Minuten sind eine Mahlzeit, Leckerli
+  zählen nicht. Angezeigt werden der Median und die Spanne, in der die
+  mittlere Hälfte der Fälle liegt („~35 min, meist 25 bis 45 min"). Ist
+  nach der letzten Mahlzeit noch kein Kakki eingetragen, steht dort,
+  ab wann er raus sollte. „Wieder raus" nimmt diese Uhr oder den
+  Pipi-Rhythmus – je nachdem, welche zuerst fällig ist.
+- **Feste Zeiten** – Uhrzeiten, zu denen er regelmäßig muss. Ein
+  Fenster von einer Stunde wird in Viertelstunden über den Tag
+  geschoben; das Fenster, das an den meisten Tagen trifft, wird zur
+  festen Zeit, seine Geschäfte scheiden aus, dann geht die Suche weiter.
+  Fest ist eine Zeit, wenn sie an mindestens der Hälfte der erfassten
+  Tage getroffen hat. Gezählt werden Tage, nicht Geschäfte. Beide
+  Auswertungen schauen auf die letzten 14 Tage und brauchen mindestens
+  drei Beispiele.
 - **Analyse** – zwei Fragen, nach Wochentagen aufgeschlüsselt: *Wann
   wird gefüttert?* (ein Punkt je Mahlzeit auf einem Zeitstrahl von 0
   bis 24 Uhr, dazu die wiederkehrenden Zeitfenster – Leckerli zählen

@@ -282,7 +282,8 @@ class _Stubenreinheit extends StatelessWidget {
     final bilanz = state.stubenbilanz(jetzt);
     final heute = bilanz.tage.first.$2;
     final pipi = bilanz.letztesPipi;
-    final naechster = bilanz.naechsterGang;
+    final gang = state.naechsterGangAm(jetzt);
+    final naechster = gang?.zeit;
     final ueberfaellig = naechster != null && !naechster.isAfter(jetzt);
 
     return SectionCard(
@@ -320,9 +321,11 @@ class _Stubenreinheit extends StatelessWidget {
                   value: naechster == null
                       ? '–'
                       : (ueberfaellig ? 'jetzt' : '~${dfTime.format(naechster)}'),
-                  hint: heute.gesamt == 0
-                      ? null
-                      : '${heute.stubenrein} von ${heute.gesamt} heute stubenrein',
+                  hint: gang?.grund ??
+                      (heute.gesamt == 0
+                          ? null
+                          : '${heute.stubenrein} von ${heute.gesamt} '
+                              'heute stubenrein'),
                   icon: Icons.schedule,
                   color: ueberfaellig ? theme.colorScheme.secondary : null,
                 ),

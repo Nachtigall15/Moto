@@ -2,6 +2,7 @@ import 'package:dogapp/app.dart';
 import 'package:dogapp/data/local_repository.dart';
 import 'package:dogapp/data/sammlungen.dart';
 import 'package:dogapp/features/stubenreinheit/stubenreinheit_screen.dart';
+import 'package:dogapp/models/feeding_entry.dart';
 import 'package:dogapp/models/geschaeft.dart';
 import 'package:dogapp/state/app_state.dart';
 import 'package:dogapp/state/bootstrap.dart';
@@ -203,6 +204,48 @@ void main() {
       await state.deleteGeschaeft(erst.id);
       await Future<void>.delayed(Duration.zero);
       expect(state.geschaefte, hasLength(1));
+    });
+
+    testWidgets('Fressen und feste Zeiten passen aufs Handy', (tester) async {
+      tester.view.physicalSize = const Size(1080, 2340);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final heute = DateTime.now();
+      DateTime t(int vorTagen, int h, int m) =>
+          DateTime(heute.year, heute.month, heute.day - vorTagen, h, m);
+      await tester.runAsync(() async {
+        for (var i = 1; i <= 5; i++) {
+          await state.saveFeeding(FeedingEntry(
+            zeitpunkt: t(i, 7, 0),
+            futter: 'Trocken',
+            menge: 80,
+            mahlzeit: Mahlzeit.fruehstueck,
+          ));
+          await state.saveGeschaeft(kaki(t(i, 7, 25 + i)));
+          await state.saveGeschaeft(pipi(t(i, 7, 5)));
+          await state.saveGeschaeft(pipi(t(i, 12, 30), ort: Ort.terrasse));
+        }
+        await Future<void>.delayed(Duration.zero);
+      });
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppState>.value(
+          value: state,
+          child: const MaterialApp(home: StubenreinheitScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final fressen = find.text('Nach dem Fressen');
+      await tester.scrollUntilVisible(fressen, 200);
+      expect(find.text('Kakki nach'), findsOneWidget);
+      expect(find.text('~28 min'), findsOneWidget);
+
+      await tester.scrollUntilVisible(find.text('Feste Zeiten'), 200);
+      await tester.scrollUntilVisible(find.textContaining('07:05'), 200);
+      expect(find.textContaining('an 5 von 5 Tagen'), findsWidgets);
     });
 
     testWidgets('ein Tipp auf „Pipi draußen" trägt ein', (tester) async {

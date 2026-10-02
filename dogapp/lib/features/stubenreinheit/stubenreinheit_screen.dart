@@ -5,9 +5,10 @@ import 'package:provider/provider.dart';
 
 import '../../core/format.dart';
 import '../../models/geschaeft.dart';
-import '../../state/analyse.dart' show wochentagKurz;
+import '../../state/analyse.dart' show uhrzeitLabel, wochentagKurz;
 import '../../state/app_state.dart';
 import '../../state/stubenreinheit.dart';
+import '../../state/verdauung.dart';
 import '../common/ui.dart';
 
 /// Stubenreinheit: was, wann, wo – und darüber die Übersicht, an der
@@ -76,6 +77,8 @@ class _StubenreinheitScreenState extends State<StubenreinheitScreen> {
     final state = context.watch<AppState>();
     final jetzt = DateTime.now();
     final bilanz = state.stubenbilanz(jetzt);
+    final verdauung = state.verdauung(jetzt);
+    final gang = naechsterGang(bilanz, verdauung);
 
     final byDay = <DateTime, List<Geschaeft>>{};
     for (final g in state.geschaefte) {
@@ -134,7 +137,11 @@ class _StubenreinheitScreenState extends State<StubenreinheitScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          _Heute(bilanz: bilanz, jetzt: jetzt),
+          _Heute(bilanz: bilanz, gang: gang, jetzt: jetzt),
+          const SizedBox(height: 16),
+          _NachDemFressen(verdauung: verdauung, jetzt: jetzt),
+          const SizedBox(height: 16),
+          _FesteZeiten(slots: state.zeitslots(jetzt), jetzt: jetzt),
           const SizedBox(height: 16),
           _Training(bilanz: bilanz, jetzt: jetzt),
           const SizedBox(height: 16),
@@ -228,9 +235,10 @@ class _OrtKnopf extends StatelessWidget {
 /// Der Stand von heute: wie viel ging nicht in die Wohnung, wann war er zuletzt,
 /// wann muss er wieder raus.
 class _Heute extends StatelessWidget {
-  const _Heute({required this.bilanz, required this.jetzt});
+  const _Heute({required this.bilanz, required this.gang, required this.jetzt});
 
   final Stubenbilanz bilanz;
+  final ({DateTime zeit, String grund})? gang;
   final DateTime jetzt;
 
   @override
@@ -238,7 +246,7 @@ class _Heute extends StatelessWidget {
     final theme = Theme.of(context);
     final heute = bilanz.tage.first.$2;
     final pipi = bilanz.letztesPipi;
-    final naechster = bilanz.naechsterGang;
+    final naechster = gang?.zeit;
     final ueberfaellig = naechster != null && !naechster.isAfter(jetzt);
 
     return SectionCard(
@@ -277,15 +285,196 @@ class _Heute extends StatelessWidget {
               value: naechster == null
                   ? '–'
                   : (ueberfaellig ? 'jetzt' : '~${dfTime.format(naechster)}'),
-              hint: bilanz.pipiAbstand == null
-                  ? 'Rhythmus noch unklar'
-                  : 'alle ${formatDuration(bilanz.pipiAbstand!)}',
+              hint: gang?.grund ?? 'Rhythmus noch unklar',
               icon: Icons.schedule,
               color: ueberfaellig ? theme.colorScheme.secondary : null,
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Wie lange nach dem Fressen er raus muss – und wann es nach der
+/// letzten Mahlzeit so weit ist.
+class _NachDemFressen extends StatelessWidget {
+  const _NachDemFressen({required this.verdauung, required this.jetzt});
+
+  final Verdauung verdauung;
+  final DateTime jetzt;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final kakki = verdauung.kakki;
+    final pipi = verdauung.pipi;
+    final erwartung = verdauung.erwartung;
+
+    if (!kakki.aussagekraeftig && !pipi.aussagekraeftig) {
+      return const SectionCard(
+        title: 'Nach dem Fressen',
+        icon: Icons.restaurant_outlined,
+        child: EmptyHint(
+          text: 'Noch zu wenig Daten. Es braucht mindestens drei Mahlzeiten '
+              'mit einem Geschäft danach – Fütterungen unter „Fütterung" '
+              'eintragen, Geschäfte hier.',
+        ),
+      );
+    }
+
+    final faellig = erwartung != null && !erwartung.ab.isAfter(jetzt);
+
+    return SectionCard(
+      title: 'Nach dem Fressen',
+      icon: Icons.restaurant_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (erwartung != null) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: (faellig
+                        ? theme.colorScheme.secondary
+                        : theme.colorScheme.primary)
+                    .withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    faellig ? Icons.directions_walk : Icons.alarm,
+                    color: faellig
+                        ? theme.colorScheme.secondary
+                        : theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '${erwartung.mahlzeit.mahlzeit.label} um '
+                      '${dfTime.format(erwartung.mahlzeit.zeitpunkt)} Uhr – '
+                      '${faellig ? 'jetzt raus' : 'ab ${dfTime.format(erwartung.ab)} Uhr raus'}. '
+                      'Kakki meist bis ${dfTime.format(erwartung.bis)} Uhr.',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final n in [kakki, pipi]) ...[
+                if (n != kakki) const SizedBox(width: 10),
+                Expanded(
+                  child: StatTile(
+                    label: '${n.art.label} nach',
+                    value: n.typisch == null
+                        ? '–'
+                        : '~${formatDuration(n.typisch!)}',
+                    hint: !n.aussagekraeftig
+                        ? 'noch zu wenig Daten'
+                        : 'meist ${formatDuration(n.frueh!)} bis '
+                            '${formatDuration(n.spaet!)} · '
+                            '${n.abstaende.length} von ${n.mahlzeiten} '
+                            'Mahlzeiten',
+                    icon: iconFuer(n.art),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Gerechnet aus den letzten $verdauungTage Tagen: jeweils das '
+            'erste Geschäft nach einer Mahlzeit, höchstens '
+            '${formatDuration(nachFutterFenster)} danach und vor der '
+            'nächsten. Leckerli zählen nicht als Mahlzeit.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Uhrzeiten, zu denen er regelmäßig raus muss – die Grundlage für
+/// einen festen Tagesplan.
+class _FesteZeiten extends StatelessWidget {
+  const _FesteZeiten({required this.slots, required this.jetzt});
+
+  final List<Zeitslot> slots;
+  final DateTime jetzt;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final minuteJetzt = jetzt.hour * 60 + jetzt.minute;
+    // Das nächste Fenster, das noch nicht vorbei ist.
+    final naechster = slots.where((s) => s.bis >= minuteJetzt).firstOrNull;
+
+    return SectionCard(
+      title: 'Feste Zeiten',
+      icon: Icons.event_repeat_outlined,
+      child: slots.isEmpty
+          ? const EmptyHint(
+              text: 'Noch keine festen Zeiten erkennbar. Dafür braucht es '
+                  'Einträge von mindestens drei Tagen – eine Zeit gilt als '
+                  'fest, wenn er an der Hälfte der Tage um diese Uhrzeit '
+                  'raus musste.',
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final slot in slots)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      backgroundColor: (slot == naechster
+                              ? theme.colorScheme.secondary
+                              : theme.colorScheme.primary)
+                          .withValues(alpha: 0.14),
+                      child: Text(
+                        uhrzeitLabel(slot.typisch).substring(0, 2),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: slot == naechster
+                              ? theme.colorScheme.secondary
+                              : theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      '${slot.label} Uhr',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      '${slot.arten} · an ${slot.tage} von '
+                      '${slot.erfassteTage} Tagen'
+                      '${slot == naechster ? ' · als Nächstes' : ''}',
+                    ),
+                    trailing: Text(
+                      quoteLabel(slot.anteil),
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                Text(
+                  'Ein Fenster gilt als fest, wenn er an mindestens der '
+                  'Hälfte der erfassten Tage darin raus musste (letzte '
+                  '$verdauungTage Tage). Kurz vor Beginn rausgehen.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }

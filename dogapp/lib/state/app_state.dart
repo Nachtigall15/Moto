@@ -19,6 +19,7 @@ import '../models/treat.dart';
 import '../models/vaccination.dart';
 import '../models/weight_entry.dart';
 import 'stubenreinheit.dart';
+import 'verdauung.dart';
 
 /// Die Listen, die mit der Zeit wachsen und deshalb nur ausschnittweise
 /// geladen werden.
@@ -473,6 +474,21 @@ class AppState extends ChangeNotifier {
   /// Trainingsübersicht zum jetzigen Zeitpunkt.
   Stubenbilanz stubenbilanz([DateTime? jetzt]) =>
       stubenBilanz(_geschaefte, jetzt ?? DateTime.now());
+
+  /// Wie lange nach dem Fressen er raus muss – Fütterung und
+  /// Geschäfte zusammen ausgewertet.
+  Verdauung verdauung([DateTime? jetzt]) =>
+      werteVerdauungAus(_feedings, _geschaefte, jetzt ?? DateTime.now());
+
+  /// Uhrzeiten, zu denen er regelmäßig raus muss.
+  List<Zeitslot> zeitslots([DateTime? jetzt]) =>
+      findeZeitslots(_geschaefte, jetzt ?? DateTime.now());
+
+  /// Nächster fälliger Gang aus Pipi-Rhythmus und Verdauung.
+  ({DateTime zeit, String grund})? naechsterGangAm([DateTime? jetzt]) {
+    final t = jetzt ?? DateTime.now();
+    return naechsterGang(stubenbilanz(t), verdauung(t));
+  }
 
   // --- Gewicht & Fotos ------------------------------------------------
 
