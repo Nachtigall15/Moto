@@ -105,6 +105,44 @@ void main() {
       expect(v.erwartung, isNull);
     });
 
+    test('Mahlzeiten aus der Zeit vor den ersten Geschäften zählen nicht', () {
+      final v = werteVerdauungAus(
+        [
+          // Gefüttert und aufgeschrieben wird schon seit zehn Tagen …
+          for (var i = 10; i >= 1; i--) futter(tag(i, 7)),
+        ],
+        [
+          // … Geschäfte erst seit drei Tagen.
+          for (var i = 3; i >= 1; i--) kakki(tag(i, 7, 30)),
+        ],
+        jetzt,
+      );
+      expect(v.kakki.mahlzeiten, 3);
+      expect(v.kakki.trefferquote, 1.0);
+    });
+
+    test('Tage ohne einen einzigen Eintrag zählen nicht', () {
+      final v = werteVerdauungAus(
+        [for (var i = 4; i >= 1; i--) futter(tag(i, 7))],
+        [
+          kakki(tag(4, 7, 30)),
+          // Tag 3: niemand hat etwas eingetragen.
+          kakki(tag(2, 7, 30)),
+          // Tag 1: eingetragen, aber nach dem Frühstück kein Kakki.
+          pipi(tag(1, 7, 10)),
+        ],
+        jetzt,
+      );
+      expect(v.kakki.mahlzeiten, 3);
+      expect(v.kakki.abstaende, hasLength(2));
+    });
+
+    test('ohne Geschäfte gibt es keine Auswertung', () {
+      final v = werteVerdauungAus([futter(tag(1, 7))], const [], jetzt);
+      expect(v.kakki.mahlzeiten, 0);
+      expect(v.erwartung, isNull);
+    });
+
     test('mit zu wenigen Beispielen wird nichts behauptet', () {
       final v = werteVerdauungAus(
         [futter(tag(1, 7)), futter(tag(2, 7))],

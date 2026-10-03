@@ -392,7 +392,8 @@ class _NachDemFressen extends StatelessWidget {
             'Gerechnet aus den letzten $verdauungTage Tagen: jeweils das '
             'erste Geschäft nach einer Mahlzeit, höchstens '
             '${formatDuration(nachFutterFenster)} danach und vor der '
-            'nächsten. Leckerli zählen nicht als Mahlzeit.',
+            'nächsten. Es zählen nur Tage, an denen auch Geschäfte '
+            'eingetragen sind; Leckerli zählen nicht als Mahlzeit.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

@@ -108,11 +108,42 @@ Verdauung werteVerdauungAus(
 ) {
   final seit = DateTime(jetzt.year, jetzt.month, jetzt.day - verdauungTage);
 
+  final sortiert = [...geschaefte]
+    ..sort((a, b) => a.zeitpunkt.compareTo(b.zeitpunkt));
+  if (sortiert.isEmpty) {
+    NachFutter leer(Geschaeftsart art) =>
+        NachFutter(art: art, abstaende: const [], mahlzeiten: 0);
+    return Verdauung(
+      kakki: leer(Geschaeftsart.kaki),
+      pipi: leer(Geschaeftsart.pipi),
+      erwartung: null,
+    );
+  }
+
+  // Nur Mahlzeiten, zu denen auch Geschäfte aufgeschrieben wurden.
+  // Fütterungen werden schon länger erfasst als Geschäfte; ohne diese
+  // Grenze sähe jede Mahlzeit aus der Zeit davor wie eine aus, nach
+  // der nichts kam. Dasselbe gilt für einzelne Tage, an denen niemand
+  // Geschäfte eingetragen hat – ein Tag ohne Eintrag ist ein Tag ohne
+  // Aufzeichnung. Ausnahme ist die jüngste Mahlzeit, solange ihr
+  // Fenster noch offen ist: Nach dem Frühstück steht heute vielleicht
+  // noch nichts da, und genau dann braucht es die Vorhersage.
+  //
+  // Eine Mahlzeit kurz vor dem allerersten Eintrag zählt noch mit: Ihr
+  // Fenster reicht in die Zeit hinein, in der schon aufgeschrieben
+  // wurde.
+  final ersterEintrag = sortiert.first.zeitpunkt.subtract(nachFutterFenster);
+  final abErfassung = ersterEintrag.isAfter(seit) ? ersterEintrag : seit;
+  final erfassteTage = {for (final g in sortiert) startOfDay(g.zeitpunkt)};
+  bool erfasst(FeedingEntry f) =>
+      erfassteTage.contains(startOfDay(f.zeitpunkt)) ||
+      f.zeitpunkt.add(nachFutterFenster).isAfter(jetzt);
+
   // Dicht aufeinanderfolgende Fütterungen zu einer Mahlzeit bündeln;
   // es zählt der Beginn.
   final roh = [
     for (final f in fuetterungen)
-      if (_zaehlt(f) && !f.zeitpunkt.isBefore(seit)) f,
+      if (_zaehlt(f) && !f.zeitpunkt.isBefore(abErfassung) && erfasst(f)) f,
   ]..sort((a, b) => a.zeitpunkt.compareTo(b.zeitpunkt));
   final mahlzeiten = <FeedingEntry>[];
   for (final f in roh) {
@@ -122,9 +153,6 @@ Verdauung werteVerdauungAus(
     }
     mahlzeiten.add(f);
   }
-
-  final sortiert = [...geschaefte]
-    ..sort((a, b) => a.zeitpunkt.compareTo(b.zeitpunkt));
 
   /// Erstes Geschäft dieser Art nach der Mahlzeit – aber vor der
   /// nächsten. Was danach kommt, lässt sich keiner Mahlzeit mehr

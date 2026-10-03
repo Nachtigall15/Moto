@@ -78,7 +78,10 @@ Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
   Kakki, wie lange Pipi? Je Mahlzeit zählt das erste Geschäft danach,
   höchstens vier Stunden später und vor der nächsten Mahlzeit;
   Fütterungen im Abstand unter 30 Minuten sind eine Mahlzeit, Leckerli
-  zählen nicht. Angezeigt werden der Median und die Spanne, in der die
+  zählen nicht. Mahlzeiten zählen nur ab dem ersten eingetragenen
+  Geschäft und nur an Tagen, an denen überhaupt Geschäfte eingetragen
+  sind – sonst sähe jede Fütterung aus der Zeit davor wie eine aus,
+  nach der nichts kam. Angezeigt werden der Median und die Spanne, in der die
   mittlere Hälfte der Fälle liegt („~35 min, meist 25 bis 45 min"). Ist
   nach der letzten Mahlzeit noch kein Kakki eingetragen, steht dort,
   ab wann er raus sollte. „Wieder raus" nimmt diese Uhr oder den
