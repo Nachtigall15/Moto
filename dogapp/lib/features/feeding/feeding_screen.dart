@@ -1,0 +1,423 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../../core/format.dart';
+import '../../models/feeding_entry.dart';
+import '../../state/app_state.dart';
+import '../common/ui.dart';
+
+class FeedingScreen extends StatelessWidget {
+  const FeedingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.watch<AppState>();
+    final today = DateTime.now();
+    final totals = state.totalsOn(today);
+    final heute = state.feedingsOn(today);
+
+    // Nach Tagen gruppieren, damit die Liste eine erkennbare Struktur
+    // hat statt einer endlosen Reihe von Einträgen.
+    final byDay = <DateTime, List<FeedingEntry>>{};
+    for (final f in state.feedings) {
+      byDay.putIfAbsent(startOfDay(f.zeitpunkt), () => []).add(f);
+    }
+    final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        // Eindeutige Kennung: Alle Reiter liegen gleichzeitig im
+        // Baum, ohne sie stolpert die Übergangsanimation über
+        // mehrere gleich benannte Knöpfe.
+        heroTag: 'fab-fuetterung',
+        onPressed: () => _openEditor(context),
+        icon: const Icon(Icons.add),
+        label: const Text('Fütterung'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+        children: [
+          SectionCard(
+            title: 'Heute',
+            icon: Icons.today_outlined,
+            child: Row(
+              children: [
+                Expanded(
+                  child: StatTile(
+                    label: 'Mahlzeiten',
+                    value: '${heute.length}',
+                    icon: Icons.restaurant_outlined,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: StatTile(
+                    label: 'Menge',
+                    value: totals.isEmpty ? '–' : futterSummeLabel(totals),
+                    icon: Icons.scale_outlined,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (days.isEmpty)
+            const Card(
+              child: EmptyHint(
+                icon: Icons.ramen_dining_outlined,
+                text: 'Noch nichts eingetragen.\n'
+                    'Mit „+ Fütterung" die erste Mahlzeit erfassen.',
+              ),
+            ),
+          for (final day in days) ...[
+            Builder(builder: (context) {
+              final eintraege = byDay[day]!;
+              // Die Summe zählt alles mit, was an dem Tag im Napf
+              // gelandet ist – genau wie die Kennzahl oben. Zwei
+              // verschiedene Tagesmengen auf einem Bildschirm wären
+              // schlimmer als die fehlende Feinheit.
+              final leckerli =
+                  eintraege.where((f) => f.mahlzeit == Mahlzeit.leckerli).length;
+              final mahlzeiten = eintraege.length - leckerli;
+              return TagesKopf(
+                tag: isSameDay(day, today) ? 'Heute' : dfWeekday.format(day),
+                summe: futterSummeLabel(futterSumme(eintraege)),
+                zusatz: '$mahlzeiten '
+                    '${mahlzeiten == 1 ? 'Mahlzeit' : 'Mahlzeiten'}'
+                    '${leckerli == 0 ? '' : ' · $leckerli Leckerli'}',
+              );
+            }),
+            Card(
+              child: Column(
+                children: [
+                  for (final entry
+                      in byDay[day]!
+                        ..sort((a, b) => b.zeitpunkt.compareTo(a.zeitpunkt)))
+                    _FeedingTile(entry: entry),
+                ],
+              ),
+            ),
+          ],
+          const MehrLaden(bereich: Bereich.fuetterung),
+        ],
+      ),
+    );
+  }
+}
+
+class _FeedingTile extends StatelessWidget {
+  const _FeedingTile({required this.entry});
+
+  final FeedingEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      onTap: () => _openEditor(context, entry: entry),
+      leading: CircleAvatar(
+        backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.14),
+        child: Icon(
+          _iconFor(entry.mahlzeit),
+          size: 20,
+          color: theme.colorScheme.primary,
+        ),
+      ),
+      title: Text(
+        entry.futter.isEmpty ? entry.mahlzeit.label : entry.futter,
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        '${dfTime.format(entry.zeitpunkt)} Uhr · ${entry.mahlzeit.label}'
+        '${entry.notiz.isEmpty ? '' : ' · ${entry.notiz}'}',
+      ),
+      trailing: Text(
+        entry.mengeLabel,
+        style:
+            theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+
+  static IconData _iconFor(Mahlzeit m) => switch (m) {
+        Mahlzeit.fruehstueck => Icons.wb_twilight,
+        Mahlzeit.hauptmahlzeit => Icons.restaurant,
+        Mahlzeit.abendessen => Icons.nights_stay_outlined,
+        Mahlzeit.snack => Icons.cookie_outlined,
+        Mahlzeit.leckerli => Icons.pets,
+      };
+}
+
+Future<void> _openEditor(BuildContext context, {FeedingEntry? entry}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (_) => _FeedingEditor(entry: entry),
+  );
+}
+
+class _FeedingEditor extends StatefulWidget {
+  const _FeedingEditor({this.entry});
+
+  final FeedingEntry? entry;
+
+  @override
+  State<_FeedingEditor> createState() => _FeedingEditorState();
+}
+
+class _FeedingEditorState extends State<_FeedingEditor> {
+  late final TextEditingController _futter =
+      TextEditingController(text: widget.entry?.futter ?? '');
+  late final TextEditingController _menge = TextEditingController(
+    text: widget.entry == null ? '' : nfAmount.format(widget.entry!.menge),
+  );
+  late final TextEditingController _notiz =
+      TextEditingController(text: widget.entry?.notiz ?? '');
+  final FocusNode _futterFocus = FocusNode();
+
+  late DateTime _zeitpunkt = widget.entry?.zeitpunkt ?? DateTime.now();
+  late Einheit _einheit = widget.entry?.einheit ?? Einheit.gramm;
+  late Mahlzeit _mahlzeit = widget.entry?.mahlzeit ?? _vorschlagMahlzeit();
+
+  static Mahlzeit _vorschlagMahlzeit() {
+    final h = DateTime.now().hour;
+    if (h < 11) return Mahlzeit.fruehstueck;
+    if (h < 16) return Mahlzeit.hauptmahlzeit;
+    return Mahlzeit.abendessen;
+  }
+
+  @override
+  void dispose() {
+    _futter.dispose();
+    _menge.dispose();
+    _notiz.dispose();
+    _futterFocus.dispose();
+    super.dispose();
+  }
+
+  /// Vorschlag übernehmen. Der Name landet über den Controller im
+  /// Feld, hier kommt der Rest dazu – ein reiner Namensvorschlag lässt
+  /// die schon eingetippte Menge in Ruhe.
+  void _uebernehmen(Futtervorlage vorlage) {
+    if (!vorlage.istKomplett) return;
+    setState(() {
+      _menge.text = nfAmount.format(vorlage.menge);
+      _einheit = vorlage.einheit;
+      if (vorlage.mahlzeit != null) _mahlzeit = vorlage.mahlzeit!;
+    });
+  }
+
+  Future<void> _save() async {
+    final state = context.read<AppState>();
+    final menge = double.tryParse(_menge.text.trim().replaceAll(',', '.')) ?? 0;
+
+    final entry = (widget.entry ??
+            FeedingEntry(
+              zeitpunkt: _zeitpunkt,
+              futter: '',
+              menge: 0,
+            ))
+        .copyWith(
+      zeitpunkt: _zeitpunkt,
+      futter: _futter.text.trim(),
+      menge: menge,
+      einheit: _einheit,
+      mahlzeit: _mahlzeit,
+      notiz: _notiz.text.trim(),
+    );
+
+    await state.saveFeeding(entry);
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  Future<void> _delete() async {
+    final state = context.read<AppState>();
+    await state.deleteFeeding(widget.entry!.id);
+    if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vorschlaege = context.read<AppState>().futterVorlagen();
+
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.entry == null ? 'Neue Fütterung' : 'Fütterung bearbeiten',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final m in Mahlzeit.values)
+                  ChoiceChip(
+                    label: Text(m.label),
+                    selected: _mahlzeit == m,
+                    onSelected: (_) => setState(() => _mahlzeit = m),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Die drei häufigsten Fütterungen als Knopf: ein Antippen
+            // füllt Name, Menge, Einheit und Mahlzeit auf einmal.
+            //
+            // Sie stehen zusätzlich zur Vervollständigung im Feld, weil
+            // deren Liste erst beim Tippen aufgeht – wer nichts
+            // eintippt, bekäme sie sonst nie zu sehen.
+            if (vorschlaege.any((v) => v.istKomplett)) ...[
+              Text(
+                'Häufig',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final v in vorschlaege.where((v) => v.istKomplett))
+                    ActionChip(
+                      avatar: const Icon(Icons.bolt_outlined, size: 16),
+                      label: Text('${v.futter} · ${v.details}'),
+                      onPressed: () {
+                        _futter.text = v.futter;
+                        _uebernehmen(v);
+                      },
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+            // Antippen genügt: Die häufigsten Fütterungen stehen oben
+            // und füllen Menge, Einheit und Mahlzeit gleich mit. Wer
+            // tippt, bekommt zusätzlich die bekannten Sorten.
+            RawAutocomplete<Futtervorlage>(
+              textEditingController: _futter,
+              focusNode: _futterFocus,
+              displayStringForOption: (v) => v.futter,
+              optionsBuilder: (value) {
+                final q = value.text.trim().toLowerCase();
+                if (q.isEmpty) return vorschlaege.take(6);
+                return vorschlaege
+                    .where((v) => v.futter.toLowerCase().contains(q))
+                    .take(6);
+              },
+              onSelected: _uebernehmen,
+              fieldViewBuilder: (context, controller, focusNode, onSubmit) =>
+                  TextField(
+                controller: controller,
+                focusNode: focusNode,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Was',
+                  hintText: 'z. B. Trockenfutter, Hühnchen mit Reis',
+                ),
+              ),
+              optionsViewBuilder: (context, onSelected, options) => Align(
+                alignment: Alignment.topLeft,
+                child: Material(
+                  elevation: 3,
+                  borderRadius: BorderRadius.circular(12),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 260),
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final o in options)
+                          ListTile(
+                            leading: Icon(
+                              o.istKomplett
+                                  ? Icons.bolt_outlined
+                                  : Icons.restaurant_outlined,
+                              size: 20,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            title: Text(o.futter),
+                            subtitle:
+                                o.istKomplett ? Text(o.details) : null,
+                            onTap: () => onSelected(o),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: _menge,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Wie viel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 3,
+                  child: SegmentedButton<Einheit>(
+                    segments: [
+                      for (final e in Einheit.values)
+                        ButtonSegment(value: e, label: Text(e.label)),
+                    ],
+                    selected: {_einheit},
+                    onSelectionChanged: (s) =>
+                        setState(() => _einheit = s.first),
+                    showSelectedIcon: false,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final picked = await pickDateTime(context, _zeitpunkt);
+                if (picked != null) setState(() => _zeitpunkt = picked);
+              },
+              icon: const Icon(Icons.schedule),
+              label: Text('${dfDateTime.format(_zeitpunkt)} Uhr'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _notiz,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Notiz (optional)',
+                hintText: 'z. B. hat nicht aufgegessen',
+              ),
+            ),
+            const SizedBox(height: 20),
+            FilledButton(onPressed: _save, child: const Text('Speichern')),
+            if (widget.entry != null) ...[
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: _delete,
+                icon: const Icon(Icons.delete_outline),
+                label: const Text('Löschen'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
