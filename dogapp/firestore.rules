@@ -1,0 +1,41 @@
+rules_version = '2';
+
+// Zugriffsregeln für die Hunde-App.
+//
+// Zugelassen sind ausschließlich die hier aufgeführten Adressen. Eine
+// bloße Anmeldung genügt bewusst nicht: Bei E-Mail-Anmeldung kann sich
+// sonst jede beliebige Person selbst ein Konto anlegen und käme damit
+// an die Daten.
+//
+// NEUE PERSON AUFNEHMEN:
+//   1. Firebase-Konsole → Authentication → Users → "Add user"
+//      (E-Mail und Startpasswort vergeben).
+//   2. Die Adresse unten in die Liste eintragen.
+//   3. Firestore → Regeln → einfügen → "Veröffentlichen".
+//
+// Beide Schritte sind nötig. Fehlt der zweite, kann sich die Person
+// zwar anmelden, sieht aber nur Fehlermeldungen.
+//
+// PERSON AUSSCHLIESSEN: Adresse aus der Liste streichen und neu
+// veröffentlichen – der Zugriff ist sofort weg, auch auf Geräten, die
+// noch angemeldet sind.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Die Adresse muss exakt die sein, mit der sich die Person in der
+    // App anmeldet – nicht die, unter der man Firebase verwaltet. Auf
+    // der Übersicht steht unten "Angemeldet als …"; genau das gehört
+    // hier hinein.
+    function zugelassen() {
+      return request.auth != null
+          && request.auth.token.email in [
+               'bheki@dog.de'
+               // , 'hundetrainerin@beispiel.de'
+             ];
+    }
+
+    match /haushalte/{haushalt}/{rest=**} {
+      allow read, write: if zugelassen();
+    }
+  }
+}
