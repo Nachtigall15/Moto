@@ -425,6 +425,19 @@ void main() {
       // Die wiederkehrende Morgenfütterung ist als Zeitfenster erkannt.
       expect(find.text('07:00 · 3×'), findsOneWidget);
 
+      // Nach Woche aufgeteilt steht jede Kalenderwoche für sich.
+      await tester.tap(find.text('Woche'));
+      await tester.pumpAndSettle();
+      expect(find.text('Uhrzeiten je Kalenderwoche'), findsOneWidget);
+      expect(find.textContaining('KW '), findsWidgets);
+
+      await tester.tap(find.text('Monat'));
+      await tester.pumpAndSettle();
+      expect(find.text('Uhrzeiten je Monat'), findsOneWidget);
+
+      await tester.tap(find.text('Wochentag'));
+      await tester.pumpAndSettle();
+
       // Die Schlafauswertung liegt darunter – die Liste baut sie erst
       // beim Scrollen auf.
       await tester.scrollUntilVisible(

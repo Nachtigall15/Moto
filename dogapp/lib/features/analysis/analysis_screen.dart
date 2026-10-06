@@ -20,6 +20,7 @@ class AnalysisScreen extends StatefulWidget {
 
 class _AnalysisScreenState extends State<AnalysisScreen> {
   Zeitraum _zeitraum = Zeitraum.monat;
+  Gliederung _gliederung = Gliederung.wochentag;
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +46,18 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          _FutterKarte(analyse: futter),
+          _FutterKarte(
+            analyse: futter,
+            gliederung: _gliederung,
+            perioden: _gliederung == Gliederung.wochentag
+                ? const []
+                : werteFutterNachPeriodenAus(
+                    state.feedings,
+                    gliederung: _gliederung,
+                    zeitraum: _zeitraum,
+                  ),
+            onGliederung: (g) => setState(() => _gliederung = g),
+          ),
           const SizedBox(height: 16),
           _SchlafKarte(analyse: schlaf),
           const SizedBox(height: 20),
@@ -67,14 +79,125 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 // --- Fütterung --------------------------------------------------------
 
 class _FutterKarte extends StatelessWidget {
-  const _FutterKarte({required this.analyse});
+  const _FutterKarte({
+    required this.analyse,
+    required this.gliederung,
+    required this.perioden,
+    required this.onGliederung,
+  });
 
   final FutterAnalyse analyse;
+  final Gliederung gliederung;
+
+  /// Nur gefüllt, wenn nach Woche oder Monat aufgeteilt wird.
+  final List<FutterPeriode> perioden;
+  final ValueChanged<Gliederung> onGliederung;
+
+  List<Widget> _nachWochentag(BuildContext context) {
+    final theme = Theme.of(context);
+    return [
+      Text(
+        'Uhrzeiten nach Wochentag',
+        style:
+            theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+      ),
+      const SizedBox(height: 2),
+      Text(
+        'Ein Punkt je Mahlzeit. Leckerli zählen nicht mit.',
+        style: theme.textTheme.bodySmall
+            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      ),
+      const SizedBox(height: 10),
+      for (final tag in analyse.wochentage)
+        _ZeitenZeile(
+          kurz: tag.kurz,
+          lang: tag.lang,
+          zeiten: tag.zeiten,
+        ),
+      const _StundenLeiste(),
+      if (analyse.typischeZeiten.isNotEmpty) ...[
+        const SizedBox(height: 16),
+        Text(
+          'Typische Zeiten',
+          style:
+              theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            for (final f in analyse.typischeZeiten.take(5))
+              _Marke(
+                text: '${uhrzeitLabel(f.mittel)} · ${f.anzahl}×',
+                hinweis: f.anzahl == 1 ? null : 'Spanne ${f.label}',
+              ),
+          ],
+        ),
+      ],
+      const SizedBox(height: 16),
+      // Dieselben Zahlen noch einmal zum Nachlesen: Ein
+      // Punktbild beantwortet „wann", eine Zahl „wie viel".
+      for (final tag in analyse.wochentage)
+        if (tag.anzahl > 0)
+          _TabellenZeile(
+            links: tag.lang,
+            rechts: '${nfAmount.format(tag.mahlzeitenProTag)} '
+                'Mahlzeiten'
+                '${tag.mengeProTag.isEmpty ? '' : ' · '
+                    '${futterSummeLabel(tag.mengeProTag)}'}',
+            hinweis: 'an ${tag.erfassteTage} '
+                '${tag.erfassteTage == 1 ? 'Tag' : 'Tagen'} erfasst',
+          ),
+    ];
+  }
+
+  /// Jede Woche bzw. jeder Monat für sich – so bleibt eine Umstellung
+  /// (etwa von vier auf drei Mahlzeiten) als Umstellung sichtbar,
+  /// statt zu einem Mittelwert zu verschwimmen.
+  List<Widget> _nachPeriode(BuildContext context) {
+    final theme = Theme.of(context);
+    final woche = gliederung == Gliederung.woche;
+    const einzug = 44.0;
+    return [
+      Text(
+        woche ? 'Uhrzeiten je Kalenderwoche' : 'Uhrzeiten je Monat',
+        style:
+            theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+      ),
+      const SizedBox(height: 2),
+      Text(
+        'Ein Punkt je Mahlzeit, jüngste ${woche ? 'Woche' : 'Monat'} oben. '
+        'Leckerli zählen nicht mit.',
+        style: theme.textTheme.bodySmall
+            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      ),
+      const SizedBox(height: 10),
+      for (final p in perioden)
+        _ZeitenZeile(
+          kurz: p.kurz,
+          lang: p.lang,
+          zeiten: p.zeiten,
+          einzug: einzug,
+        ),
+      const _StundenLeiste(einzug: einzug),
+      const SizedBox(height: 16),
+      for (final p in perioden)
+        _TabellenZeile(
+          links: p.lang,
+          rechts: '${nfAmount.format(p.mahlzeitenProTag)} Mahlzeiten'
+              '${p.mengeProTag.isEmpty ? '' : ' · '
+                  '${futterSummeLabel(p.mengeProTag)}'}',
+          hinweis:
+              'meist ${p.typischeZeiten.map((z) => uhrzeitLabel(z.mittel)).join(', ')} Uhr · '
+              'an ${p.erfassteTage} '
+              '${p.erfassteTage == 1 ? 'Tag' : 'Tagen'} erfasst',
+        ),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return SectionCard(
       title: 'Fütterung – wann',
       icon: Icons.restaurant_outlined,
@@ -110,68 +233,41 @@ class _FutterKarte extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  'Uhrzeiten nach Wochentag',
-                  style: theme.textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                SegmentedButton<Gliederung>(
+                  segments: [
+                    for (final g in Gliederung.values)
+                      ButtonSegment(value: g, label: Text(g.label)),
+                  ],
+                  selected: {gliederung},
+                  onSelectionChanged: (s) => onGliederung(s.first),
+                  showSelectedIcon: false,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  'Ein Punkt je Mahlzeit. Leckerli zählen nicht mit.',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 10),
-                for (final tag in analyse.wochentage)
-                  _ZeitenZeile(tag: tag),
-                const _StundenLeiste(),
-                if (analyse.typischeZeiten.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    'Typische Zeiten',
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: [
-                      for (final f in analyse.typischeZeiten.take(5))
-                        _Marke(
-                          text: '${uhrzeitLabel(f.mittel)} · ${f.anzahl}×',
-                          hinweis: f.anzahl == 1
-                              ? null
-                              : 'Spanne ${f.label}',
-                        ),
-                    ],
-                  ),
-                ],
-                const SizedBox(height: 16),
-                // Dieselben Zahlen noch einmal zum Nachlesen: Ein
-                // Punktbild beantwortet „wann", eine Zahl „wie viel".
-                for (final tag in analyse.wochentage)
-                  if (tag.anzahl > 0)
-                    _TabellenZeile(
-                      links: tag.lang,
-                      rechts: '${nfAmount.format(tag.mahlzeitenProTag)} '
-                          'Mahlzeiten'
-                          '${tag.mengeProTag.isEmpty ? '' : ' · '
-                              '${futterSummeLabel(tag.mengeProTag)}'}',
-                      hinweis: 'an ${tag.erfassteTage} '
-                          '${tag.erfassteTage == 1 ? 'Tag' : 'Tagen'} erfasst',
-                    ),
+                const SizedBox(height: 12),
+                if (gliederung == Gliederung.wochentag)
+                  ..._nachWochentag(context)
+                else
+                  ..._nachPeriode(context),
               ],
             ),
     );
   }
 }
 
-/// Ein Wochentag als Zeitstrahl von 0 bis 24 Uhr.
+/// Ein Wochentag, eine Woche oder ein Monat als Zeitstrahl von 0 bis 24 Uhr.
 class _ZeitenZeile extends StatelessWidget {
-  const _ZeitenZeile({required this.tag});
+  const _ZeitenZeile({
+    required this.kurz,
+    required this.lang,
+    required this.zeiten,
+    this.einzug = 26,
+  });
 
-  final FutterWochentag tag;
+  final String kurz;
+  final String lang;
+
+  /// Minuten seit Mitternacht.
+  final List<int> zeiten;
+  final double einzug;
 
   @override
   Widget build(BuildContext context) {
@@ -182,9 +278,9 @@ class _ZeitenZeile extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 26,
+            width: einzug,
             child: Text(
-              tag.kurz,
+              kurz,
               style: theme.textTheme.labelMedium
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
@@ -212,12 +308,12 @@ class _ZeitenZeile extends StatelessWidget {
                           ),
                         ),
                       ),
-                      for (final minute in tag.zeiten)
+                      for (final minute in zeiten)
                         Positioned(
                           left: breite * (minute / 1440),
                           top: (22 - punkt) / 2,
                           child: Tooltip(
-                            message: '${tag.lang}, ${uhrzeitLabel(minute)} Uhr',
+                            message: '$lang, ${uhrzeitLabel(minute)} Uhr',
                             child: Container(
                               width: punkt,
                               height: punkt,
@@ -452,7 +548,11 @@ class _RasterLegende extends StatelessWidget {
 /// Stundenbeschriftung unter einem Raster. Nur alle sechs Stunden –
 /// 24 Zahlen wären eine Wand.
 class _StundenLeiste extends StatelessWidget {
-  const _StundenLeiste();
+  const _StundenLeiste({this.einzug = 26});
+
+  /// Breite der Beschriftung links, damit die Achse unter den Zeilen
+  /// beginnt.
+  final double einzug;
 
   @override
   Widget build(BuildContext context) {
@@ -464,7 +564,7 @@ class _StundenLeiste extends StatelessWidget {
       padding: const EdgeInsets.only(top: 4),
       child: Row(
         children: [
-          const SizedBox(width: 26),
+          SizedBox(width: einzug),
           Expanded(child: Text('0', style: stil)),
           Expanded(
             child: Text('6', style: stil, textAlign: TextAlign.center),

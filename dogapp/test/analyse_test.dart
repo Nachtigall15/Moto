@@ -2,6 +2,7 @@ import 'package:dogapp/models/feeding_entry.dart';
 import 'package:dogapp/models/sleep_entry.dart';
 import 'package:dogapp/state/analyse.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 void main() {
   // Fester Bezugspunkt: Montag, 3. August 2026, 12:00.
@@ -223,6 +224,71 @@ void main() {
       expect(analyse.wochentage, hasLength(7));
       expect(analyse.stundenSpitze, 0);
       expect(analyse.proTag, Duration.zero);
+    });
+  });
+
+  group('Fütterung je Woche und Monat', () {
+    // Die Wochenbeschriftung trägt deutsche Datumsangaben.
+    setUpAll(() => initializeDateFormatting('de_DE'));
+
+    test('Kalenderwoche nach ISO', () {
+      expect(kalenderwoche(DateTime(2026, 1, 1)), 1); // Donnerstag
+      expect(kalenderwoche(DateTime(2027, 1, 1)), 53); // Freitag → KW 53
+      expect(kalenderwoche(DateTime(2026, 8, 3)), 32);
+      expect(kalenderwoche(DateTime(2026, 10, 5)), 41);
+    });
+
+    test('eine Umstellung von vier auf drei Mahlzeiten bleibt sichtbar', () {
+      // KW 30 (20.–26. Juli): viermal am Tag
+      // KW 31 (27. Juli – 2. August): dreimal am Tag
+      final eintraege = [
+        for (var d = 20; d <= 26; d++)
+          for (final h in [7, 11, 15, 19]) mahlzeit(DateTime(2026, 7, d, h)),
+        for (var d = 27; d <= 31; d++)
+          for (final h in [7, 12, 18]) mahlzeit(DateTime(2026, 7, d, h)),
+        for (var d = 1; d <= 2; d++)
+          for (final h in [7, 12, 18]) mahlzeit(tag(d, h)),
+        // Leckerli zählen nicht
+        mahlzeit(tag(2, 15), art: Mahlzeit.leckerli),
+      ];
+
+      final wochen = werteFutterNachPeriodenAus(
+        eintraege,
+        gliederung: Gliederung.woche,
+        zeitraum: Zeitraum.alles,
+        jetzt: jetzt,
+      );
+      expect(wochen, hasLength(2));
+      expect(wochen.first.kurz, 'KW 31');
+      expect(wochen.first.lang, 'KW 31 · 27.07. – 02.08.');
+      expect(wochen.first.mahlzeitenProTag, 3);
+      expect(
+        wochen.first.typischeZeiten.map((z) => uhrzeitLabel(z.mittel)),
+        ['07:00', '12:00', '18:00'],
+      );
+      expect(wochen.last.mahlzeitenProTag, 4);
+      expect(wochen.last.typischeZeiten, hasLength(4));
+      expect(wochen.first.mengeProTag[Einheit.gramm], 450);
+
+      final monate = werteFutterNachPeriodenAus(
+        eintraege,
+        gliederung: Gliederung.monat,
+        zeitraum: Zeitraum.alles,
+        jetzt: jetzt,
+      );
+      expect(monate.map((m) => m.lang), ['August 2026', 'Juli 2026']);
+      expect(monate.first.erfassteTage, 2);
+      expect(monate.last.anzahl, 7 * 4 + 5 * 3);
+    });
+
+    test('der Zeitraum begrenzt auch die Wochen', () {
+      final wochen = werteFutterNachPeriodenAus(
+        [mahlzeit(DateTime(2026, 6, 1, 7)), mahlzeit(tag(3, 7))],
+        gliederung: Gliederung.woche,
+        zeitraum: Zeitraum.woche,
+        jetzt: jetzt,
+      );
+      expect(wochen, hasLength(1));
     });
   });
 }

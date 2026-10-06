@@ -102,7 +102,11 @@ Der Heimtierausweis hängt am Ausweis-Symbol oben rechts in der
   ist eine Schlafphase von Anfang bis Ende und gehört zum Tag ihres
   Beginns; die Tagessummen dagegen zählen Nächte über Mitternacht
   anteilig, wie in der Schlafliste. Zeitraum wählbar (7 / 30 / 90 Tage
-  / alles). Gemittelt wird über **erfasste** Tage, nicht über
+  / alles). Die Fütterung lässt sich außerdem **nach Woche oder Monat**
+  aufteilen: Jede Kalenderwoche bzw. jeder Monat bekommt eine eigene
+  Zeile mit Mahlzeiten je Tag, Menge und den üblichen Uhrzeiten. So
+  bleibt eine Umstellung – etwa von vier auf drei Mahlzeiten – als
+  Umstellung sichtbar, statt zu 3,5 Mahlzeiten zu verschwimmen. Gemittelt wird über **erfasste** Tage, nicht über
   Kalendertage – ein Tag ohne Eintrag ist meist ein Tag ohne
   Aufzeichnung und würde den Schnitt nur verfälschen.
 - **Gewicht & Fotos** – Messung mit Datum/Uhrzeit, optionalem Foto und

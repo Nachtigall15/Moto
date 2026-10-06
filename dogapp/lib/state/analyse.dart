@@ -114,8 +114,9 @@ class Zeitfenster {
   final int anzahl;
 
   /// „07:10" bei einem Punkt, sonst „06:55 – 07:25".
-  String get label =>
-      von == bis ? uhrzeitLabel(mittel) : '${uhrzeitLabel(von)} – ${uhrzeitLabel(bis)}';
+  String get label => von == bis
+      ? uhrzeitLabel(mittel)
+      : '${uhrzeitLabel(von)} – ${uhrzeitLabel(bis)}';
 }
 
 class FutterAnalyse {
@@ -135,8 +136,7 @@ class FutterAnalyse {
   final int erfassteTage;
   final Map<Einheit, double> menge;
 
-  int get anzahl =>
-      wochentage.fold(0, (summe, w) => summe + w.anzahl);
+  int get anzahl => wochentage.fold(0, (summe, w) => summe + w.anzahl);
 
   bool get leer => anzahl == 0;
 
@@ -198,6 +198,154 @@ FutterAnalyse werteFutterAus(
     erfassteTage: alleTage.length,
     menge: _sortiereEinheiten(gesamtmenge),
   );
+}
+
+/// Wie die Fütterung aufgeteilt wird.
+///
+/// Nach Wochentag zeigt den Wochenrhythmus eines Haushalts; nach Woche
+/// oder Monat zeigt, wie sich die Fütterung verändert – etwa wenn ein
+/// Welpe von vier auf drei Mahlzeiten umgestellt wird. Über einen
+/// Zeitraum gemittelt, der die Umstellung enthält, kämen 3,5
+/// Mahlzeiten zu Zeiten heraus, die es nie gab.
+enum Gliederung {
+  wochentag('Wochentag'),
+  woche('Woche'),
+  monat('Monat');
+
+  const Gliederung(this.label);
+
+  final String label;
+}
+
+const List<String> monatLang = [
+  'Januar',
+  'Februar',
+  'März',
+  'April',
+  'Mai',
+  'Juni',
+  'Juli',
+  'August',
+  'September',
+  'Oktober',
+  'November',
+  'Dezember',
+];
+
+/// Kalenderwoche nach ISO 8601: Die Woche beginnt am Montag, und die
+/// erste Woche ist die mit dem ersten Donnerstag des Jahres.
+int kalenderwoche(DateTime d) {
+  final tag = DateTime.utc(d.year, d.month, d.day);
+  final donnerstag = tag.add(Duration(days: DateTime.thursday - tag.weekday));
+  final jahresbeginn = DateTime.utc(donnerstag.year, 1, 1);
+  return donnerstag.difference(jahresbeginn).inDays ~/ 7 + 1;
+}
+
+/// Eine Woche oder ein Monat in der Fütterungsauswertung.
+class FutterPeriode {
+  FutterPeriode({
+    required this.start,
+    required this.ende,
+    required this.kurz,
+    required this.lang,
+    required this.zeiten,
+    required this.erfassteTage,
+    required this.menge,
+  });
+
+  /// Erster und letzter Kalendertag der Periode.
+  final DateTime start;
+  final DateTime ende;
+
+  /// „KW 40" bzw. „Okt"; „KW 40 · 28.09. – 04.10." bzw. „Oktober 2026".
+  final String kurz;
+  final String lang;
+
+  /// Uhrzeiten aller Mahlzeiten als Minuten seit Mitternacht, aufsteigend.
+  final List<int> zeiten;
+  final int erfassteTage;
+  final Map<Einheit, double> menge;
+
+  int get anzahl => zeiten.length;
+
+  double get mahlzeitenProTag => erfassteTage == 0 ? 0 : anzahl / erfassteTage;
+
+  Map<Einheit, double> get mengeProTag => erfassteTage == 0
+      ? const {}
+      : {for (final e in menge.entries) e.key: e.value / erfassteTage};
+
+  /// Die üblichen Fütterungszeiten dieser Periode, nach Uhrzeit.
+  ///
+  /// Es werden so viele Zeitfenster genommen, wie es im Schnitt
+  /// Mahlzeiten am Tag gab – die häufigsten. Ein einmaliger
+  /// Ausreißer taucht so nicht als eigene Fütterungszeit auf.
+  List<Zeitfenster> get typischeZeiten {
+    final n = mahlzeitenProTag.round().clamp(1, 12);
+    return (_fasseZeitenZusammen(zeiten).take(n).toList()
+      ..sort((a, b) => a.mittel.compareTo(b.mittel)));
+  }
+}
+
+/// Fütterung nach Kalenderwochen oder Monaten, jüngste zuerst.
+///
+/// Wie bei [werteFutterAus] zählen nur erfasste Tage, und Leckerli
+/// bleiben außen vor.
+List<FutterPeriode> werteFutterNachPeriodenAus(
+  Iterable<FeedingEntry> eintraege, {
+  required Gliederung gliederung,
+  Zeitraum zeitraum = Zeitraum.monat,
+  DateTime? jetzt,
+}) {
+  assert(gliederung != Gliederung.wochentag);
+  final grenze = zeitraum.ab(jetzt ?? DateTime.now());
+
+  DateTime beginnVon(DateTime tag) => gliederung == Gliederung.woche
+      ? DateTime(tag.year, tag.month, tag.day - (tag.weekday - 1))
+      : DateTime(tag.year, tag.month);
+
+  final zeiten = <DateTime, List<int>>{};
+  final tage = <DateTime, Set<DateTime>>{};
+  final mengen = <DateTime, Map<Einheit, double>>{};
+
+  for (final f in eintraege) {
+    if (f.mahlzeit == Mahlzeit.leckerli) continue;
+    final tag = startOfDay(f.zeitpunkt);
+    if (grenze != null && tag.isBefore(grenze)) continue;
+    final beginn = beginnVon(tag);
+    zeiten.putIfAbsent(beginn, () => []).add(
+          f.zeitpunkt.hour * 60 + f.zeitpunkt.minute,
+        );
+    tage.putIfAbsent(beginn, () => {}).add(tag);
+    if (f.menge > 0) {
+      final m = mengen.putIfAbsent(beginn, () => {});
+      m[f.einheit] = (m[f.einheit] ?? 0) + f.menge;
+    }
+  }
+
+  final perioden = [
+    for (final beginn in zeiten.keys)
+      () {
+        final ende = gliederung == Gliederung.woche
+            ? DateTime(beginn.year, beginn.month, beginn.day + 6)
+            : DateTime(beginn.year, beginn.month + 1, 0);
+        final woche = gliederung == Gliederung.woche;
+        return FutterPeriode(
+          start: beginn,
+          ende: ende,
+          kurz: woche
+              ? 'KW ${kalenderwoche(beginn)}'
+              : monatLang[beginn.month - 1].substring(0, 3),
+          lang: woche
+              ? 'KW ${kalenderwoche(beginn)} · '
+                  '${dfShortDay.format(beginn)} – ${dfShortDay.format(ende)}'
+              : '${monatLang[beginn.month - 1]} ${beginn.year}',
+          zeiten: zeiten[beginn]!..sort(),
+          erfassteTage: tage[beginn]!.length,
+          menge: _sortiereEinheiten(mengen[beginn] ?? {}),
+        );
+      }(),
+  ]..sort((a, b) => b.start.compareTo(a.start));
+  return perioden;
 }
 
 Map<Einheit, double> _sortiereEinheiten(Map<Einheit, double> roh) => {
